@@ -1,6 +1,9 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import { Building2 } from "lucide-react";
+
+import { createClient } from "../lib/supabase/client";
 import { Button } from "./Button";
 
 type AuthMockProps = {
@@ -9,7 +12,106 @@ type AuthMockProps = {
 };
 
 export function AuthMock({ type, setActiveView }: AuthMockProps) {
+  const supabase = useMemo(() => createClient(), []);
   const register = type === "register";
+
+  const [fullName, setFullName] = useState("");
+  const [companyName, setCompanyName] = useState("Hotel Costa Azul");
+  const [sector, setSector] = useState("Hotel / alojamiento turístico");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  const [isLoading, setIsLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
+
+  const handleSubmit = async () => {
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanCompanyName = companyName.trim();
+    const cleanFullName = fullName.trim();
+
+    if (!cleanEmail) {
+      setErrorMessage("Introduce un email.");
+      return;
+    }
+
+    if (!password) {
+      setErrorMessage("Introduce una contraseña.");
+      return;
+    }
+
+    if (register && !cleanCompanyName) {
+      setErrorMessage("Introduce el nombre de la empresa.");
+      return;
+    }
+
+    try {
+      setIsLoading(true);
+
+      if (register) {
+        const { data, error } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password,
+          options: {
+            data: {
+              full_name: cleanFullName,
+              company_name: cleanCompanyName,
+              sector,
+            },
+          },
+        });
+
+        if (error) {
+          throw error;
+        }
+
+        if (!data.session) {
+          setSuccessMessage(
+            "Cuenta creada. Revisa tu email para confirmar la cuenta antes de iniciar sesión."
+          );
+          return;
+        }
+
+        const { error: companyError } = await supabase.rpc(
+          "create_company_for_current_user",
+          {
+            company_name: cleanCompanyName,
+          }
+        );
+
+        if (companyError) {
+          await supabase.auth.signOut();
+          throw companyError;
+        }
+
+        setActiveView("dashboard");
+        return;
+      }
+
+      const { error } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password,
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      setActiveView("dashboard");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Ha ocurrido un error inesperado.";
+
+      setErrorMessage(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#F7F9FA] px-6 py-10">
@@ -31,19 +133,30 @@ export function AuthMock({ type, setActiveView }: AuthMockProps) {
           {register ? (
             <label className="block text-sm font-medium text-slate-700">
               Nombre completo
-              <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]" />
+              <input
+                value={fullName}
+                onChange={(event) => setFullName(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
+              />
             </label>
           ) : null}
 
           <label className="block text-sm font-medium text-slate-700">
             Email
-            <input className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]" />
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
+            />
           </label>
 
           <label className="block text-sm font-medium text-slate-700">
             Contraseña
             <input
               type="password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
               className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
             />
           </label>
@@ -53,14 +166,19 @@ export function AuthMock({ type, setActiveView }: AuthMockProps) {
               <label className="block text-sm font-medium text-slate-700">
                 Empresa
                 <input
-                  defaultValue="Hotel Costa Azul"
+                  value={companyName}
+                  onChange={(event) => setCompanyName(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
                 />
               </label>
 
               <label className="block text-sm font-medium text-slate-700">
                 Sector
-                <select className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]">
+                <select
+                  value={sector}
+                  onChange={(event) => setSector(event.target.value)}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
+                >
                   <option>Hotel / alojamiento turístico</option>
                   <option>Inmobiliaria</option>
                   <option>Clínica</option>
@@ -68,16 +186,32 @@ export function AuthMock({ type, setActiveView }: AuthMockProps) {
               </label>
             </>
           ) : null}
+
+          {errorMessage ? (
+            <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {errorMessage}
+            </div>
+          ) : null}
+
+          {successMessage ? (
+            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {successMessage}
+            </div>
+          ) : null}
         </div>
 
-        <Button
-          className="mt-6 w-full"
-          onClick={() => setActiveView("dashboard")}
-        >
-          {register ? "Crear cuenta" : "Entrar"}
+        <Button className="mt-6 w-full" onClick={handleSubmit}>
+          {isLoading
+            ? register
+              ? "Creando cuenta..."
+              : "Entrando..."
+            : register
+              ? "Crear cuenta"
+              : "Entrar"}
         </Button>
 
         <button
+          type="button"
           className="mt-4 w-full text-sm font-semibold text-[#0F4C5C] hover:underline"
           onClick={() => setActiveView(register ? "login" : "register")}
         >
@@ -85,6 +219,7 @@ export function AuthMock({ type, setActiveView }: AuthMockProps) {
         </button>
 
         <button
+          type="button"
           className="mt-3 w-full text-sm text-slate-500 hover:text-slate-700"
           onClick={() => setActiveView("landing")}
         >
