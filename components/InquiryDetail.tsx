@@ -4,7 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, XCircle } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
-import type { Inquiry, InquiryCategory, InquiryStatus, Priority } from "../types";
+import type {
+  Inquiry,
+  InquiryCategory,
+  InquiryStatus,
+  Priority,
+} from "../types";
 
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
@@ -20,6 +25,7 @@ type InquiryDetailProps = {
 
 type InquiryRow = {
   id: string;
+  company_id: string;
   customer_id: string | null;
   customer_name: string;
   source_channel: string;
@@ -43,6 +49,12 @@ type CustomerRow = {
   name: string;
   email: string | null;
   phone: string | null;
+};
+
+type InternalNoteRow = {
+  id: string;
+  body: string;
+  created_at: string;
 };
 
 function normalizeInquiryStatus(status: string): InquiryStatus {
@@ -133,23 +145,41 @@ export function InquiryDetail({
   const supabase = useMemo(() => createClient(), []);
 
   const [inquiry, setInquiry] = useState<Inquiry | null>(null);
+  const [rawInquiry, setRawInquiry] = useState<InquiryRow | null>(null);
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
+  const [notes, setNotes] = useState<InternalNoteRow[]>([]);
+  const [note, setNote] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusErrorMessage, setStatusErrorMessage] = useState("");
+  const [noteMessage, setNoteMessage] = useState("");
+  const [noteErrorMessage, setNoteErrorMessage] = useState("");
 
   useEffect(() => {
     async function loadInquiry() {
       setIsLoading(true);
       setErrorMessage("");
+      setStatusMessage("");
+      setStatusErrorMessage("");
+      setNoteMessage("");
+      setNoteErrorMessage("");
+      setInquiry(null);
+      setRawInquiry(null);
+      setCustomer(null);
+      setNotes([]);
+      setNote("");
 
       const { data: inquiryData, error: inquiryError } = await supabase
         .from("inquiries")
         .select(
           [
             "id",
+            "company_id",
             "customer_id",
             "customer_name",
             "source_channel",
@@ -190,6 +220,7 @@ export function InquiryDetail({
       }
 
       setInquiry(mapInquiryRowToInquiry(inquiryData));
+      setRawInquiry(inquiryData);
 
       if (inquiryData.customer_id) {
         const { data: customerData, error: customerError } = await supabase
@@ -203,6 +234,23 @@ export function InquiryDetail({
         }
       }
 
+      const { data: notesData, error: notesError } = await supabase
+        .from("internal_notes")
+        .select("id, body, created_at")
+        .eq("inquiry_id", inquiryData.id)
+        .order("created_at", { ascending: false });
+
+      if (notesError) {
+        setErrorMessage(
+          `Se cargó la consulta, pero no se pudieron cargar sus notas: ${
+            notesError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setNotes((notesData ?? []) as InternalNoteRow[]);
       setIsLoading(false);
     }
 
@@ -213,20 +261,20 @@ export function InquiryDetail({
     if (!inquiry) {
       return;
     }
-  
+
     setStatusMessage("");
     setStatusErrorMessage("");
     setIsUpdatingStatus(true);
-  
+
     const { error } = await supabase
       .from("inquiries")
       .update({
         status: newStatus,
       })
       .eq("id", inquiry.id);
-  
+
     setIsUpdatingStatus(false);
-  
+
     if (error) {
       setStatusErrorMessage(
         `No se pudo actualizar el estado: ${
@@ -235,28 +283,75 @@ export function InquiryDetail({
       );
       return;
     }
-  
+
     setInquiry({
       ...inquiry,
       status: newStatus,
     });
-  
+
     if (newStatus === "replied") {
       setStatusMessage("Consulta marcada como respondida.");
       return;
     }
-  
+
     if (newStatus === "closed") {
       setStatusMessage("Consulta cerrada correctamente.");
       return;
     }
-  
+
     if (newStatus === "discarded") {
       setStatusMessage("Consulta descartada correctamente.");
       return;
     }
-  
+
     setStatusMessage("Estado actualizado correctamente.");
+  };
+
+  const handleSaveNote = async () => {
+    setNoteMessage("");
+    setNoteErrorMessage("");
+
+    if (!rawInquiry) {
+      setNoteErrorMessage(
+        "No se puede guardar la nota porque no hay consulta cargada."
+      );
+      return;
+    }
+
+    const cleanNote = note.trim();
+
+    if (!cleanNote) {
+      setNoteErrorMessage("Escribe una nota antes de guardarla.");
+      return;
+    }
+
+    setIsSavingNote(true);
+
+    const { data, error } = await supabase
+      .from("internal_notes")
+      .insert({
+        company_id: rawInquiry.company_id,
+        customer_id: rawInquiry.customer_id,
+        inquiry_id: rawInquiry.id,
+        body: cleanNote,
+      })
+      .select("id, body, created_at")
+      .single<InternalNoteRow>();
+
+    setIsSavingNote(false);
+
+    if (error) {
+      setNoteErrorMessage(
+        `No se pudo guardar la nota: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setNotes((currentNotes) => [data, ...currentNotes]);
+    setNote("");
+    setNoteMessage("Nota interna guardada correctamente.");
   };
 
   if (isLoading) {
@@ -324,6 +419,18 @@ export function InquiryDetail({
               {inquiry.createdAt}
             </span>
           </div>
+
+          {statusErrorMessage ? (
+            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {statusErrorMessage}
+            </div>
+          ) : null}
+
+          {statusMessage ? (
+            <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {statusMessage}
+            </div>
+          ) : null}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -349,17 +456,6 @@ export function InquiryDetail({
             Descartar
           </Button>
         </div>
-        {statusErrorMessage ? (
-          <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-            {statusErrorMessage}
-          </div>
-        ) : null}
-
-        {statusMessage ? (
-          <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-            {statusMessage}
-          </div>
-        ) : null}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
@@ -413,17 +509,58 @@ export function InquiryDetail({
             <h3 className="font-bold text-slate-950">Nota interna</h3>
 
             <textarea
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
               className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
               placeholder="Añadir nota interna..."
             />
 
-            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
-              Las notas internas de consulta las conectaremos a Supabase en un bloque separado.
-            </div>
+            {noteErrorMessage ? (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {noteErrorMessage}
+              </div>
+            ) : null}
 
-            <Button variant="secondary" className="mt-3 w-full">
-              Guardar nota
+            {noteMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {noteMessage}
+              </div>
+            ) : null}
+
+            <Button
+              variant="secondary"
+              className="mt-3 w-full"
+              onClick={handleSaveNote}
+            >
+              {isSavingNote ? "Guardando nota..." : "Guardar nota"}
             </Button>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-bold text-slate-950">Notas de la consulta</h3>
+
+            {notes.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Todavía no hay notas internas para esta consulta.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-3">
+                {notes.map((internalNote) => (
+                  <article
+                    key={internalNote.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                      {internalNote.body}
+                    </p>
+
+                    <div className="mt-3 text-xs text-slate-500">
+                      {formatDateTime(internalNote.created_at)}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
           </div>
         </aside>
       </div>
