@@ -22,6 +22,27 @@ type TopbarProps = {
   onSignOut: () => void;
 };
 
+function getCurrentViewLabel(
+  activeView: string,
+  navigation: NavigationItem[]
+) {
+  const navigationLabel = navigation.find(
+    (navigationItem) => navigationItem.key === activeView
+  )?.label;
+
+  if (navigationLabel) {
+    return navigationLabel;
+  }
+
+  const detailLabels: Record<string, string> = {
+    inquiryDetail: "Detalle de consulta",
+    customerDetail: "Detalle de cliente",
+    demoForm: "Nueva consulta",
+  };
+
+  return detailLabels[activeView] ?? "COPPE";
+}
+
 export function Topbar({
   activeView,
   setActiveView,
@@ -30,9 +51,7 @@ export function Topbar({
   userEmail,
   onSignOut,
 }: TopbarProps) {
-  const current =
-    navigation.find((navigationItem) => navigationItem.key === activeView)
-      ?.label || "Dashboard";
+  const current = getCurrentViewLabel(activeView, navigation);
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur md:px-6">

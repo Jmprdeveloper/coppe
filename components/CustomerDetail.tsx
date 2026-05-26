@@ -17,12 +17,19 @@ type CustomerDetailProps = {
 
 type CustomerRow = {
   id: string;
+  company_id: string;
   name: string;
   email: string | null;
   phone: string | null;
   language: string | null;
   status: string;
   last_interaction_at: string | null;
+  created_at: string;
+};
+
+type InternalNoteRow = {
+  id: string;
+  body: string;
   created_at: string;
 };
 
@@ -78,36 +85,42 @@ export function CustomerDetail({
   const supabase = useMemo(() => createClient(), []);
 
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
+  const [notes, setNotes] = useState<InternalNoteRow[]>([]);
   const [note, setNote] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isSavingNote, setIsSavingNote] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
+  const [noteErrorMessage, setNoteErrorMessage] = useState("");
 
   useEffect(() => {
-    async function loadCustomer() {
+    async function loadCustomerAndNotes() {
       setIsLoading(true);
       setErrorMessage("");
       setNoteMessage("");
+      setNoteErrorMessage("");
 
-      const { data, error } = await supabase
+      const { data: customerData, error: customerError } = await supabase
         .from("customers")
         .select(
-          "id, name, email, phone, language, status, last_interaction_at, created_at"
+          "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
         )
         .eq("id", customerId)
         .maybeSingle<CustomerRow>();
 
-      if (error) {
+      if (customerError) {
         setErrorMessage(
           `No se pudo cargar el cliente: ${
-            error.message || "sin detalle del error"
+            customerError.message || "sin detalle del error"
           }`
         );
         setIsLoading(false);
         return;
       }
 
-      if (!data) {
+      if (!customerData) {
         setErrorMessage(
           "No se encontró este cliente o no pertenece a tu empresa."
         );
@@ -115,24 +128,72 @@ export function CustomerDetail({
         return;
       }
 
-      setCustomer(data);
+      const { data: notesData, error: notesError } = await supabase
+        .from("internal_notes")
+        .select("id, body, created_at")
+        .eq("customer_id", customerData.id)
+        .order("created_at", { ascending: false });
+
+      if (notesError) {
+        setErrorMessage(
+          `Se cargó el cliente, pero no se pudieron cargar sus notas: ${
+            notesError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setCustomer(customerData);
+      setNotes((notesData ?? []) as InternalNoteRow[]);
       setIsLoading(false);
     }
 
-    loadCustomer();
+    loadCustomerAndNotes();
   }, [customerId, supabase]);
 
-  const handleSaveNote = () => {
+  const handleSaveNote = async () => {
     setNoteMessage("");
+    setNoteErrorMessage("");
 
-    if (!note.trim()) {
-      setNoteMessage("Escribe una nota antes de guardarla.");
+    if (!customer) {
+      setNoteErrorMessage("No se puede guardar la nota porque no hay cliente cargado.");
       return;
     }
 
-    setNoteMessage(
-      "La nota rápida todavía no se guarda en Supabase. La activaremos cuando migremos internal_notes."
-    );
+    const cleanNote = note.trim();
+
+    if (!cleanNote) {
+      setNoteErrorMessage("Escribe una nota antes de guardarla.");
+      return;
+    }
+
+    setIsSavingNote(true);
+
+    const { data, error } = await supabase
+      .from("internal_notes")
+      .insert({
+        company_id: customer.company_id,
+        customer_id: customer.id,
+        body: cleanNote,
+      })
+      .select("id, body, created_at")
+      .single<InternalNoteRow>();
+
+    setIsSavingNote(false);
+
+    if (error) {
+      setNoteErrorMessage(
+        `No se pudo guardar la nota: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setNotes((currentNotes) => [data, ...currentNotes]);
+    setNote("");
+    setNoteMessage("Nota guardada correctamente.");
   };
 
   if (isLoading) {
@@ -238,8 +299,14 @@ export function CustomerDetail({
               placeholder="Añadir nota sobre este cliente..."
             />
 
+            {noteErrorMessage ? (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {noteErrorMessage}
+              </div>
+            ) : null}
+
             {noteMessage ? (
-              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
                 {noteMessage}
               </div>
             ) : null}
@@ -249,20 +316,51 @@ export function CustomerDetail({
               className="mt-3 w-full"
               onClick={handleSaveNote}
             >
-              Guardar nota
+              {isSavingNote ? "Guardando nota..." : "Guardar nota"}
             </Button>
           </div>
         </aside>
 
-        <main>
-          <h2 className="mb-3 text-lg font-bold text-slate-950">
-            Consultas del cliente
-          </h2>
+        <main className="space-y-5">
+          <section>
+            <h2 className="mb-3 text-lg font-bold text-slate-950">
+              Notas internas
+            </h2>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-            Las consultas asociadas a este cliente todavía no se leen desde
-            Supabase. Las migraremos en el siguiente bloque.
-          </div>
+            {notes.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                Todavía no hay notas internas para este cliente.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {notes.map((internalNote) => (
+                  <article
+                    key={internalNote.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+                  >
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                      {internalNote.body}
+                    </p>
+
+                    <div className="mt-3 text-xs text-slate-500">
+                      {formatDateTime(internalNote.created_at)}
+                    </div>
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-lg font-bold text-slate-950">
+              Consultas del cliente
+            </h2>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+              Las consultas asociadas a este cliente todavía no se leen desde
+              Supabase. Las migraremos en el siguiente bloque.
+            </div>
+          </section>
         </main>
       </div>
     </div>
