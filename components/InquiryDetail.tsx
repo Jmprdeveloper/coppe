@@ -153,12 +153,15 @@ export function InquiryDetail({
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
   const [statusErrorMessage, setStatusErrorMessage] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
+  const [followUpMessage, setFollowUpMessage] = useState("");
+  const [followUpErrorMessage, setFollowUpErrorMessage] = useState("");
 
   useEffect(() => {
     async function loadInquiry() {
@@ -168,6 +171,8 @@ export function InquiryDetail({
       setStatusErrorMessage("");
       setNoteMessage("");
       setNoteErrorMessage("");
+      setFollowUpMessage("");
+      setFollowUpErrorMessage("");
       setInquiry(null);
       setRawInquiry(null);
       setCustomer(null);
@@ -354,6 +359,49 @@ export function InquiryDetail({
     setNoteMessage("Nota interna guardada correctamente.");
   };
 
+  const handleCreateFollowUp = async () => {
+    setFollowUpMessage("");
+    setFollowUpErrorMessage("");
+  
+    if (!rawInquiry || !inquiry) {
+      setFollowUpErrorMessage(
+        "No se puede crear el seguimiento porque no hay consulta cargada."
+      );
+      return;
+    }
+  
+    const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
+  
+    const title = `Revisar consulta de ${inquiry.customerName}`;
+  
+    setIsCreatingFollowUp(true);
+  
+    const { error } = await supabase.from("follow_ups").insert({
+      company_id: rawInquiry.company_id,
+      customer_id: rawInquiry.customer_id,
+      inquiry_id: rawInquiry.id,
+      title,
+      due_at: dueAt,
+      status: "pending",
+      urgency: "upcoming",
+    });
+  
+    setIsCreatingFollowUp(false);
+  
+    if (error) {
+      setFollowUpErrorMessage(
+        `No se pudo crear el seguimiento: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+  
+    setFollowUpMessage(
+      "Seguimiento creado correctamente para dentro de 24 horas."
+    );
+  };
+
   if (isLoading) {
     return (
       <div>
@@ -500,10 +548,26 @@ export function InquiryDetail({
               Crear seguimiento para revisar esta consulta en menos de 24 horas.
             </p>
 
-            <Button className="mt-4 w-full">
-              <CalendarClock size={16} /> Crear seguimiento
-            </Button>
+            {followUpErrorMessage ? (
+            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {followUpErrorMessage}
           </div>
+        ) : null}
+
+  {followUpMessage ? (
+    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+      {followUpMessage}
+    </div>
+  ) : null}
+
+  <Button
+    className="mt-4 w-full"
+    onClick={handleCreateFollowUp}
+  >
+    <CalendarClock size={16} />
+    {isCreatingFollowUp ? "Creando seguimiento..." : "Crear seguimiento"}
+  </Button>
+</div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">Nota interna</h3>
