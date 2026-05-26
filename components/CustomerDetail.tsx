@@ -3,9 +3,16 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { createClient } from "../lib/supabase/client";
-import type { CustomerStatus } from "../types";
+import type {
+  CustomerStatus,
+  Inquiry,
+  InquiryCategory,
+  InquiryStatus,
+  Priority,
+} from "../types";
 
 import { Button } from "./Button";
+import { InquiryCard } from "./InquiryCard";
 import { PageHeader } from "./PageHeader";
 import { StatusBadge } from "./StatusBadge";
 
@@ -33,6 +40,26 @@ type InternalNoteRow = {
   created_at: string;
 };
 
+type InquiryRow = {
+  id: string;
+  customer_id: string | null;
+  customer_name: string;
+  source_channel: string;
+  subject: string | null;
+  original_message: string;
+  ai_summary: string | null;
+  ai_intent: string | null;
+  ai_category: string | null;
+  ai_priority: string | null;
+  ai_language: string | null;
+  sentiment: string | null;
+  missing_information: string[] | null;
+  recommended_action: string | null;
+  suggested_response: string | null;
+  status: string;
+  created_at: string;
+};
+
 function normalizeCustomerStatus(status: string): CustomerStatus {
   if (
     status === "new" ||
@@ -44,6 +71,47 @@ function normalizeCustomerStatus(status: string): CustomerStatus {
   }
 
   return "active";
+}
+
+function normalizeInquiryStatus(status: string): InquiryStatus {
+  if (
+    status === "new" ||
+    status === "pending" ||
+    status === "replied" ||
+    status === "closed" ||
+    status === "discarded"
+  ) {
+    return status;
+  }
+
+  return "new";
+}
+
+function normalizePriority(priority: string | null): Priority {
+  if (priority === "low" || priority === "medium" || priority === "high") {
+    return priority;
+  }
+
+  return "medium";
+}
+
+function normalizeCategory(category: string | null): InquiryCategory {
+  if (
+    category === "sales_inquiry" ||
+    category === "appointment_request" ||
+    category === "quote_request" ||
+    category === "booking" ||
+    category === "incident" ||
+    category === "general_info" ||
+    category === "follow_up" ||
+    category === "cancellation" ||
+    category === "complaint" ||
+    category === "other"
+  ) {
+    return category;
+  }
+
+  return "other";
 }
 
 function formatDateTime(value: string | null) {
@@ -78,14 +146,40 @@ function formatLanguage(language: string | null) {
   return language || "No indicado";
 }
 
+function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
+  return {
+    id: row.id,
+    customerId: row.customer_id ?? "",
+    customerName: row.customer_name,
+    sourceChannel: row.source_channel,
+    subject: row.subject ?? "Sin asunto",
+    originalMessage: row.original_message,
+    aiSummary: row.ai_summary ?? "Sin resumen disponible.",
+    aiIntent: row.ai_intent ?? "No identificado",
+    aiCategory: normalizeCategory(row.ai_category),
+    aiPriority: normalizePriority(row.ai_priority),
+    aiLanguage: row.ai_language ?? "No indicado",
+    sentiment: row.sentiment ?? "No indicado",
+    missingInformation: row.missing_information ?? [],
+    recommendedAction:
+      row.recommended_action ?? "No hay acción recomendada disponible.",
+    suggestedResponse:
+      row.suggested_response ?? "No hay respuesta sugerida disponible.",
+    status: normalizeInquiryStatus(row.status),
+    createdAt: formatDateTime(row.created_at),
+  };
+}
+
 export function CustomerDetail({
   customerId,
   setActiveView,
+  openInquiry,
 }: CustomerDetailProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [notes, setNotes] = useState<InternalNoteRow[]>([]);
+  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [note, setNote] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
@@ -96,11 +190,15 @@ export function CustomerDetail({
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
 
   useEffect(() => {
-    async function loadCustomerAndNotes() {
+    async function loadCustomerData() {
       setIsLoading(true);
       setErrorMessage("");
       setNoteMessage("");
       setNoteErrorMessage("");
+      setCustomer(null);
+      setNotes([]);
+      setInquiries([]);
+      setNote("");
 
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
@@ -132,6 +230,7 @@ export function CustomerDetail({
         .from("internal_notes")
         .select("id, body, created_at")
         .eq("customer_id", customerData.id)
+        .is("inquiry_id", null)
         .order("created_at", { ascending: false });
 
       if (notesError) {
@@ -144,12 +243,53 @@ export function CustomerDetail({
         return;
       }
 
+      const { data: inquiriesData, error: inquiriesError } = await supabase
+        .from("inquiries")
+        .select(
+          [
+            "id",
+            "customer_id",
+            "customer_name",
+            "source_channel",
+            "subject",
+            "original_message",
+            "ai_summary",
+            "ai_intent",
+            "ai_category",
+            "ai_priority",
+            "ai_language",
+            "sentiment",
+            "missing_information",
+            "recommended_action",
+            "suggested_response",
+            "status",
+            "created_at",
+          ].join(", ")
+        )
+        .eq("customer_id", customerData.id)
+        .order("created_at", { ascending: false });
+
+      if (inquiriesError) {
+        setErrorMessage(
+          `Se cargó el cliente, pero no se pudieron cargar sus consultas: ${
+            inquiriesError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       setCustomer(customerData);
       setNotes((notesData ?? []) as InternalNoteRow[]);
+      setInquiries(
+        ((inquiriesData ?? []) as unknown as InquiryRow[]).map(
+          mapInquiryRowToInquiry
+        )
+      );
       setIsLoading(false);
     }
 
-    loadCustomerAndNotes();
+    loadCustomerData();
   }, [customerId, supabase]);
 
   const handleSaveNote = async () => {
@@ -175,6 +315,7 @@ export function CustomerDetail({
       .insert({
         company_id: customer.company_id,
         customer_id: customer.id,
+        inquiry_id: null,
         body: cleanNote,
       })
       .select("id, body, created_at")
@@ -356,10 +497,21 @@ export function CustomerDetail({
               Consultas del cliente
             </h2>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              Las consultas asociadas a este cliente todavía no se leen desde
-              Supabase. Las migraremos en el siguiente bloque.
-            </div>
+            {inquiries.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                Todavía no hay consultas asociadas a este cliente.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {inquiries.map((inquiry) => (
+                  <InquiryCard
+                    key={inquiry.id}
+                    inquiry={inquiry}
+                    onOpen={openInquiry}
+                  />
+                ))}
+              </div>
+            )}
           </section>
         </main>
       </div>
