@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+
 import { createClient } from "../lib/supabase/client";
 
 type ConnectionState = "loading" | "success" | "warning" | "error";
@@ -21,14 +22,53 @@ export function SupabaseConnectionTest() {
       try {
         const supabase = createClient();
 
-        const { error } = await supabase
-          .from("companies")
-          .select("id", { head: true, count: "exact" });
+        const {
+          data: { user },
+          error: userError,
+        } = await supabase.auth.getUser();
 
-        if (error) {
+        if (userError) {
           setStatus({
             state: "warning",
-            message: `Supabase está configurado, pero la consulta devolvió: ${error.message}`,
+            message: `Supabase está conectado, pero no se pudo leer la sesión: ${
+              userError.message || "sin detalle del error"
+            }`,
+          });
+
+          return;
+        }
+
+        if (!user) {
+          setStatus({
+            state: "warning",
+            message:
+              "Supabase está conectado, pero no hay ninguna sesión activa.",
+          });
+
+          return;
+        }
+
+        const { data: company, error: companyError } = await supabase
+          .from("companies")
+          .select("id, name")
+          .limit(1)
+          .maybeSingle();
+
+        if (companyError) {
+          setStatus({
+            state: "warning",
+            message: `Autenticación activa, pero no se pudo leer la empresa: ${
+              companyError.message || "sin detalle del error"
+            }`,
+          });
+
+          return;
+        }
+
+        if (!company) {
+          setStatus({
+            state: "warning",
+            message: `Sesión activa para ${user.email}, pero todavía no hay una empresa asociada a este usuario.`,
           });
 
           return;
@@ -36,7 +76,7 @@ export function SupabaseConnectionTest() {
 
         setStatus({
           state: "success",
-          message: "Supabase conectado correctamente.",
+          message: `Supabase conectado correctamente. Sesión activa: ${user.email}. Empresa detectada: ${company.name}.`,
         });
       } catch (error) {
         setStatus({
@@ -60,7 +100,9 @@ export function SupabaseConnectionTest() {
   };
 
   return (
-    <div className={`mb-5 rounded-2xl border p-4 text-sm ${styles[status.state]}`}>
+    <div
+      className={`mb-5 rounded-2xl border p-4 text-sm ${styles[status.state]}`}
+    >
       <div className="font-semibold">Estado de Supabase</div>
       <p className="mt-1 leading-6">{status.message}</p>
     </div>

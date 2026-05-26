@@ -1,4 +1,5 @@
 import { mockCompany } from "../data/mockData";
+
 import { Button } from "./Button";
 import { PageHeader } from "./PageHeader";
 import { SupabaseConnectionTest } from "./SupabaseConnectionTest";
@@ -9,9 +10,10 @@ export function SettingsPage() {
       <PageHeader
         title="Configuración"
         description="Ajustes básicos de empresa y comportamiento del asistente COPPE."
-        />
-        <SupabaseConnectionTest />
-        <div className="grid gap-5 xl:grid-cols-[1fr_360px]"></div>
+      />
+
+      <SupabaseConnectionTest />
+
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <h2 className="text-lg font-bold text-slate-950">
@@ -48,9 +50,7 @@ export function SettingsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-          <h2 className="text-lg font-bold text-slate-950">
-            Preferencias IA
-          </h2>
+          <h2 className="text-lg font-bold text-slate-950">Preferencias IA</h2>
 
           <div className="mt-5 space-y-4">
             <label className="block text-sm font-medium text-slate-700">
