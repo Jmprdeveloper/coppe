@@ -1,10 +1,12 @@
-import { Building2, Plus, Search, UserRound } from "lucide-react";
+import type { ElementType } from "react";
+import { Building2, LogOut, Plus, Search, UserRound } from "lucide-react";
+
 import { Button } from "./Button";
 
 type NavigationItem = {
   key: string;
   label: string;
-  icon: React.ElementType;
+  icon: ElementType;
 };
 
 type Company = {
@@ -16,6 +18,8 @@ type TopbarProps = {
   setActiveView: (view: string) => void;
   navigation: NavigationItem[];
   company: Company;
+  userEmail: string | null;
+  onSignOut: () => void;
 };
 
 export function Topbar({
@@ -23,6 +27,8 @@ export function Topbar({
   setActiveView,
   navigation,
   company,
+  userEmail,
+  onSignOut,
 }: TopbarProps) {
   const current =
     navigation.find((navigationItem) => navigationItem.key === activeView)
@@ -33,7 +39,8 @@ export function Topbar({
       <div className="flex items-center gap-3">
         <button
           type="button"
-          onClick={() => setActiveView("landing")}
+          onClick={onSignOut}
+          title="Cerrar sesión"
           className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white lg:hidden"
         >
           <Building2 size={18} />
@@ -63,9 +70,22 @@ export function Topbar({
           <Plus size={16} /> Nueva consulta
         </Button>
 
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-700">
+        {userEmail ? (
+          <div className="hidden max-w-[190px] truncate text-right text-xs text-slate-500 xl:block">
+            {userEmail}
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onSignOut}
+          title="Cerrar sesión"
+          className="flex h-9 items-center gap-2 rounded-full bg-slate-100 px-3 text-slate-700 transition hover:bg-slate-200 hover:text-slate-950"
+        >
           <UserRound size={17} />
-        </div>
+          <span className="hidden text-sm font-medium md:inline">Salir</span>
+          <LogOut size={15} className="hidden md:block" />
+        </button>
       </div>
     </header>
   );

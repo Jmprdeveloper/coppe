@@ -37,6 +37,8 @@ type AppShellProps = {
   setSelectedInquiryId: (id: string) => void;
   selectedCustomerId: string;
   setSelectedCustomerId: (id: string) => void;
+  userEmail: string | null;
+  onSignOut: () => void;
 };
 
 export function AppShell({
@@ -46,6 +48,8 @@ export function AppShell({
   setSelectedInquiryId,
   selectedCustomerId,
   setSelectedCustomerId,
+  userEmail,
+  onSignOut,
 }: AppShellProps) {
   const openInquiry = (id: string) => {
     setSelectedInquiryId(id);
@@ -125,6 +129,7 @@ export function AppShell({
           activeView={activeView}
           setActiveView={setActiveView}
           navigation={navigation}
+          onSignOut={onSignOut}
         />
 
         <div className="flex min-w-0 flex-1 flex-col">
@@ -133,6 +138,8 @@ export function AppShell({
             setActiveView={setActiveView}
             navigation={navigation}
             company={mockCompany}
+            userEmail={userEmail}
+            onSignOut={onSignOut}
           />
 
           <main className="flex-1 p-4 md:p-6 lg:p-8">

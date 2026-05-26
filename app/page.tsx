@@ -65,6 +65,15 @@ export default function COPPEPrototype() {
     };
   }, [supabase]);
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+
+    setUser(null);
+    setActiveView("landing");
+    setSelectedInquiryId("i1");
+    setSelectedCustomerId("c1");
+  };
+
   if (isAuthLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-[#F7F9FA] px-6">
@@ -103,6 +112,8 @@ export default function COPPEPrototype() {
       setSelectedInquiryId={setSelectedInquiryId}
       selectedCustomerId={selectedCustomerId}
       setSelectedCustomerId={setSelectedCustomerId}
+      userEmail={user.email ?? null}
+      onSignOut={handleSignOut}
     />
   );
 }
