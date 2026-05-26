@@ -85,7 +85,10 @@ function resolveUrgency(
   return "upcoming";
 }
 
-function formatDueAt(value: string | null, urgency: "today" | "overdue" | "upcoming") {
+function formatDueAt(
+  value: string | null,
+  urgency: "today" | "overdue" | "upcoming"
+) {
   if (!value) {
     return "Sin fecha";
   }
@@ -136,12 +139,17 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
+    null
+  );
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     async function loadFollowUps() {
       setIsLoading(true);
       setErrorMessage("");
+      setSuccessMessage("");
 
       const { data, error } = await supabase
         .from("follow_ups")
@@ -182,13 +190,56 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     loadFollowUps();
   }, [supabase]);
 
-  const overdue = followUps.filter(
+  const handleUpdateFollowUpStatus = async (
+    followUpId: string,
+    status: "completed" | "cancelled"
+  ) => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setUpdatingFollowUpId(followUpId);
+
+    const { error } = await supabase
+      .from("follow_ups")
+      .update({ status })
+      .eq("id", followUpId);
+
+    setUpdatingFollowUpId(null);
+
+    if (error) {
+      setErrorMessage(
+        `No se pudo actualizar el seguimiento: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) =>
+        followUp.id === followUpId ? { ...followUp, status } : followUp
+      )
+    );
+
+    setSuccessMessage(
+      status === "completed"
+        ? "Seguimiento completado correctamente."
+        : "Seguimiento cancelado correctamente."
+    );
+  };
+
+  const pendingFollowUps = followUps.filter(
+    (followUp) => followUp.status === "pending"
+  );
+
+  const overdue = pendingFollowUps.filter(
     (followUp) => followUp.urgency === "overdue"
   );
 
-  const today = followUps.filter((followUp) => followUp.urgency === "today");
+  const today = pendingFollowUps.filter(
+    (followUp) => followUp.urgency === "today"
+  );
 
-  const upcoming = followUps.filter(
+  const upcoming = pendingFollowUps.filter(
     (followUp) => followUp.urgency === "upcoming"
   );
 
@@ -207,6 +258,12 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       {errorMessage ? (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMessage}
+        </div>
+      ) : null}
+
+      {successMessage ? (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {successMessage}
         </div>
       ) : null}
 
@@ -232,6 +289,13 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     key={followUp.id}
                     followUp={followUp}
                     onOpen={openInquiry}
+                    onComplete={(id) =>
+                      handleUpdateFollowUpStatus(id, "completed")
+                    }
+                    onCancel={(id) =>
+                      handleUpdateFollowUpStatus(id, "cancelled")
+                    }
+                    isUpdating={updatingFollowUpId === followUp.id}
                   />
                 ))}
               </div>
@@ -252,6 +316,13 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     key={followUp.id}
                     followUp={followUp}
                     onOpen={openInquiry}
+                    onComplete={(id) =>
+                      handleUpdateFollowUpStatus(id, "completed")
+                    }
+                    onCancel={(id) =>
+                      handleUpdateFollowUpStatus(id, "cancelled")
+                    }
+                    isUpdating={updatingFollowUpId === followUp.id}
                   />
                 ))}
               </div>
@@ -272,6 +343,13 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     key={followUp.id}
                     followUp={followUp}
                     onOpen={openInquiry}
+                    onComplete={(id) =>
+                      handleUpdateFollowUpStatus(id, "completed")
+                    }
+                    onCancel={(id) =>
+                      handleUpdateFollowUpStatus(id, "cancelled")
+                    }
+                    isUpdating={updatingFollowUpId === followUp.id}
                   />
                 ))}
               </div>
