@@ -1,7 +1,10 @@
+"use client";
+
+import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, XCircle } from "lucide-react";
 
-import { mockCustomers } from "../data/mockData";
-import type { Inquiry } from "../types";
+import { createClient } from "../lib/supabase/client";
+import type { Inquiry, InquiryCategory, InquiryStatus, Priority } from "../types";
 
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
@@ -11,12 +14,216 @@ import { ResponseEditor } from "./ResponseEditor";
 import { StatusBadge } from "./StatusBadge";
 
 type InquiryDetailProps = {
-  inquiry?: Inquiry;
+  inquiryId: string;
   setActiveView: (view: string) => void;
 };
 
-export function InquiryDetail({ inquiry, setActiveView }: InquiryDetailProps) {
-  if (!inquiry) {
+type InquiryRow = {
+  id: string;
+  customer_id: string | null;
+  customer_name: string;
+  source_channel: string;
+  subject: string | null;
+  original_message: string;
+  ai_summary: string | null;
+  ai_intent: string | null;
+  ai_category: string | null;
+  ai_priority: string | null;
+  ai_language: string | null;
+  sentiment: string | null;
+  missing_information: string[] | null;
+  recommended_action: string | null;
+  suggested_response: string | null;
+  status: string;
+  created_at: string;
+};
+
+type CustomerRow = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+};
+
+function normalizeInquiryStatus(status: string): InquiryStatus {
+  if (
+    status === "new" ||
+    status === "pending" ||
+    status === "replied" ||
+    status === "closed" ||
+    status === "discarded"
+  ) {
+    return status;
+  }
+
+  return "new";
+}
+
+function normalizePriority(priority: string | null): Priority {
+  if (priority === "low" || priority === "medium" || priority === "high") {
+    return priority;
+  }
+
+  return "medium";
+}
+
+function normalizeCategory(category: string | null): InquiryCategory {
+  if (
+    category === "sales_inquiry" ||
+    category === "appointment_request" ||
+    category === "quote_request" ||
+    category === "booking" ||
+    category === "incident" ||
+    category === "general_info" ||
+    category === "follow_up" ||
+    category === "cancellation" ||
+    category === "complaint" ||
+    category === "other"
+  ) {
+    return category;
+  }
+
+  return "other";
+}
+
+function formatDateTime(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Fecha no disponible";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
+  return {
+    id: row.id,
+    customerId: row.customer_id ?? "",
+    customerName: row.customer_name,
+    sourceChannel: row.source_channel,
+    subject: row.subject ?? "Sin asunto",
+    originalMessage: row.original_message,
+    aiSummary: row.ai_summary ?? "Sin resumen disponible.",
+    aiIntent: row.ai_intent ?? "No identificado",
+    aiCategory: normalizeCategory(row.ai_category),
+    aiPriority: normalizePriority(row.ai_priority),
+    aiLanguage: row.ai_language ?? "No indicado",
+    sentiment: row.sentiment ?? "No indicado",
+    missingInformation: row.missing_information ?? [],
+    recommendedAction:
+      row.recommended_action ?? "No hay acción recomendada disponible.",
+    suggestedResponse:
+      row.suggested_response ?? "No hay respuesta sugerida disponible.",
+    status: normalizeInquiryStatus(row.status),
+    createdAt: formatDateTime(row.created_at),
+  };
+}
+
+export function InquiryDetail({
+  inquiryId,
+  setActiveView,
+}: InquiryDetailProps) {
+  const supabase = useMemo(() => createClient(), []);
+
+  const [inquiry, setInquiry] = useState<Inquiry | null>(null);
+  const [customer, setCustomer] = useState<CustomerRow | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  useEffect(() => {
+    async function loadInquiry() {
+      setIsLoading(true);
+      setErrorMessage("");
+
+      const { data: inquiryData, error: inquiryError } = await supabase
+        .from("inquiries")
+        .select(
+          [
+            "id",
+            "customer_id",
+            "customer_name",
+            "source_channel",
+            "subject",
+            "original_message",
+            "ai_summary",
+            "ai_intent",
+            "ai_category",
+            "ai_priority",
+            "ai_language",
+            "sentiment",
+            "missing_information",
+            "recommended_action",
+            "suggested_response",
+            "status",
+            "created_at",
+          ].join(", ")
+        )
+        .eq("id", inquiryId)
+        .maybeSingle<InquiryRow>();
+
+      if (inquiryError) {
+        setErrorMessage(
+          `No se pudo cargar la consulta: ${
+            inquiryError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      if (!inquiryData) {
+        setErrorMessage(
+          "No se encontró esta consulta o no pertenece a tu empresa."
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      setInquiry(mapInquiryRowToInquiry(inquiryData));
+
+      if (inquiryData.customer_id) {
+        const { data: customerData, error: customerError } = await supabase
+          .from("customers")
+          .select("id, name, email, phone")
+          .eq("id", inquiryData.customer_id)
+          .maybeSingle<CustomerRow>();
+
+        if (!customerError && customerData) {
+          setCustomer(customerData);
+        }
+      }
+
+      setIsLoading(false);
+    }
+
+    loadInquiry();
+  }, [inquiryId, supabase]);
+
+  if (isLoading) {
+    return (
+      <div>
+        <button
+          onClick={() => setActiveView("inquiries")}
+          className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
+        >
+          ← Volver a consultas
+        </button>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+          Cargando consulta desde Supabase...
+        </div>
+      </div>
+    );
+  }
+
+  if (errorMessage || !inquiry) {
     return (
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <XCircle className="mx-auto text-slate-400" />
@@ -25,16 +232,16 @@ export function InquiryDetail({ inquiry, setActiveView }: InquiryDetailProps) {
           Consulta no encontrada
         </h2>
 
+        <p className="mt-2 text-sm text-slate-500">
+          {errorMessage || "No se pudo cargar esta consulta."}
+        </p>
+
         <Button className="mt-4" onClick={() => setActiveView("inquiries")}>
           Volver a consultas
         </Button>
       </div>
     );
   }
-
-  const customer = mockCustomers.find(
-    (customerItem) => customerItem.id === inquiry.customerId
-  );
 
   return (
     <div>
@@ -50,6 +257,10 @@ export function InquiryDetail({ inquiry, setActiveView }: InquiryDetailProps) {
           <h1 className="text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
             Consulta de {inquiry.customerName}
           </h1>
+
+          <div className="mt-2 text-sm font-medium text-slate-600">
+            {inquiry.subject}
+          </div>
 
           <div className="mt-3 flex flex-wrap gap-2">
             <PriorityBadge priority={inquiry.aiPriority} />
@@ -93,11 +304,16 @@ export function InquiryDetail({ inquiry, setActiveView }: InquiryDetailProps) {
             <h3 className="font-bold text-slate-950">Cliente</h3>
 
             <p className="mt-2 font-semibold text-slate-900">
-              {inquiry.customerName}
+              {customer?.name || inquiry.customerName}
             </p>
 
-            <p className="text-sm text-slate-500">{customer?.email}</p>
-            <p className="text-sm text-slate-500">{customer?.phone}</p>
+            <p className="text-sm text-slate-500">
+              {customer?.email || "Sin email"}
+            </p>
+
+            <p className="text-sm text-slate-500">
+              {customer?.phone || "Sin teléfono"}
+            </p>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -115,12 +331,16 @@ export function InquiryDetail({ inquiry, setActiveView }: InquiryDetailProps) {
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Notas internas</h3>
+            <h3 className="font-bold text-slate-950">Nota interna</h3>
 
             <textarea
               className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
               placeholder="Añadir nota interna..."
             />
+
+            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+              Las notas internas de consulta las conectaremos a Supabase en un bloque separado.
+            </div>
 
             <Button variant="secondary" className="mt-3 w-full">
               Guardar nota

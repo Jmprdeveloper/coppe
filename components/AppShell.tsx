@@ -8,7 +8,7 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { mockCompany, mockInquiries } from "../data/mockData";
+import { mockCompany } from "../data/mockData";
 import { classNames } from "../lib/utils";
 
 import { CustomerDetail } from "./CustomerDetail";
@@ -61,10 +61,6 @@ export function AppShell({
     setActiveView("customerDetail");
   };
 
-  const selectedInquiry =
-    mockInquiries.find((inquiry) => inquiry.id === selectedInquiryId) ||
-    mockInquiries[0];
-
   const renderContent = () => {
     switch (activeView) {
       case "dashboard":
@@ -81,7 +77,7 @@ export function AppShell({
       case "inquiryDetail":
         return (
           <InquiryDetail
-            inquiry={selectedInquiry}
+            inquiryId={selectedInquiryId}
             setActiveView={setActiveView}
           />
         );
