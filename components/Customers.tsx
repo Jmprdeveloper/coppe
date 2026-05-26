@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, X } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
 import type { CustomerStatus } from "../types";
@@ -58,11 +58,20 @@ function formatLastInteraction(value: string | null) {
   }).format(date);
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
 export function Customers({ openCustomer }: CustomersProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -99,19 +108,30 @@ export function Customers({ openCustomer }: CustomersProps) {
     loadCustomers();
   }, [supabase]);
 
-  const filteredCustomers = customers.filter((customer) => {
-    const normalizedSearch = searchTerm.trim().toLowerCase();
+  const handleSearch = () => {
+    setAppliedSearchTerm(searchTerm);
+  };
 
+  const handleClearSearch = () => {
+    setSearchTerm("");
+    setAppliedSearchTerm("");
+  };
+
+  const normalizedSearch = normalizeSearchText(appliedSearchTerm);
+
+  const filteredCustomers = customers.filter((customer) => {
     if (!normalizedSearch) {
       return true;
     }
 
     return (
-      customer.name.toLowerCase().includes(normalizedSearch) ||
-      (customer.email ?? "").toLowerCase().includes(normalizedSearch) ||
-      (customer.phone ?? "").toLowerCase().includes(normalizedSearch)
+      normalizeSearchText(customer.name).includes(normalizedSearch) ||
+      normalizeSearchText(customer.email).includes(normalizedSearch) ||
+      normalizeSearchText(customer.phone).includes(normalizedSearch)
     );
   });
+
+  const hasActiveSearch = appliedSearchTerm.trim().length > 0;
 
   return (
     <div>
@@ -125,16 +145,48 @@ export function Customers({ openCustomer }: CustomersProps) {
         }
       />
 
-      <div className="mb-4 flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2">
-        <Search size={16} className="text-slate-400" />
+      <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:flex-row sm:items-center">
+        <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
+          <Search size={16} className="shrink-0 text-slate-400" />
 
-        <input
-          value={searchTerm}
-          onChange={(event) => setSearchTerm(event.target.value)}
-          className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-          placeholder="Buscar cliente..."
-        />
+          <input
+            value={searchTerm}
+            onChange={(event) => setSearchTerm(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                handleSearch();
+              }
+            }}
+            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+            placeholder="Buscar por nombre, email o teléfono..."
+          />
+        </div>
+
+        <div className="flex gap-2">
+          {hasActiveSearch ? (
+            <button
+              type="button"
+              onClick={handleClearSearch}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+            >
+              <X size={15} /> Limpiar
+            </button>
+          ) : null}
+
+          <Button onClick={handleSearch}>
+            <Search size={16} /> Buscar
+          </Button>
+        </div>
       </div>
+
+      {hasActiveSearch ? (
+        <div className="mb-4 text-sm text-slate-500">
+          Mostrando resultados para{" "}
+          <span className="font-semibold text-slate-700">
+            “{appliedSearchTerm}”
+          </span>
+        </div>
+      ) : null}
 
       {errorMessage ? (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
