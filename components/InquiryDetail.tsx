@@ -135,7 +135,10 @@ export function InquiryDetail({
   const [inquiry, setInquiry] = useState<Inquiry | null>(null);
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const [statusMessage, setStatusMessage] = useState("");
+  const [statusErrorMessage, setStatusErrorMessage] = useState("");
 
   useEffect(() => {
     async function loadInquiry() {
@@ -206,6 +209,56 @@ export function InquiryDetail({
     loadInquiry();
   }, [inquiryId, supabase]);
 
+  const handleUpdateStatus = async (newStatus: InquiryStatus) => {
+    if (!inquiry) {
+      return;
+    }
+  
+    setStatusMessage("");
+    setStatusErrorMessage("");
+    setIsUpdatingStatus(true);
+  
+    const { error } = await supabase
+      .from("inquiries")
+      .update({
+        status: newStatus,
+      })
+      .eq("id", inquiry.id);
+  
+    setIsUpdatingStatus(false);
+  
+    if (error) {
+      setStatusErrorMessage(
+        `No se pudo actualizar el estado: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+  
+    setInquiry({
+      ...inquiry,
+      status: newStatus,
+    });
+  
+    if (newStatus === "replied") {
+      setStatusMessage("Consulta marcada como respondida.");
+      return;
+    }
+  
+    if (newStatus === "closed") {
+      setStatusMessage("Consulta cerrada correctamente.");
+      return;
+    }
+  
+    if (newStatus === "discarded") {
+      setStatusMessage("Consulta descartada correctamente.");
+      return;
+    }
+  
+    setStatusMessage("Estado actualizado correctamente.");
+  };
+
   if (isLoading) {
     return (
       <div>
@@ -274,13 +327,39 @@ export function InquiryDetail({
         </div>
 
         <div className="flex flex-wrap gap-2">
-          <Button variant="secondary">
-            <CheckCircle2 size={16} /> Marcar respondida
+          <Button
+            variant="secondary"
+            onClick={() => handleUpdateStatus("replied")}
+          >
+            <CheckCircle2 size={16} />
+            {isUpdatingStatus ? "Actualizando..." : "Marcar respondida"}
           </Button>
 
-          <Button variant="secondary">Cerrar</Button>
-          <Button variant="ghost">Descartar</Button>
+          <Button
+            variant="secondary"
+            onClick={() => handleUpdateStatus("closed")}
+          >
+            Cerrar
+          </Button>
+
+          <Button
+            variant="ghost"
+            onClick={() => handleUpdateStatus("discarded")}
+          >
+            Descartar
+          </Button>
         </div>
+        {statusErrorMessage ? (
+          <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+            {statusErrorMessage}
+          </div>
+        ) : null}
+
+        {statusMessage ? (
+          <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {statusMessage}
+          </div>
+        ) : null}
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
