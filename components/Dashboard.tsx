@@ -9,9 +9,9 @@ import {
   Plus,
 } from "lucide-react";
 
-import { mockFollowUps } from "../data/mockData";
 import { createClient } from "../lib/supabase/client";
 import type {
+  FollowUp,
   Inquiry,
   InquiryCategory,
   InquiryStatus,
@@ -47,6 +47,23 @@ type InquiryRow = {
   suggested_response: string | null;
   status: string;
   created_at: string;
+};
+
+type FollowUpRow = {
+  id: string;
+  title: string;
+  due_at: string | null;
+  status: string;
+  urgency: string | null;
+  inquiry_id: string | null;
+  created_at: string;
+  customer: {
+    name: string | null;
+  } | null;
+};
+
+type DashboardFollowUp = FollowUp & {
+  dueAtValue: string | null;
 };
 
 function normalizeInquiryStatus(status: string): InquiryStatus {
@@ -90,11 +107,103 @@ function normalizeCategory(category: string | null): InquiryCategory {
   return "other";
 }
 
+function normalizeFollowUpStatus(
+  status: string
+): "pending" | "completed" | "cancelled" {
+  if (status === "pending" || status === "completed" || status === "cancelled") {
+    return status;
+  }
+
+  return "pending";
+}
+
+function isSameDay(firstDate: Date, secondDate: Date) {
+  return (
+    firstDate.getFullYear() === secondDate.getFullYear() &&
+    firstDate.getMonth() === secondDate.getMonth() &&
+    firstDate.getDate() === secondDate.getDate()
+  );
+}
+
+function resolveUrgency(
+  dueAt: string | null,
+  status: string,
+  storedUrgency: string | null
+): "today" | "overdue" | "upcoming" {
+  if (status !== "pending") {
+    return "upcoming";
+  }
+
+  if (!dueAt) {
+    if (
+      storedUrgency === "today" ||
+      storedUrgency === "overdue" ||
+      storedUrgency === "upcoming"
+    ) {
+      return storedUrgency;
+    }
+
+    return "upcoming";
+  }
+
+  const dueDate = new Date(dueAt);
+
+  if (Number.isNaN(dueDate.getTime())) {
+    return "upcoming";
+  }
+
+  const now = new Date();
+
+  if (dueDate < now && !isSameDay(dueDate, now)) {
+    return "overdue";
+  }
+
+  if (isSameDay(dueDate, now)) {
+    return dueDate < now ? "overdue" : "today";
+  }
+
+  return "upcoming";
+}
+
 function formatDateTime(value: string) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "Fecha no disponible";
+  }
+
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function formatDueAt(
+  value: string | null,
+  urgency: "today" | "overdue" | "upcoming"
+) {
+  if (!value) {
+    return "Sin fecha";
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return "Fecha no disponible";
+  }
+
+  if (urgency === "overdue") {
+    return "Vencido";
+  }
+
+  if (urgency === "today") {
+    return `Hoy, ${new Intl.DateTimeFormat("es-ES", {
+      hour: "2-digit",
+      minute: "2-digit",
+    }).format(date)}`;
   }
 
   return new Intl.DateTimeFormat("es-ES", {
@@ -130,6 +239,22 @@ function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
   };
 }
 
+function mapFollowUpRowToFollowUp(row: FollowUpRow): DashboardFollowUp {
+  const status = normalizeFollowUpStatus(row.status);
+  const urgency = resolveUrgency(row.due_at, status, row.urgency);
+
+  return {
+    id: row.id,
+    title: row.title,
+    customerName: row.customer?.name || "Cliente no indicado",
+    inquiryId: row.inquiry_id ?? "",
+    dueAt: formatDueAt(row.due_at, urgency),
+    dueAtValue: row.due_at,
+    status,
+    urgency,
+  };
+}
+
 function priorityWeight(priority: Priority) {
   if (priority === "high") {
     return 3;
@@ -142,19 +267,36 @@ function priorityWeight(priority: Priority) {
   return 1;
 }
 
+function followUpUrgencyWeight(urgency: "today" | "overdue" | "upcoming") {
+  if (urgency === "overdue") {
+    return 3;
+  }
+
+  if (urgency === "today") {
+    return 2;
+  }
+
+  return 1;
+}
+
+function isOpenInquiry(inquiry: Inquiry) {
+  return inquiry.status === "new" || inquiry.status === "pending";
+}
+
 export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [followUps, setFollowUps] = useState<DashboardFollowUp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
-    async function loadDashboardInquiries() {
+    async function loadDashboardData() {
       setIsLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase
+      const { data: inquiriesData, error: inquiriesError } = await supabase
         .from("inquiries")
         .select(
           [
@@ -179,10 +321,37 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         )
         .order("created_at", { ascending: false });
 
-      if (error) {
+      if (inquiriesError) {
         setErrorMessage(
-          `No se pudo cargar el dashboard: ${
-            error.message || "sin detalle del error"
+          `No se pudieron cargar las consultas del dashboard: ${
+            inquiriesError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const { data: followUpsData, error: followUpsError } = await supabase
+        .from("follow_ups")
+        .select(
+          [
+            "id",
+            "title",
+            "due_at",
+            "status",
+            "urgency",
+            "inquiry_id",
+            "created_at",
+            "customer:customers(name)",
+          ].join(", ")
+        )
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false });
+
+      if (followUpsError) {
+        setErrorMessage(
+          `No se pudieron cargar los seguimientos del dashboard: ${
+            followUpsError.message || "sin detalle del error"
           }`
         );
         setIsLoading(false);
@@ -190,13 +359,21 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       }
 
       setInquiries(
-        ((data ?? []) as unknown as InquiryRow[]).map(mapInquiryRowToInquiry)
+        ((inquiriesData ?? []) as unknown as InquiryRow[]).map(
+          mapInquiryRowToInquiry
+        )
+      );
+
+      setFollowUps(
+        ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
+          mapFollowUpRowToFollowUp
+        )
       );
 
       setIsLoading(false);
     }
 
-    loadDashboardInquiries();
+    loadDashboardData();
   }, [supabase]);
 
   const newCount = inquiries.filter((inquiry) => inquiry.status === "new")
@@ -207,29 +384,44 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   ).length;
 
   const highPriority = inquiries.filter(
-    (inquiry) => inquiry.aiPriority === "high"
+    (inquiry) => isOpenInquiry(inquiry) && inquiry.aiPriority === "high"
   ).length;
 
-  const todayFollowUps = mockFollowUps.filter(
+  const pendingFollowUps = followUps.filter(
+    (followUp) => followUp.status === "pending"
+  );
+
+  const todayFollowUps = pendingFollowUps.filter(
     (followUp) => followUp.urgency === "today"
   ).length;
 
   const priorityItems = [...inquiries]
-    .filter(
-      (inquiry) =>
-        inquiry.status === "new" ||
-        inquiry.status === "pending" ||
-        inquiry.aiPriority === "high"
-    )
-    .sort((a, b) => {
-      const priorityDifference =
-        priorityWeight(b.aiPriority) - priorityWeight(a.aiPriority);
+  .filter((inquiry) => isOpenInquiry(inquiry))
+  .sort((a, b) => {
+    const priorityDifference =
+      priorityWeight(b.aiPriority) - priorityWeight(a.aiPriority);
 
-      if (priorityDifference !== 0) {
-        return priorityDifference;
+    if (priorityDifference !== 0) {
+      return priorityDifference;
+    }
+
+    return a.createdAt.localeCompare(b.createdAt);
+  })
+  .slice(0, 3);
+
+  const nextFollowUps = [...pendingFollowUps]
+    .sort((a, b) => {
+      const urgencyDifference =
+        followUpUrgencyWeight(b.urgency) - followUpUrgencyWeight(a.urgency);
+
+      if (urgencyDifference !== 0) {
+        return urgencyDifference;
       }
 
-      return a.createdAt.localeCompare(b.createdAt);
+      const firstDate = a.dueAtValue ? new Date(a.dueAtValue).getTime() : 0;
+      const secondDate = b.dueAtValue ? new Date(b.dueAtValue).getTime() : 0;
+
+      return firstDate - secondDate;
     })
     .slice(0, 3);
 
@@ -283,7 +475,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           title="Seguimientos hoy"
           value={todayFollowUps}
           icon={CalendarClock}
-          caption="Datos simulados por ahora"
+          caption="Tareas previstas para hoy"
         />
       </div>
 
@@ -333,15 +525,21 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
             </button>
           </div>
 
-          <div className="space-y-3">
-            {mockFollowUps.map((followUp) => (
-              <FollowUpCard
-                key={followUp.id}
-                followUp={followUp}
-                onOpen={openInquiry}
-              />
-            ))}
-          </div>
+          {nextFollowUps.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+              No hay seguimientos pendientes.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {nextFollowUps.map((followUp) => (
+                <FollowUpCard
+                  key={followUp.id}
+                  followUp={followUp}
+                  onOpen={openInquiry}
+                />
+              ))}
+            </div>
+          )}
         </section>
       </div>
     </div>
