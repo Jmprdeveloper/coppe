@@ -57,7 +57,11 @@ function isValidPhone(value: string) {
   const normalizedPhone = normalizePhoneForComparison(value);
   const digitsOnly = normalizedPhone.replace(/\D/g, "");
 
-  return /^\+?\d+$/.test(normalizedPhone) && digitsOnly.length >= 7 && digitsOnly.length <= 15;
+  return (
+    /^\+?\d+$/.test(normalizedPhone) &&
+    digitsOnly.length >= 7 &&
+    digitsOnly.length <= 15
+  );
 }
 
 function detectLanguage(message: string) {
@@ -192,78 +196,6 @@ function buildIntent(category: string) {
   return intents[category] ?? "Solicitar información";
 }
 
-function buildMissingInformation(category: string, originalMessage: string) {
-  const normalizedMessage = normalizeSearchText(originalMessage);
-
-  if (category === "booking") {
-    const missingInformation = [];
-
-    if (!hasDateSignal(normalizedMessage)) {
-      missingInformation.push("fechas exactas");
-    }
-
-    if (!hasPeopleSignal(normalizedMessage)) {
-      missingInformation.push("número de personas");
-    }
-
-    return missingInformation;
-  }
-
-  if (category === "cancellation") {
-    if (hasReservationReference(normalizedMessage)) {
-      return [];
-    }
-
-    return ["número de reserva", "nombre completo de la reserva"];
-  }
-
-  if (category === "quote_request") {
-    return ["servicio solicitado", "fecha aproximada"];
-  }
-
-  return [];
-}
-
-function buildRecommendedAction(category: string, originalMessage: string) {
-  const normalizedMessage = normalizeSearchText(originalMessage);
-
-  if (category === "cancellation") {
-    if (hasReservationReference(normalizedMessage)) {
-      return "Revisar la reserva indicada y responder al cliente con los siguientes pasos.";
-    }
-
-    return "Solicitar el número de reserva o el nombre completo de la reserva antes de gestionar la cancelación.";
-  }
-
-  if (category === "booking") {
-    const missingInformation = buildMissingInformation(category, originalMessage);
-
-    if (missingInformation.length === 0) {
-      return "Revisar disponibilidad con los datos recibidos y responder al cliente con una confirmación o alternativa.";
-    }
-
-    return "Solicitar los datos que faltan y revisar disponibilidad antes de confirmar.";
-  }
-
-  if (category === "complaint") {
-    return "Revisar la incidencia internamente y responder con una solución clara.";
-  }
-
-  if (category === "quote_request") {
-    return "Revisar la solicitud y pedir cualquier dato necesario antes de preparar una propuesta o presupuesto.";
-  }
-
-  if (category === "appointment_request") {
-    return "Confirmar disponibilidad de agenda antes de proponer una hora concreta.";
-  }
-
-  if (category === "general_info") {
-    return "Responder con la información solicitada o pedir aclaración si falta contexto.";
-  }
-
-  return "Revisar la consulta y responder al cliente.";
-}
-
 function hasDateSignal(normalizedMessage: string) {
   const dateSignals = [
     "hoy",
@@ -353,6 +285,78 @@ function hasReservationReference(normalizedMessage: string) {
   );
 }
 
+function buildMissingInformation(category: string, originalMessage: string) {
+  const normalizedMessage = normalizeSearchText(originalMessage);
+
+  if (category === "booking") {
+    const missingInformation: string[] = [];
+
+    if (!hasDateSignal(normalizedMessage)) {
+      missingInformation.push("fechas exactas");
+    }
+
+    if (!hasPeopleSignal(normalizedMessage)) {
+      missingInformation.push("número de personas");
+    }
+
+    return missingInformation;
+  }
+
+  if (category === "cancellation") {
+    if (hasReservationReference(normalizedMessage)) {
+      return [];
+    }
+
+    return ["número de reserva", "nombre completo de la reserva"];
+  }
+
+  if (category === "quote_request") {
+    return ["servicio solicitado", "fecha aproximada"];
+  }
+
+  return [];
+}
+
+function buildRecommendedAction(category: string, originalMessage: string) {
+  const normalizedMessage = normalizeSearchText(originalMessage);
+
+  if (category === "cancellation") {
+    if (hasReservationReference(normalizedMessage)) {
+      return "Revisar la reserva indicada y responder al cliente con los siguientes pasos.";
+    }
+
+    return "Solicitar el número de reserva o el nombre completo de la reserva antes de gestionar la cancelación.";
+  }
+
+  if (category === "booking") {
+    const missingInformation = buildMissingInformation(category, originalMessage);
+
+    if (missingInformation.length === 0) {
+      return "Revisar disponibilidad con los datos recibidos y responder al cliente con una confirmación o alternativa.";
+    }
+
+    return "Solicitar los datos que faltan y revisar disponibilidad antes de confirmar.";
+  }
+
+  if (category === "complaint") {
+    return "Revisar la incidencia internamente y responder con una solución clara.";
+  }
+
+  if (category === "quote_request") {
+    return "Revisar la solicitud y pedir cualquier dato necesario antes de preparar una propuesta o presupuesto.";
+  }
+
+  if (category === "appointment_request") {
+    return "Confirmar disponibilidad de agenda antes de proponer una hora concreta.";
+  }
+
+  if (category === "general_info") {
+    return "Responder con la información solicitada o pedir aclaración si falta contexto.";
+  }
+
+  return "Revisar la consulta y responder al cliente.";
+}
+
 function formatList(items: string[], language: string) {
   if (items.length === 0) {
     return "";
@@ -364,7 +368,9 @@ function formatList(items: string[], language: string) {
 
   const separator = language === "en" ? " and " : " y ";
 
-  return `${items.slice(0, -1).join(", ")}${separator}${items[items.length - 1]}`;
+  return `${items.slice(0, -1).join(", ")}${separator}${
+    items[items.length - 1]
+  }`;
 }
 
 function buildSuggestedResponse(
@@ -391,7 +397,7 @@ function buildSuggestedResponse(
     }
 
     if (category === "booking") {
-      const missingDetails = [];
+      const missingDetails: string[] = [];
 
       if (!hasDates) {
         missingDetails.push("the exact dates");
@@ -435,7 +441,7 @@ function buildSuggestedResponse(
   }
 
   if (category === "booking") {
-    const missingDetails = [];
+    const missingDetails: string[] = [];
 
     if (!hasDates) {
       missingDetails.push("las fechas exactas");
@@ -513,12 +519,12 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     setErrorMessage("");
     setSuccessMessage("");
 
-  const cleanName = customerName.trim();
-  const cleanEmail = email.trim().toLowerCase();
-  const cleanPhone = phone.trim();
-  const normalizedPhone = normalizePhoneForComparison(cleanPhone);
-  const cleanSourceChannel = sourceChannel.trim() || "form";
-  const cleanMessage = message.trim();
+    const cleanName = customerName.trim();
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPhone = phone.trim();
+    const normalizedPhone = normalizePhoneForComparison(cleanPhone);
+    const cleanSourceChannel = sourceChannel.trim() || "form";
+    const cleanMessage = message.trim();
 
     if (!cleanName) {
       setErrorMessage("El nombre del cliente es obligatorio.");
@@ -534,9 +540,14 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       setErrorMessage("Introduce un email válido.");
       return;
     }
-    
+
     if (cleanPhone && !isValidPhone(cleanPhone)) {
       setErrorMessage("Introduce un teléfono válido.");
+      return;
+    }
+
+    if (!cleanEmail && !cleanPhone) {
+      setErrorMessage("Introduce al menos un email o un teléfono de contacto.");
       return;
     }
 
@@ -559,117 +570,107 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     }
 
     let customerId: string | null = null;
-let customerByEmail: CustomerRow | null = null;
-let customerByPhone: CustomerRow | null = null;
+    let customerByEmail: CustomerRow | null = null;
+    let customerByPhone: CustomerRow | null = null;
 
-if (cleanEmail) {
-  const { data: existingCustomer, error: existingCustomerError } =
-    await supabase
-      .from("customers")
-      .select("id, name, email, phone")
-      .eq("company_id", company.id)
-      .eq("email", cleanEmail)
-      .limit(1)
-      .maybeSingle<CustomerRow>();
+    if (cleanEmail) {
+      const { data: existingCustomer, error: existingCustomerError } =
+        await supabase
+          .from("customers")
+          .select("id, name, email, phone")
+          .eq("company_id", company.id)
+          .eq("email", cleanEmail)
+          .limit(1)
+          .maybeSingle<CustomerRow>();
 
-  if (existingCustomerError) {
-    setIsSubmitting(false);
-    setErrorMessage(
-      `No se pudo comprobar si el cliente ya existía por email: ${
-        existingCustomerError.message || "sin detalle del error"
-      }`
-    );
-    return;
-  }
+      if (existingCustomerError) {
+        setIsSubmitting(false);
+        setErrorMessage(
+          `No se pudo comprobar si el cliente ya existía por email: ${
+            existingCustomerError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
 
-  customerByEmail = existingCustomer ?? null;
-}
+      customerByEmail = existingCustomer ?? null;
+    }
 
-if (normalizedPhone) {
-  const { data: existingCustomerByPhone, error: existingCustomerByPhoneError } =
-    await supabase
-      .from("customers")
-      .select("id, name, email, phone")
-      .eq("company_id", company.id)
-      .eq("phone", normalizedPhone)
-      .limit(1)
-      .maybeSingle<CustomerRow>();
+    if (normalizedPhone) {
+      const { data: customersWithPhone, error: customersWithPhoneError } =
+        await supabase
+          .from("customers")
+          .select("id, name, email, phone")
+          .eq("company_id", company.id)
+          .not("phone", "is", null);
 
-  if (existingCustomerByPhoneError) {
-    setIsSubmitting(false);
-    setErrorMessage(
-      `No se pudo comprobar si el cliente ya existía por teléfono: ${
-        existingCustomerByPhoneError.message || "sin detalle del error"
-      }`
-    );
-    return;
-  }
+      if (customersWithPhoneError) {
+        setIsSubmitting(false);
+        setErrorMessage(
+          `No se pudo comprobar si el cliente ya existía por teléfono: ${
+            customersWithPhoneError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
 
-  customerByPhone = existingCustomerByPhone ?? null;
-}
+      const matchingCustomersByPhone =
+        customersWithPhone?.filter(
+          (customer) =>
+            normalizePhoneForComparison(customer.phone ?? "") ===
+            normalizedPhone
+        ) ?? [];
 
-if (customerByEmail && customerByPhone && customerByEmail.id !== customerByPhone.id) {
-  setIsSubmitting(false);
-  setErrorMessage(
-    "El email y el teléfono introducidos pertenecen a clientes distintos. Revisa los datos antes de crear la consulta."
-  );
-  return;
-}
+      if (matchingCustomersByPhone.length > 1) {
+        setIsSubmitting(false);
+        setErrorMessage(
+          "Ya existen varios clientes con ese mismo teléfono. Revisa la ficha de clientes antes de crear una nueva consulta."
+        );
+        return;
+      }
 
-customerId = customerByEmail?.id ?? customerByPhone?.id ?? null;
+      customerByPhone = matchingCustomersByPhone[0] ?? null;
+    }
 
-if (!customerId) {
-  const { data: existingCustomerByName, error: existingCustomerByNameError } =
-    await supabase
-      .from("customers")
-      .select("id, name, email, phone")
-      .eq("company_id", company.id)
-      .eq("name", cleanName)
-      .limit(1)
-      .maybeSingle<CustomerRow>();
+    if (
+      customerByEmail &&
+      customerByPhone &&
+      customerByEmail.id !== customerByPhone.id
+    ) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        "El email y el teléfono introducidos pertenecen a clientes distintos. Revisa los datos antes de crear la consulta."
+      );
+      return;
+    }
 
-  if (existingCustomerByNameError) {
-    setIsSubmitting(false);
-    setErrorMessage(
-      `No se pudo comprobar el cliente por nombre: ${
-        existingCustomerByNameError.message || "sin detalle del error"
-      }`
-    );
-    return;
-  }
+    customerId = customerByEmail?.id ?? customerByPhone?.id ?? null;
 
-  customerId = existingCustomerByName?.id ?? null;
-}
+    if (customerId) {
+      const customerUpdate: {
+        email?: string;
+        phone?: string;
+        language: string;
+        status: string;
+        last_interaction_at: string;
+      } = {
+        language: detectLanguage(cleanMessage),
+        status: "active",
+        last_interaction_at: new Date().toISOString(),
+      };
 
- 
+      if (cleanEmail) {
+        customerUpdate.email = cleanEmail;
+      }
 
-if (customerId) {
-  const customerUpdate: {
-    name: string;
-    email?: string;
-    phone?: string;
-    language: string;
-    status: string;
-    last_interaction_at: string;
-  } = {
-    name: cleanName,
-    language: detectLanguage(cleanMessage),
-    status: "active",
-    last_interaction_at: new Date().toISOString(),
-  };
+      if (normalizedPhone) {
+        customerUpdate.phone = normalizedPhone;
+      }
 
-  if (cleanEmail) {
-    customerUpdate.email = cleanEmail;
-  }
-
-  if (normalizedPhone) {
-    customerUpdate.phone = normalizedPhone;
-  }
-
-  const { error: updateCustomerError } = await supabase
-    .from("customers")
-    .update(customerUpdate)
-    .eq("id", customerId);
+      const { error: updateCustomerError } = await supabase
+        .from("customers")
+        .update(customerUpdate)
+        .eq("id", customerId);
 
       if (updateCustomerError) {
         setIsSubmitting(false);
