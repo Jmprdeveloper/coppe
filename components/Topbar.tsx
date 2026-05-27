@@ -42,6 +42,7 @@ type InquirySearchRow = {
   subject: string | null;
   ai_summary: string | null;
   original_message: string;
+  status: string;
 };
 
 type FollowUpSearchRow = {
@@ -102,6 +103,30 @@ function resultTypeLabel(type: SearchResult["type"]) {
   return "Seguimiento";
 }
 
+function inquiryStatusLabel(status: string) {
+  if (status === "new") {
+    return "Nueva";
+  }
+
+  if (status === "pending") {
+    return "Pendiente";
+  }
+
+  if (status === "replied") {
+    return "Respondida";
+  }
+
+  if (status === "closed") {
+    return "Cerrada";
+  }
+
+  if (status === "discarded") {
+    return "Descartada";
+  }
+
+  return "Estado no indicado";
+}
+
 export function Topbar({
   activeView,
   setActiveView,
@@ -158,9 +183,9 @@ export function Topbar({
         .select("id, name, email, phone")
         .limit(100),
 
-      supabase
+        supabase
         .from("inquiries")
-        .select("id, customer_name, subject, ai_summary, original_message")
+        .select("id, customer_name, subject, ai_summary, original_message, status")
         .limit(100),
 
         supabase
@@ -243,7 +268,9 @@ export function Topbar({
         id: inquiry.id,
         type: "inquiry",
         title: inquiry.subject || `Consulta de ${inquiry.customer_name}`,
-        description: `Consulta · ${inquiry.customer_name}`,
+        description: `Consulta · ${inquiry.customer_name} · ${inquiryStatusLabel(
+          inquiry.status
+        )}`,
       }));
 
     const followUpResults: SearchResult[] = followUps
