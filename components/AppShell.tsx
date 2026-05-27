@@ -71,8 +71,13 @@ export function AppShell({
           />
         );
 
-      case "inquiries":
-        return <Inquiries openInquiry={openInquiry} />;
+        case "inquiries":
+          return (
+            <Inquiries
+              openInquiry={openInquiry}
+              setActiveView={setActiveView}
+            />
+          );
 
       case "inquiryDetail":
         return (

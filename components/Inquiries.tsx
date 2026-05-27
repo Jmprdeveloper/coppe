@@ -14,6 +14,7 @@ import { StatusBadge } from "./StatusBadge";
 
 type InquiriesProps = {
   openInquiry: (id: string) => void;
+  setActiveView: (view: string) => void;
 };
 
 type InquiryRow = {
@@ -94,7 +95,7 @@ function formatDateTime(value: string) {
   }).format(date);
 }
 
-export function Inquiries({ openInquiry }: InquiriesProps) {
+export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [inquiries, setInquiries] = useState<InquiryRow[]>([]);
@@ -186,7 +187,7 @@ export function Inquiries({ openInquiry }: InquiriesProps) {
         title="Consultas"
         description="Todas las consultas recibidas, clasificadas por estado, prioridad y categoría."
         action={
-          <Button>
+          <Button onClick={() => setActiveView("demoForm")}>
             <Plus size={16} /> Nueva consulta
           </Button>
         }
