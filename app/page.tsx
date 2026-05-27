@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 
 import { AppShell } from "../components/AppShell";
-import { AuthMock } from "../components/AuthMock";
+import { AuthPage } from "../components/AuthPage";
 import { Landing } from "../components/Landing";
 import { createClient } from "../lib/supabase/client";
 
@@ -89,15 +89,15 @@ export default function COPPEPrototype() {
   }
 
   if (!user && activeView === "login") {
-    return <AuthMock type="login" setActiveView={setActiveView} />;
+    return <AuthPage type="login" setActiveView={setActiveView} />;
   }
 
   if (!user && activeView === "register") {
-    return <AuthMock type="register" setActiveView={setActiveView} />;
+    return <AuthPage type="register" setActiveView={setActiveView} />;
   }
 
   if (!user) {
-    return <AuthMock type="login" setActiveView={setActiveView} />;
+    return <AuthPage type="login" setActiveView={setActiveView} />;
   }
 
   const appActiveView = publicViews.includes(activeView)

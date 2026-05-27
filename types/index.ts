@@ -1,4 +1,4 @@
-export type View =
+﻿export type View =
   | "landing"
   | "login"
   | "register"
@@ -9,7 +9,7 @@ export type View =
   | "customerDetail"
   | "followups"
   | "settings"
-  | "demoForm";
+  | "InquiryForm";
 
 export type InquiryStatus =
   | "new"

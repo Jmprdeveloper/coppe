@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
@@ -8,7 +8,7 @@ import { createClient } from "../lib/supabase/client";
 import { Button } from "./Button";
 import { PageHeader } from "./PageHeader";
 
-type DemoFormProps = {
+type InquiryFormProps = {
   setActiveView: (view: string) => void;
   openInquiry: (id: string) => void;
 };
@@ -257,16 +257,14 @@ function buildSubject(message: string, fallbackCategory: string) {
   return subjects[fallbackCategory] ?? "Nueva consulta";
 }
 
-export function DemoForm({ setActiveView, openInquiry }: DemoFormProps) {
+export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [customerName, setCustomerName] = useState("María López");
-  const [email, setEmail] = useState("maria@example.com");
-  const [phone, setPhone] = useState("+34 600 000 001");
-  const [sourceChannel, setSourceChannel] = useState("Formulario web");
-  const [message, setMessage] = useState(
-    "Hola, quería saber si tenéis habitación doble disponible para el próximo fin de semana para dos personas."
-  );
+  const [customerName, setCustomerName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [sourceChannel, setSourceChannel] = useState("");
+  const [message, setMessage] = useState("");
 
   const [createdInquiryId, setCreatedInquiryId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -496,6 +494,7 @@ export function DemoForm({ setActiveView, openInquiry }: DemoFormProps) {
                   value={sourceChannel}
                   onChange={(event) => setSourceChannel(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Formulario web, email, WhatsApp..."
                 />
               </label>
 
@@ -505,6 +504,7 @@ export function DemoForm({ setActiveView, openInquiry }: DemoFormProps) {
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
                   className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Pega aquí el mensaje recibido del cliente..."
                 />
               </label>
             </div>

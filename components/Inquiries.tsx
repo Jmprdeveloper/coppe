@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
@@ -187,7 +187,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
         title="Consultas"
         description="Todas las consultas recibidas, clasificadas por estado, prioridad y categoría."
         action={
-          <Button onClick={() => setActiveView("demoForm")}>
+          <Button onClick={() => setActiveView("InquiryForm")}>
             <Plus size={16} /> Nueva consulta
           </Button>
         }

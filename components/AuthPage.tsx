@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { Building2 } from "lucide-react";
@@ -6,12 +6,12 @@ import { Building2 } from "lucide-react";
 import { createClient } from "../lib/supabase/client";
 import { Button } from "./Button";
 
-type AuthMockProps = {
+type AuthPageProps = {
   type: "login" | "register";
   setActiveView: (view: string) => void;
 };
 
-export function AuthMock({ type, setActiveView }: AuthMockProps) {
+export function AuthPage({ type, setActiveView }: AuthPageProps) {
   const supabase = useMemo(() => createClient(), []);
   const register = type === "register";
 

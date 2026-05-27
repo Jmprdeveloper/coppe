@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -431,7 +431,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         title="Dashboard"
         description="Consulta de un vistazo qué clientes necesitan atención ahora."
         action={
-          <Button onClick={() => setActiveView("demoForm")}>
+          <Button onClick={() => setActiveView("InquiryForm")}>
             <Plus size={16} /> Nueva consulta
           </Button>
         }

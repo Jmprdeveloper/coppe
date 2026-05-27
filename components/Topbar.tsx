@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import type { ElementType } from "react";
@@ -76,7 +76,7 @@ function getCurrentViewLabel(
   const detailLabels: Record<string, string> = {
     inquiryDetail: "Detalle de consulta",
     customerDetail: "Detalle de cliente",
-    demoForm: "Nueva consulta",
+    InquiryForm: "Nueva consulta",
   };
 
   return detailLabels[activeView] ?? "COPPE";
@@ -418,7 +418,7 @@ export function Topbar({
 
       <div className="flex items-center gap-2">
         <Button
-          onClick={() => setActiveView("demoForm")}
+          onClick={() => setActiveView("InquiryForm")}
           className="hidden md:inline-flex"
         >
           <Plus size={16} /> Nueva consulta

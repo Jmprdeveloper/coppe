@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -15,7 +15,7 @@ import { createClient } from "../lib/supabase/client";
 import { CustomerDetail } from "./CustomerDetail";
 import { Customers } from "./Customers";
 import { Dashboard } from "./Dashboard";
-import { DemoForm } from "./DemoForm";
+import { InquiryForm } from "./InquiryForm";
 import { FollowUps } from "./FollowUps";
 import { Inquiries } from "./Inquiries";
 import { InquiryDetail } from "./InquiryDetail";
@@ -137,9 +137,9 @@ export function AppShell({
       case "settings":
         return <SettingsPage />;
 
-      case "demoForm":
+      case "InquiryForm":
         return (
-          <DemoForm
+          <InquiryForm
             setActiveView={setActiveView}
             openInquiry={openInquiry}
           />

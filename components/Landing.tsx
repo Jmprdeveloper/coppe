@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import {
     Building2,
@@ -77,8 +77,8 @@ export function Landing({ setActiveView }: LandingProps) {
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button onClick={() => setActiveView("demoForm")}>
-                <Sparkles size={16} /> Probar demo
+              <Button onClick={() => setActiveView("InquiryForm")}>
+                <Sparkles size={16} /> Probar COPPE
               </Button>
 
               <Button
