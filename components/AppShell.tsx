@@ -71,13 +71,13 @@ export function AppShell({
           />
         );
 
-        case "inquiries":
-          return (
-            <Inquiries
-              openInquiry={openInquiry}
-              setActiveView={setActiveView}
-            />
-          );
+      case "inquiries":
+        return (
+          <Inquiries
+            openInquiry={openInquiry}
+            setActiveView={setActiveView}
+          />
+        );
 
       case "inquiryDetail":
         return (
@@ -141,6 +141,8 @@ export function AppShell({
             company={mockCompany}
             userEmail={userEmail}
             onSignOut={onSignOut}
+            openInquiry={openInquiry}
+            openCustomer={openCustomer}
           />
 
           <main className="flex-1 p-4 md:p-6 lg:p-8">
