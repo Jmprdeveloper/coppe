@@ -64,13 +64,12 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="mx-4 mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-        <div className="text-sm font-semibold text-slate-950">
-          Demo activa
+      <div className="mx-4 mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+        <div className="text-sm font-semibold text-emerald-900">
+          Espacio activo
         </div>
-        <p className="mt-1 text-xs leading-5 text-slate-500">
-          Autenticación real activa. Los datos internos siguen siendo simulados
-          por ahora.
+        <p className="mt-1 text-xs leading-5 text-emerald-700">
+          Clientes, consultas, notas y seguimientos conectados a Supabase.
         </p>
       </div>
     </aside>

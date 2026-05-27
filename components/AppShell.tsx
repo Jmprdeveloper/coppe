@@ -1,5 +1,7 @@
 "use client";
 
+import { useEffect, useMemo, useState } from "react";
+
 import {
   CalendarClock,
   Inbox,
@@ -8,9 +10,8 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { mockCompany } from "../data/mockData";
 import { classNames } from "../lib/utils";
-
+import { createClient } from "../lib/supabase/client";
 import { CustomerDetail } from "./CustomerDetail";
 import { Customers } from "./Customers";
 import { Dashboard } from "./Dashboard";
@@ -30,6 +31,11 @@ const navigation = [
   { key: "settings", label: "Configuración", icon: Settings },
 ];
 
+type CompanyRow = {
+  id: string;
+  name: string;
+};
+
 type AppShellProps = {
   activeView: string;
   setActiveView: (view: string) => void;
@@ -41,6 +47,7 @@ type AppShellProps = {
   onSignOut: () => void;
 };
 
+
 export function AppShell({
   activeView,
   setActiveView,
@@ -51,6 +58,31 @@ export function AppShell({
   userEmail,
   onSignOut,
 }: AppShellProps) {
+  const supabase = useMemo(() => createClient(), []);
+
+  const [company, setCompany] = useState({
+    name: "COPPE",
+  });
+
+  useEffect(() => {
+    async function loadCompany() {
+      const { data, error } = await supabase
+        .from("companies")
+        .select("id, name")
+        .limit(1)
+        .maybeSingle<CompanyRow>();
+
+      if (error || !data) {
+        setCompany({ name: "COPPE" });
+        return;
+      }
+
+      setCompany({ name: data.name });
+    }
+
+    loadCompany();
+  }, [supabase]);
+
   const openInquiry = (id: string) => {
     setSelectedInquiryId(id);
     setActiveView("inquiryDetail");
@@ -138,7 +170,7 @@ export function AppShell({
             activeView={activeView}
             setActiveView={setActiveView}
             navigation={navigation}
-            company={mockCompany}
+            company={company}
             userEmail={userEmail}
             onSignOut={onSignOut}
             openInquiry={openInquiry}
