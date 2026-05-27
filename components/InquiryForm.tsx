@@ -20,6 +20,9 @@ type CompanyRow = {
 
 type CustomerRow = {
   id: string;
+  name?: string | null;
+  email?: string | null;
+  phone?: string | null;
 };
 
 type CreatedInquiryRow = {
@@ -32,6 +35,29 @@ function normalizeSearchText(value: string) {
     .replace(/[\u0300-\u036f]/g, "")
     .toLowerCase()
     .trim();
+}
+
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
+}
+
+function normalizePhoneForComparison(value: string) {
+  const trimmedValue = value.trim();
+  const startsWithPlus = trimmedValue.startsWith("+");
+  const digitsOnly = trimmedValue.replace(/\D/g, "");
+
+  if (!digitsOnly) {
+    return "";
+  }
+
+  return startsWithPlus ? `+${digitsOnly}` : digitsOnly;
+}
+
+function isValidPhone(value: string) {
+  const normalizedPhone = normalizePhoneForComparison(value);
+  const digitsOnly = normalizedPhone.replace(/\D/g, "");
+
+  return /^\+?\d+$/.test(normalizedPhone) && digitsOnly.length >= 7 && digitsOnly.length <= 15;
 }
 
 function detectLanguage(message: string) {
@@ -487,11 +513,12 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     setErrorMessage("");
     setSuccessMessage("");
 
-    const cleanName = customerName.trim();
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanPhone = phone.trim();
-    const cleanSourceChannel = sourceChannel.trim() || "form";
-    const cleanMessage = message.trim();
+  const cleanName = customerName.trim();
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPhone = phone.trim();
+  const normalizedPhone = normalizePhoneForComparison(cleanPhone);
+  const cleanSourceChannel = sourceChannel.trim() || "form";
+  const cleanMessage = message.trim();
 
     if (!cleanName) {
       setErrorMessage("El nombre del cliente es obligatorio.");
@@ -500,6 +527,16 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
 
     if (!cleanMessage) {
       setErrorMessage("El mensaje de la consulta es obligatorio.");
+      return;
+    }
+
+    if (cleanEmail && !isValidEmail(cleanEmail)) {
+      setErrorMessage("Introduce un email válido.");
+      return;
+    }
+    
+    if (cleanPhone && !isValidPhone(cleanPhone)) {
+      setErrorMessage("Introduce un teléfono válido.");
       return;
     }
 
@@ -522,65 +559,117 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     }
 
     let customerId: string | null = null;
+let customerByEmail: CustomerRow | null = null;
+let customerByPhone: CustomerRow | null = null;
 
-    if (cleanEmail) {
-      const { data: existingCustomer, error: existingCustomerError } =
-        await supabase
-          .from("customers")
-          .select("id")
-          .eq("company_id", company.id)
-          .eq("email", cleanEmail)
-          .limit(1)
-          .maybeSingle<CustomerRow>();
+if (cleanEmail) {
+  const { data: existingCustomer, error: existingCustomerError } =
+    await supabase
+      .from("customers")
+      .select("id, name, email, phone")
+      .eq("company_id", company.id)
+      .eq("email", cleanEmail)
+      .limit(1)
+      .maybeSingle<CustomerRow>();
 
-      if (existingCustomerError) {
-        setIsSubmitting(false);
-        setErrorMessage(
-          `No se pudo comprobar si el cliente ya existía: ${
-            existingCustomerError.message || "sin detalle del error"
-          }`
-        );
-        return;
-      }
+  if (existingCustomerError) {
+    setIsSubmitting(false);
+    setErrorMessage(
+      `No se pudo comprobar si el cliente ya existía por email: ${
+        existingCustomerError.message || "sin detalle del error"
+      }`
+    );
+    return;
+  }
 
-      customerId = existingCustomer?.id ?? null;
-    }
+  customerByEmail = existingCustomer ?? null;
+}
 
-    if (!customerId) {
-      const { data: existingCustomerByName, error: existingCustomerByNameError } =
-        await supabase
-          .from("customers")
-          .select("id")
-          .eq("company_id", company.id)
-          .eq("name", cleanName)
-          .limit(1)
-          .maybeSingle<CustomerRow>();
+if (normalizedPhone) {
+  const { data: existingCustomerByPhone, error: existingCustomerByPhoneError } =
+    await supabase
+      .from("customers")
+      .select("id, name, email, phone")
+      .eq("company_id", company.id)
+      .eq("phone", normalizedPhone)
+      .limit(1)
+      .maybeSingle<CustomerRow>();
 
-      if (existingCustomerByNameError) {
-        setIsSubmitting(false);
-        setErrorMessage(
-          `No se pudo comprobar el cliente por nombre: ${
-            existingCustomerByNameError.message || "sin detalle del error"
-          }`
-        );
-        return;
-      }
+  if (existingCustomerByPhoneError) {
+    setIsSubmitting(false);
+    setErrorMessage(
+      `No se pudo comprobar si el cliente ya existía por teléfono: ${
+        existingCustomerByPhoneError.message || "sin detalle del error"
+      }`
+    );
+    return;
+  }
 
-      customerId = existingCustomerByName?.id ?? null;
-    }
+  customerByPhone = existingCustomerByPhone ?? null;
+}
 
-    if (customerId) {
-      const { error: updateCustomerError } = await supabase
-        .from("customers")
-        .update({
-          name: cleanName,
-          email: cleanEmail || null,
-          phone: cleanPhone || null,
-          language: detectLanguage(cleanMessage),
-          status: "active",
-          last_interaction_at: new Date().toISOString(),
-        })
-        .eq("id", customerId);
+if (customerByEmail && customerByPhone && customerByEmail.id !== customerByPhone.id) {
+  setIsSubmitting(false);
+  setErrorMessage(
+    "El email y el teléfono introducidos pertenecen a clientes distintos. Revisa los datos antes de crear la consulta."
+  );
+  return;
+}
+
+customerId = customerByEmail?.id ?? customerByPhone?.id ?? null;
+
+if (!customerId) {
+  const { data: existingCustomerByName, error: existingCustomerByNameError } =
+    await supabase
+      .from("customers")
+      .select("id, name, email, phone")
+      .eq("company_id", company.id)
+      .eq("name", cleanName)
+      .limit(1)
+      .maybeSingle<CustomerRow>();
+
+  if (existingCustomerByNameError) {
+    setIsSubmitting(false);
+    setErrorMessage(
+      `No se pudo comprobar el cliente por nombre: ${
+        existingCustomerByNameError.message || "sin detalle del error"
+      }`
+    );
+    return;
+  }
+
+  customerId = existingCustomerByName?.id ?? null;
+}
+
+ 
+
+if (customerId) {
+  const customerUpdate: {
+    name: string;
+    email?: string;
+    phone?: string;
+    language: string;
+    status: string;
+    last_interaction_at: string;
+  } = {
+    name: cleanName,
+    language: detectLanguage(cleanMessage),
+    status: "active",
+    last_interaction_at: new Date().toISOString(),
+  };
+
+  if (cleanEmail) {
+    customerUpdate.email = cleanEmail;
+  }
+
+  if (normalizedPhone) {
+    customerUpdate.phone = normalizedPhone;
+  }
+
+  const { error: updateCustomerError } = await supabase
+    .from("customers")
+    .update(customerUpdate)
+    .eq("id", customerId);
 
       if (updateCustomerError) {
         setIsSubmitting(false);
@@ -598,7 +687,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
           company_id: company.id,
           name: cleanName,
           email: cleanEmail || null,
-          phone: cleanPhone || null,
+          phone: normalizedPhone || null,
           language: detectLanguage(cleanMessage),
           status: "active",
           last_interaction_at: new Date().toISOString(),
