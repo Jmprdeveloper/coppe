@@ -15,6 +15,7 @@ type InquiryFormProps = {
 
 type CompanyRow = {
   id: string;
+  name: string;
 };
 
 type CustomerRow = {
@@ -202,34 +203,39 @@ function buildRecommendedAction(category: string) {
 
 function buildSuggestedResponse(
   customerName: string,
+  companyName: string,
   category: string,
   language: string
 ) {
   if (language === "en") {
     if (category === "cancellation") {
-      return `Hi ${customerName}, thank you for your message. To help with the cancellation, could you please send us your booking reference or the full name used for the reservation? We will review it as soon as possible.`;
+      return `Hi ${customerName}, thank you for contacting ${companyName}. To help with the cancellation, could you please send us your booking reference or the full name used for the reservation? We will review it as soon as possible.`;
     }
 
     if (category === "booking") {
-      return `Hi ${customerName}, thank you for contacting Hotel Costa Azul. To check availability, could you please confirm the exact dates and number of guests? We will review the options and get back to you shortly.`;
+      return `Hi ${customerName}, thank you for contacting ${companyName}. To check availability, could you please confirm the exact dates and number of guests? We will review the options and get back to you shortly.`;
     }
 
-    return `Hi ${customerName}, thank you for contacting Hotel Costa Azul. We have received your message and will review it shortly so we can give you a clear answer.`;
+    if (category === "complaint") {
+      return `Hi ${customerName}, we are sorry to hear about this. We have received your message and will review it internally so we can give you a clear response as soon as possible.`;
+    }
+
+    return `Hi ${customerName}, thank you for contacting ${companyName}. We have received your message and will review it shortly so we can give you a clear answer.`;
   }
 
   if (category === "cancellation") {
-    return `Hola ${customerName}, gracias por contactar con Hotel Costa Azul. Para poder ayudarte con la cancelación, ¿podrías indicarnos el número de reserva o el nombre completo con el que se realizó? Lo revisaremos lo antes posible.`;
+    return `Hola ${customerName}, gracias por contactar con ${companyName}. Para poder ayudarte con la cancelación, ¿podrías indicarnos el número de reserva o el nombre completo con el que se realizó? Lo revisaremos lo antes posible.`;
   }
 
   if (category === "booking") {
-    return `Hola ${customerName}, gracias por contactar con Hotel Costa Azul. Para poder revisar disponibilidad, ¿podrías indicarnos las fechas exactas y el número de personas? Te responderemos lo antes posible.`;
+    return `Hola ${customerName}, gracias por contactar con ${companyName}. Para poder revisar disponibilidad, ¿podrías indicarnos las fechas exactas y el número de personas? Te responderemos lo antes posible.`;
   }
 
   if (category === "complaint") {
     return `Hola ${customerName}, sentimos lo ocurrido. Hemos recibido tu mensaje y vamos a revisarlo internamente para darte una respuesta clara lo antes posible.`;
   }
 
-  return `Hola ${customerName}, gracias por contactar con Hotel Costa Azul. Hemos recibido tu consulta y la revisaremos para darte una respuesta clara lo antes posible.`;
+  return `Hola ${customerName}, gracias por contactar con ${companyName}. Hemos recibido tu consulta y la revisaremos para darte una respuesta clara lo antes posible.`;
 }
 
 function buildSubject(message: string, fallbackCategory: string) {
@@ -295,7 +301,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
 
     const { data: company, error: companyError } = await supabase
       .from("companies")
-      .select("id")
+      .select("id, name")
       .limit(1)
       .maybeSingle<CompanyRow>();
 
@@ -429,7 +435,12 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         sentiment: "neutral",
         missing_information: buildMissingInformation(category),
         recommended_action: buildRecommendedAction(category),
-        suggested_response: buildSuggestedResponse(cleanName, category, language),
+        suggested_response: buildSuggestedResponse(
+          cleanName,
+          company.name,
+          category,
+          language
+        ),
         status: "new",
       })
       .select("id")
@@ -467,6 +478,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                   value={customerName}
                   onChange={(event) => setCustomerName(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Nombre del cliente"
                 />
               </label>
 
@@ -476,6 +488,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="cliente@email.com"
                 />
               </label>
 
@@ -485,6 +498,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                   value={phone}
                   onChange={(event) => setPhone(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="+34 600 000 000"
                 />
               </label>
 
@@ -557,6 +571,10 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                   setCreatedInquiryId(null);
                   setSuccessMessage("");
                   setErrorMessage("");
+                  setCustomerName("");
+                  setEmail("");
+                  setPhone("");
+                  setSourceChannel("");
                   setMessage("");
                 }}
               >
