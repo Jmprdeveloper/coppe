@@ -397,6 +397,13 @@ export function InquiryDetail({
       return;
     }
 
+    if (inquiry.status !== "new" && inquiry.status !== "pending") {
+      setFollowUpErrorMessage(
+        "No se puede crear un seguimiento sobre una consulta finalizada. Reabre la consulta primero."
+      );
+      return;
+    }
+
     const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
     const title = `Revisar consulta de ${inquiry.customerName}`;
 
@@ -469,6 +476,9 @@ export function InquiryDetail({
     inquiry.status === "replied" ||
     inquiry.status === "closed" ||
     inquiry.status === "discarded";
+
+  const canCreateFollowUp =
+    inquiry.status === "new" || inquiry.status === "pending";
 
   return (
     <div>
@@ -588,32 +598,41 @@ export function InquiryDetail({
               Seguimiento sugerido
             </h3>
 
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Crear seguimiento para revisar esta consulta en menos de 24 horas.
-            </p>
+            {canCreateFollowUp ? (
+              <>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Crear seguimiento para revisar esta consulta en menos de 24 horas.
+                </p>
 
-            {followUpErrorMessage ? (
-              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {followUpErrorMessage}
-              </div>
-            ) : null}
+                {followUpErrorMessage ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {followUpErrorMessage}
+                  </div>
+                ) : null}
 
-            {followUpMessage ? (
-              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {followUpMessage}
-              </div>
-            ) : null}
+                {followUpMessage ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {followUpMessage}
+                  </div>
+                ) : null}
 
-            <Button
-              className="mt-4 w-full"
-              onClick={handleCreateFollowUp}
-              disabled={isCreatingFollowUp}
-            >
-              <CalendarClock size={16} />
-              {isCreatingFollowUp
-                ? "Creando seguimiento..."
-                : "Crear seguimiento"}
-            </Button>
+                <Button
+                  className="mt-4 w-full"
+                  onClick={handleCreateFollowUp}
+                  disabled={isCreatingFollowUp}
+                >
+                  <CalendarClock size={16} />
+                  {isCreatingFollowUp
+                    ? "Creando seguimiento..."
+                    : "Crear seguimiento"}
+                </Button>
+              </>
+            ) : (
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Esta consulta está finalizada. Para crear un seguimiento,
+                primero reabre la consulta.
+              </p>
+            )}
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
