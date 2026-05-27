@@ -477,6 +477,9 @@ export function InquiryDetail({
     inquiry.status === "closed" ||
     inquiry.status === "discarded";
 
+  const canUseFinalActions =
+    inquiry.status === "new" || inquiry.status === "pending";
+
   const canCreateFollowUp =
     inquiry.status === "new" || inquiry.status === "pending";
 
@@ -533,30 +536,34 @@ export function InquiryDetail({
             </Button>
           ) : null}
 
-          <Button
-            variant="secondary"
-            onClick={() => handleUpdateStatus("replied")}
-            disabled={isUpdatingStatus}
-          >
-            <CheckCircle2 size={16} />
-            {isUpdatingStatus ? "Actualizando..." : "Marcar respondida"}
-          </Button>
+          {canUseFinalActions ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={() => handleUpdateStatus("replied")}
+                disabled={isUpdatingStatus}
+              >
+                <CheckCircle2 size={16} />
+                {isUpdatingStatus ? "Actualizando..." : "Marcar respondida"}
+              </Button>
 
-          <Button
-            variant="secondary"
-            onClick={() => handleUpdateStatus("closed")}
-            disabled={isUpdatingStatus}
-          >
-            Cerrar
-          </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleUpdateStatus("closed")}
+                disabled={isUpdatingStatus}
+              >
+                Cerrar
+              </Button>
 
-          <Button
-            variant="ghost"
-            onClick={() => handleUpdateStatus("discarded")}
-            disabled={isUpdatingStatus}
-          >
-            Descartar consulta
-          </Button>
+              <Button
+                variant="ghost"
+                onClick={() => handleUpdateStatus("discarded")}
+                disabled={isUpdatingStatus}
+              >
+                Descartar consulta
+              </Button>
+            </>
+          ) : null}
         </div>
       </div>
 
