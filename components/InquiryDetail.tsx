@@ -269,6 +269,16 @@ export function InquiryDetail({
 
     setStatusMessage("");
     setStatusErrorMessage("");
+
+    if (
+      newStatus === "discarded" &&
+      !window.confirm(
+        "¿Seguro que quieres descartar esta consulta? No se eliminará del historial, pero dejará de tratarse como pendiente."
+      )
+    ) {
+      return;
+    }
+
     setIsUpdatingStatus(true);
 
     const { error } = await supabase
@@ -362,20 +372,19 @@ export function InquiryDetail({
   const handleCreateFollowUp = async () => {
     setFollowUpMessage("");
     setFollowUpErrorMessage("");
-  
+
     if (!rawInquiry || !inquiry) {
       setFollowUpErrorMessage(
         "No se puede crear el seguimiento porque no hay consulta cargada."
       );
       return;
     }
-  
+
     const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-  
     const title = `Revisar consulta de ${inquiry.customerName}`;
-  
+
     setIsCreatingFollowUp(true);
-  
+
     const { error } = await supabase.from("follow_ups").insert({
       company_id: rawInquiry.company_id,
       customer_id: rawInquiry.customer_id,
@@ -385,9 +394,9 @@ export function InquiryDetail({
       status: "pending",
       urgency: "upcoming",
     });
-  
+
     setIsCreatingFollowUp(false);
-  
+
     if (error) {
       setFollowUpErrorMessage(
         `No se pudo crear el seguimiento: ${
@@ -396,7 +405,7 @@ export function InquiryDetail({
       );
       return;
     }
-  
+
     setFollowUpMessage(
       "Seguimiento creado correctamente para dentro de 24 horas."
     );
@@ -485,6 +494,7 @@ export function InquiryDetail({
           <Button
             variant="secondary"
             onClick={() => handleUpdateStatus("replied")}
+            disabled={isUpdatingStatus}
           >
             <CheckCircle2 size={16} />
             {isUpdatingStatus ? "Actualizando..." : "Marcar respondida"}
@@ -493,6 +503,7 @@ export function InquiryDetail({
           <Button
             variant="secondary"
             onClick={() => handleUpdateStatus("closed")}
+            disabled={isUpdatingStatus}
           >
             Cerrar
           </Button>
@@ -500,8 +511,9 @@ export function InquiryDetail({
           <Button
             variant="ghost"
             onClick={() => handleUpdateStatus("discarded")}
+            disabled={isUpdatingStatus}
           >
-            Descartar
+            Descartar consulta
           </Button>
         </div>
       </div>
@@ -549,25 +561,26 @@ export function InquiryDetail({
             </p>
 
             {followUpErrorMessage ? (
-            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {followUpErrorMessage}
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {followUpErrorMessage}
+              </div>
+            ) : null}
+
+            {followUpMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {followUpMessage}
+              </div>
+            ) : null}
+
+            <Button
+              className="mt-4 w-full"
+              onClick={handleCreateFollowUp}
+              disabled={isCreatingFollowUp}
+            >
+              <CalendarClock size={16} />
+              {isCreatingFollowUp ? "Creando seguimiento..." : "Crear seguimiento"}
+            </Button>
           </div>
-        ) : null}
-
-  {followUpMessage ? (
-    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-      {followUpMessage}
-    </div>
-  ) : null}
-
-  <Button
-    className="mt-4 w-full"
-    onClick={handleCreateFollowUp}
-  >
-    <CalendarClock size={16} />
-    {isCreatingFollowUp ? "Creando seguimiento..." : "Crear seguimiento"}
-  </Button>
-</div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">Nota interna</h3>
@@ -595,6 +608,7 @@ export function InquiryDetail({
               variant="secondary"
               className="mt-3 w-full"
               onClick={handleSaveNote}
+              disabled={isSavingNote}
             >
               {isSavingNote ? "Guardando nota..." : "Guardar nota"}
             </Button>
