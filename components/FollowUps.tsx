@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus, X } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
 import type { FollowUp } from "../types";
@@ -25,6 +25,14 @@ type FollowUpRow = {
   customer: {
     name: string | null;
   } | null;
+};
+
+type InquiryOptionRow = {
+  id: string;
+  company_id: string;
+  customer_id: string | null;
+  customer_name: string;
+  subject: string | null;
 };
 
 function isSameDay(firstDate: Date, secondDate: Date) {
@@ -134,24 +142,47 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   };
 }
 
+function getDefaultDateTimeLocal() {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function FollowUps({ openInquiry }: FollowUpsProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [inquiryOptions, setInquiryOptions] = useState<InquiryOptionRow[]>([]);
+
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [selectedInquiryId, setSelectedInquiryId] = useState("");
+  const [title, setTitle] = useState("");
+  const [dueAt, setDueAt] = useState(getDefaultDateTimeLocal());
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreating, setIsCreating] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
     null
   );
+
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [formErrorMessage, setFormErrorMessage] = useState("");
 
   useEffect(() => {
-    async function loadFollowUps() {
+    async function loadFollowUpsAndInquiries() {
       setIsLoading(true);
       setErrorMessage("");
       setSuccessMessage("");
+      setFormErrorMessage("");
 
-      const { data, error } = await supabase
+      const { data: followUpsData, error: followUpsError } = await supabase
         .from("follow_ups")
         .select(
           [
@@ -168,27 +199,154 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         .order("due_at", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false });
 
-      if (error) {
+      if (followUpsError) {
         setErrorMessage(
           `No se pudieron cargar los seguimientos: ${
-            error.message || "sin detalle del error"
+            followUpsError.message || "sin detalle del error"
           }`
         );
         setIsLoading(false);
         return;
       }
 
-      setFollowUps(
-        ((data ?? []) as unknown as FollowUpRow[]).map(
-          mapFollowUpRowToFollowUp
-        )
+      const { data: inquiriesData, error: inquiriesError } = await supabase
+        .from("inquiries")
+        .select("id, company_id, customer_id, customer_name, subject")
+        .order("created_at", { ascending: false });
+
+      if (inquiriesError) {
+        setErrorMessage(
+          `No se pudieron cargar las consultas para crear seguimientos: ${
+            inquiriesError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
+      const mappedFollowUps = ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
+        mapFollowUpRowToFollowUp
       );
+
+      const mappedInquiries = (inquiriesData ??
+        []) as unknown as InquiryOptionRow[];
+
+      setFollowUps(mappedFollowUps);
+      setInquiryOptions(mappedInquiries);
+
+      if (mappedInquiries.length > 0) {
+        setSelectedInquiryId((currentValue) => currentValue || mappedInquiries[0].id);
+      }
 
       setIsLoading(false);
     }
 
-    loadFollowUps();
+    loadFollowUpsAndInquiries();
   }, [supabase]);
+
+  const selectedInquiry = inquiryOptions.find(
+    (inquiry) => inquiry.id === selectedInquiryId
+  );
+
+  const handleOpenCreateForm = () => {
+    setShowCreateForm(true);
+    setSuccessMessage("");
+    setFormErrorMessage("");
+
+    if (!title && selectedInquiry) {
+      setTitle(`Revisar consulta de ${selectedInquiry.customer_name}`);
+    }
+
+    if (!dueAt) {
+      setDueAt(getDefaultDateTimeLocal());
+    }
+  };
+
+  const handleCancelCreateForm = () => {
+    setShowCreateForm(false);
+    setFormErrorMessage("");
+  };
+
+  const handleCreateFollowUp = async () => {
+    setSuccessMessage("");
+    setFormErrorMessage("");
+
+    if (!selectedInquiry) {
+      setFormErrorMessage("Selecciona una consulta antes de crear el seguimiento.");
+      return;
+    }
+
+    const cleanTitle = title.trim();
+
+    if (!cleanTitle) {
+      setFormErrorMessage("El título del seguimiento es obligatorio.");
+      return;
+    }
+
+    if (!dueAt) {
+      setFormErrorMessage("La fecha y hora del seguimiento son obligatorias.");
+      return;
+    }
+
+    const dueDate = new Date(dueAt);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      setFormErrorMessage("La fecha indicada no es válida.");
+      return;
+    }
+
+    setIsCreating(true);
+
+    const { data, error } = await supabase
+      .from("follow_ups")
+      .insert({
+        company_id: selectedInquiry.company_id,
+        customer_id: selectedInquiry.customer_id,
+        inquiry_id: selectedInquiry.id,
+        title: cleanTitle,
+        due_at: dueDate.toISOString(),
+        status: "pending",
+        urgency: resolveUrgency(
+          dueDate.toISOString(),
+          "pending",
+          null
+        ),
+      })
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
+
+    setIsCreating(false);
+
+    if (error || !data) {
+      setFormErrorMessage(
+        `No se pudo crear el seguimiento: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setFollowUps((currentFollowUps) => [
+      mapFollowUpRowToFollowUp(data),
+      ...currentFollowUps,
+    ]);
+
+    setTitle(`Revisar consulta de ${selectedInquiry.customer_name}`);
+    setDueAt(getDefaultDateTimeLocal());
+    setShowCreateForm(false);
+    setSuccessMessage("Seguimiento creado correctamente.");
+  };
 
   const handleUpdateFollowUpStatus = async (
     followUpId: string,
@@ -196,6 +354,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
   ) => {
     setErrorMessage("");
     setSuccessMessage("");
+    setFormErrorMessage("");
     setUpdatingFollowUpId(followUpId);
 
     const { error } = await supabase
@@ -249,11 +408,105 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         title="Seguimientos"
         description="Tareas pendientes para no olvidar consultas importantes."
         action={
-          <Button>
+          <Button onClick={handleOpenCreateForm}>
             <Plus size={16} /> Crear seguimiento
           </Button>
         }
       />
+
+      {showCreateForm ? (
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">
+                Crear seguimiento
+              </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Asocia una tarea pendiente a una consulta existente.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCancelCreateForm}
+              className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Cerrar formulario"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="text-sm font-medium text-slate-700 md:col-span-2">
+              Consulta asociada
+              <select
+                value={selectedInquiryId}
+                onChange={(event) => {
+                  const nextInquiryId = event.target.value;
+                  const nextInquiry = inquiryOptions.find(
+                    (inquiry) => inquiry.id === nextInquiryId
+                  );
+
+                  setSelectedInquiryId(nextInquiryId);
+
+                  if (nextInquiry) {
+                    setTitle(`Revisar consulta de ${nextInquiry.customer_name}`);
+                  }
+                }}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              >
+                {inquiryOptions.length === 0 ? (
+                  <option value="">No hay consultas disponibles</option>
+                ) : (
+                  inquiryOptions.map((inquiry) => (
+                    <option key={inquiry.id} value={inquiry.id}>
+                      {inquiry.customer_name} · {inquiry.subject || "Sin asunto"}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Título
+              <input
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Fecha y hora
+              <input
+                type="datetime-local"
+                value={dueAt}
+                onChange={(event) => setDueAt(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              />
+            </label>
+          </div>
+
+          {formErrorMessage ? (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {formErrorMessage}
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              onClick={handleCreateFollowUp}
+              disabled={isCreating || inquiryOptions.length === 0}
+            >
+              {isCreating ? "Creando seguimiento..." : "Guardar seguimiento"}
+            </Button>
+
+            <Button variant="secondary" onClick={handleCancelCreateForm}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {errorMessage ? (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
