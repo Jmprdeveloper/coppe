@@ -14,7 +14,6 @@ import type {
 import { Button } from "./Button";
 import { InquiryCard } from "./InquiryCard";
 import { PageHeader } from "./PageHeader";
-import { StatusBadge } from "./StatusBadge";
 
 type CustomerDetailProps = {
   customerId: string;
@@ -146,6 +145,26 @@ function formatLanguage(language: string | null) {
   return language || "No indicado";
 }
 
+function formatCustomerStatus(status: string) {
+  if (status === "new") {
+    return "Nuevo";
+  }
+
+  if (status === "active") {
+    return "Activo";
+  }
+
+  if (status === "inactive") {
+    return "Inactivo";
+  }
+
+  if (status === "archived") {
+    return "Archivado";
+  }
+
+  return "Activo";
+}
+
 function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
   return {
     id: row.id,
@@ -182,10 +201,19 @@ export function CustomerDetail({
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [note, setNote] = useState("");
 
+  const [editName, setEditName] = useState("");
+  const [editEmail, setEditEmail] = useState("");
+  const [editPhone, setEditPhone] = useState("");
+  const [editLanguage, setEditLanguage] = useState("es");
+  const [editStatus, setEditStatus] = useState<CustomerStatus>("active");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
 
   const [errorMessage, setErrorMessage] = useState("");
+  const [customerMessage, setCustomerMessage] = useState("");
+  const [customerErrorMessage, setCustomerErrorMessage] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
 
@@ -193,6 +221,8 @@ export function CustomerDetail({
     async function loadCustomerData() {
       setIsLoading(true);
       setErrorMessage("");
+      setCustomerMessage("");
+      setCustomerErrorMessage("");
       setNoteMessage("");
       setNoteErrorMessage("");
       setCustomer(null);
@@ -280,6 +310,11 @@ export function CustomerDetail({
       }
 
       setCustomer(customerData);
+      setEditName(customerData.name);
+      setEditEmail(customerData.email ?? "");
+      setEditPhone(customerData.phone ?? "");
+      setEditLanguage(customerData.language ?? "es");
+      setEditStatus(normalizeCustomerStatus(customerData.status));
       setNotes((notesData ?? []) as InternalNoteRow[]);
       setInquiries(
         ((inquiriesData ?? []) as unknown as InquiryRow[]).map(
@@ -292,12 +327,137 @@ export function CustomerDetail({
     loadCustomerData();
   }, [customerId, supabase]);
 
+  const handleSaveCustomer = async () => {
+    setCustomerMessage("");
+    setCustomerErrorMessage("");
+
+    if (!customer) {
+      setCustomerErrorMessage(
+        "No se puede guardar porque no hay cliente cargado."
+      );
+      return;
+    }
+
+    const cleanName = editName.trim();
+    const cleanEmail = editEmail.trim().toLowerCase();
+    const cleanPhone = editPhone.trim();
+    const cleanLanguage = editLanguage.trim() || "es";
+    const cleanStatus = normalizeCustomerStatus(editStatus);
+
+    if (!cleanName) {
+      setCustomerErrorMessage("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    setIsSavingCustomer(true);
+
+    if (cleanEmail) {
+      const { data: existingCustomer, error: existingCustomerError } =
+        await supabase
+          .from("customers")
+          .select("id")
+          .eq("company_id", customer.company_id)
+          .eq("email", cleanEmail)
+          .neq("id", customer.id)
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+
+      if (existingCustomerError) {
+        setIsSavingCustomer(false);
+        setCustomerErrorMessage(
+          `No se pudo comprobar si el email ya existe: ${
+            existingCustomerError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      if (existingCustomer) {
+        setIsSavingCustomer(false);
+        setCustomerErrorMessage(
+          "Ya existe otro cliente con ese email en esta empresa."
+        );
+        return;
+      }
+    }
+
+    const previousName = customer.name;
+
+    const { data: updatedCustomer, error: updateCustomerError } = await supabase
+      .from("customers")
+      .update({
+        name: cleanName,
+        email: cleanEmail || null,
+        phone: cleanPhone || null,
+        language: cleanLanguage,
+        status: cleanStatus,
+      })
+      .eq("id", customer.id)
+      .select(
+        "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
+      )
+      .single<CustomerRow>();
+
+    if (updateCustomerError || !updatedCustomer) {
+      setIsSavingCustomer(false);
+      setCustomerErrorMessage(
+        `No se pudieron guardar los cambios: ${
+          updateCustomerError?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    if (cleanName !== previousName) {
+      const { error: updateInquiriesError } = await supabase
+        .from("inquiries")
+        .update({
+          customer_name: cleanName,
+        })
+        .eq("customer_id", customer.id);
+
+      if (updateInquiriesError) {
+        setIsSavingCustomer(false);
+        setCustomer(updatedCustomer);
+        setInquiries((currentInquiries) =>
+          currentInquiries.map((inquiry) => ({
+            ...inquiry,
+            customerName: cleanName,
+          }))
+        );
+        setCustomerErrorMessage(
+          `El cliente se guardó, pero no se pudo actualizar el nombre en sus consultas: ${
+            updateInquiriesError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+    }
+
+    setIsSavingCustomer(false);
+    setCustomer(updatedCustomer);
+    setEditName(updatedCustomer.name);
+    setEditEmail(updatedCustomer.email ?? "");
+    setEditPhone(updatedCustomer.phone ?? "");
+    setEditLanguage(updatedCustomer.language ?? "es");
+    setEditStatus(normalizeCustomerStatus(updatedCustomer.status));
+    setInquiries((currentInquiries) =>
+      currentInquiries.map((inquiry) => ({
+        ...inquiry,
+        customerName: cleanName,
+      }))
+    );
+    setCustomerMessage("Datos del cliente guardados correctamente.");
+  };
+
   const handleSaveNote = async () => {
     setNoteMessage("");
     setNoteErrorMessage("");
 
     if (!customer) {
-      setNoteErrorMessage("No se puede guardar la nota porque no hay cliente cargado.");
+      setNoteErrorMessage(
+        "No se puede guardar la nota porque no hay cliente cargado."
+      );
       return;
     }
 
@@ -392,42 +552,123 @@ export function CustomerDetail({
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">Datos del cliente</h3>
 
-            <div className="mt-4 space-y-3 text-sm">
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Estado</span>
-                <StatusBadge
-                  status={normalizeCustomerStatus(customer.status)}
+            <div className="mt-4 space-y-4 text-sm">
+              <label className="block font-medium text-slate-700">
+                Nombre
+                <input
+                  value={editName}
+                  onChange={(event) => {
+                    setEditName(event.target.value);
+                    setCustomerMessage("");
+                    setCustomerErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                 />
-              </div>
+              </label>
 
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Idioma</span>
-                <span className="font-medium text-slate-800">
-                  {formatLanguage(customer.language)}
-                </span>
-              </div>
+              <label className="block font-medium text-slate-700">
+                Email
+                <input
+                  value={editEmail}
+                  onChange={(event) => {
+                    setEditEmail(event.target.value);
+                    setCustomerMessage("");
+                    setCustomerErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Sin email"
+                />
+              </label>
 
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Email</span>
-                <span className="font-medium text-slate-800">
-                  {customer.email || "Sin email"}
-                </span>
-              </div>
+              <label className="block font-medium text-slate-700">
+                Teléfono
+                <input
+                  value={editPhone}
+                  onChange={(event) => {
+                    setEditPhone(event.target.value);
+                    setCustomerMessage("");
+                    setCustomerErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Sin teléfono"
+                />
+              </label>
 
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Teléfono</span>
-                <span className="font-medium text-slate-800">
-                  {customer.phone || "Sin teléfono"}
-                </span>
-              </div>
+              <label className="block font-medium text-slate-700">
+                Idioma
+                <select
+                  value={editLanguage}
+                  onChange={(event) => {
+                    setEditLanguage(event.target.value);
+                    setCustomerMessage("");
+                    setCustomerErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                >
+                  <option value="es">Español</option>
+                  <option value="en">Inglés</option>
+                </select>
+              </label>
 
-              <div className="flex justify-between gap-4">
-                <span className="text-slate-500">Última interacción</span>
-                <span className="font-medium text-slate-800">
+              <label className="block font-medium text-slate-700">
+                Estado
+                <select
+                  value={editStatus}
+                  onChange={(event) => {
+                    setEditStatus(
+                      normalizeCustomerStatus(event.target.value)
+                    );
+                    setCustomerMessage("");
+                    setCustomerErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                >
+                  <option value="new">Nuevo</option>
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                  <option value="archived">Archivado</option>
+                </select>
+              </label>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium text-slate-500">
+                  Última interacción
+                </div>
+                <div className="mt-1 font-medium text-slate-800">
                   {formatDateTime(customer.last_interaction_at)}
-                </span>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <div className="text-xs font-medium text-slate-500">
+                  Estado actual
+                </div>
+                <div className="mt-1 font-medium text-slate-800">
+                  {formatCustomerStatus(customer.status)} ·{" "}
+                  {formatLanguage(customer.language)}
+                </div>
               </div>
             </div>
+
+            {customerErrorMessage ? (
+              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {customerErrorMessage}
+              </div>
+            ) : null}
+
+            {customerMessage ? (
+              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {customerMessage}
+              </div>
+            ) : null}
+
+            <Button
+              className="mt-4 w-full"
+              onClick={handleSaveCustomer}
+              disabled={isSavingCustomer}
+            >
+              {isSavingCustomer ? "Guardando cambios..." : "Guardar cambios"}
+            </Button>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -456,6 +697,7 @@ export function CustomerDetail({
               variant="secondary"
               className="mt-3 w-full"
               onClick={handleSaveNote}
+              disabled={isSavingNote}
             >
               {isSavingNote ? "Guardando nota..." : "Guardar nota"}
             </Button>
