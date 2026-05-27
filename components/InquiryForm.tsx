@@ -166,12 +166,28 @@ function buildIntent(category: string) {
   return intents[category] ?? "Solicitar información";
 }
 
-function buildMissingInformation(category: string) {
+function buildMissingInformation(category: string, originalMessage: string) {
+  const normalizedMessage = normalizeSearchText(originalMessage);
+
   if (category === "booking") {
-    return ["fechas exactas", "número de personas"];
+    const missingInformation = [];
+
+    if (!hasDateSignal(normalizedMessage)) {
+      missingInformation.push("fechas exactas");
+    }
+
+    if (!hasPeopleSignal(normalizedMessage)) {
+      missingInformation.push("número de personas");
+    }
+
+    return missingInformation;
   }
 
   if (category === "cancellation") {
+    if (hasReservationReference(normalizedMessage)) {
+      return [];
+    }
+
     return ["número de reserva", "nombre completo de la reserva"];
   }
 
@@ -182,57 +198,247 @@ function buildMissingInformation(category: string) {
   return [];
 }
 
-function buildRecommendedAction(category: string) {
-  const actions: Record<string, string> = {
-    cancellation:
-      "Responder cuanto antes solicitando los datos necesarios para localizar la reserva.",
-    booking:
-      "Pedir los datos que falten y revisar disponibilidad antes de confirmar.",
-    complaint:
-      "Revisar la incidencia internamente y responder con una solución clara.",
-    quote_request:
-      "Solicitar los detalles necesarios para preparar una propuesta o presupuesto.",
-    appointment_request:
-      "Confirmar disponibilidad de agenda antes de proponer una hora concreta.",
-    general_info:
-      "Responder con la información solicitada o pedir aclaración si falta contexto.",
-  };
+function buildRecommendedAction(category: string, originalMessage: string) {
+  const normalizedMessage = normalizeSearchText(originalMessage);
 
-  return actions[category] ?? "Revisar la consulta y responder al cliente.";
+  if (category === "cancellation") {
+    if (hasReservationReference(normalizedMessage)) {
+      return "Revisar la reserva indicada y responder al cliente con los siguientes pasos.";
+    }
+
+    return "Solicitar el número de reserva o el nombre completo de la reserva antes de gestionar la cancelación.";
+  }
+
+  if (category === "booking") {
+    const missingInformation = buildMissingInformation(category, originalMessage);
+
+    if (missingInformation.length === 0) {
+      return "Revisar disponibilidad con los datos recibidos y responder al cliente con una confirmación o alternativa.";
+    }
+
+    return "Solicitar los datos que faltan y revisar disponibilidad antes de confirmar.";
+  }
+
+  if (category === "complaint") {
+    return "Revisar la incidencia internamente y responder con una solución clara.";
+  }
+
+  if (category === "quote_request") {
+    return "Revisar la solicitud y pedir cualquier dato necesario antes de preparar una propuesta o presupuesto.";
+  }
+
+  if (category === "appointment_request") {
+    return "Confirmar disponibilidad de agenda antes de proponer una hora concreta.";
+  }
+
+  if (category === "general_info") {
+    return "Responder con la información solicitada o pedir aclaración si falta contexto.";
+  }
+
+  return "Revisar la consulta y responder al cliente.";
+}
+
+function hasDateSignal(normalizedMessage: string) {
+  const dateSignals = [
+    "hoy",
+    "mañana",
+    "manana",
+    "pasado",
+    "semana",
+    "finde",
+    "fin de semana",
+    "lunes",
+    "martes",
+    "miercoles",
+    "miércoles",
+    "jueves",
+    "viernes",
+    "sabado",
+    "sábado",
+    "domingo",
+    "today",
+    "tomorrow",
+    "weekend",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+    "january",
+    "february",
+    "march",
+    "april",
+    "may",
+    "june",
+    "july",
+    "august",
+    "september",
+    "october",
+    "november",
+    "december",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
+  ];
+
+  return (
+    dateSignals.some((signal) => normalizedMessage.includes(signal)) ||
+    /\b\d{1,2}[/-]\d{1,2}/.test(normalizedMessage)
+  );
+}
+
+function hasPeopleSignal(normalizedMessage: string) {
+  return (
+    normalizedMessage.includes("persona") ||
+    normalizedMessage.includes("personas") ||
+    normalizedMessage.includes("huesped") ||
+    normalizedMessage.includes("huespedes") ||
+    normalizedMessage.includes("huésped") ||
+    normalizedMessage.includes("huéspedes") ||
+    normalizedMessage.includes("guest") ||
+    normalizedMessage.includes("guests") ||
+    normalizedMessage.includes("people") ||
+    normalizedMessage.includes("pax") ||
+    /\b\d+\s*(persona|personas|huesped|huespedes|guest|guests|people|pax)\b/.test(
+      normalizedMessage
+    )
+  );
+}
+
+function hasReservationReference(normalizedMessage: string) {
+  return (
+    normalizedMessage.includes("numero de reserva") ||
+    normalizedMessage.includes("número de reserva") ||
+    normalizedMessage.includes("referencia") ||
+    normalizedMessage.includes("localizador") ||
+    normalizedMessage.includes("booking reference") ||
+    normalizedMessage.includes("reservation number")
+  );
+}
+
+function formatList(items: string[], language: string) {
+  if (items.length === 0) {
+    return "";
+  }
+
+  if (items.length === 1) {
+    return items[0];
+  }
+
+  const separator = language === "en" ? " and " : " y ";
+
+  return `${items.slice(0, -1).join(", ")}${separator}${items[items.length - 1]}`;
 }
 
 function buildSuggestedResponse(
   customerName: string,
   companyName: string,
   category: string,
-  language: string
+  language: string,
+  originalMessage: string
 ) {
-  if (language === "en") {
+  const normalizedMessage = normalizeSearchText(originalMessage);
+  const isEnglish = language === "en";
+
+  const hasDates = hasDateSignal(normalizedMessage);
+  const hasPeople = hasPeopleSignal(normalizedMessage);
+  const hasReservationData = hasReservationReference(normalizedMessage);
+
+  if (isEnglish) {
     if (category === "cancellation") {
+      if (hasReservationData) {
+        return `Hi ${customerName}, thank you for contacting ${companyName}. We have received your cancellation request and will review the booking details you have sent us. We will get back to you as soon as possible with the next steps.`;
+      }
+
       return `Hi ${customerName}, thank you for contacting ${companyName}. To help with the cancellation, could you please send us your booking reference or the full name used for the reservation? We will review it as soon as possible.`;
     }
 
     if (category === "booking") {
-      return `Hi ${customerName}, thank you for contacting ${companyName}. To check availability, could you please confirm the exact dates and number of guests? We will review the options and get back to you shortly.`;
+      const missingDetails = [];
+
+      if (!hasDates) {
+        missingDetails.push("the exact dates");
+      }
+
+      if (!hasPeople) {
+        missingDetails.push("the number of guests");
+      }
+
+      if (missingDetails.length > 0) {
+        return `Hi ${customerName}, thank you for contacting ${companyName}. To check availability, could you please confirm ${formatList(
+          missingDetails,
+          language
+        )}? We will review the options and get back to you shortly.`;
+      }
+
+      return `Hi ${customerName}, thank you for contacting ${companyName}. We have received your availability request and will review the information you have sent us. We will get back to you shortly with a clear answer.`;
     }
 
     if (category === "complaint") {
-      return `Hi ${customerName}, we are sorry to hear about this. We have received your message and will review it internally so we can give you a clear response as soon as possible.`;
+      return `Hi ${customerName}, we are sorry to hear about this. Thank you for letting ${companyName} know. We have received your message and will review it internally so we can give you a clear response as soon as possible.`;
+    }
+
+    if (category === "quote_request") {
+      return `Hi ${customerName}, thank you for contacting ${companyName}. We have received your request and will review the details so we can prepare a clear response. If we need any additional information, we will let you know shortly.`;
+    }
+
+    if (category === "appointment_request") {
+      return `Hi ${customerName}, thank you for contacting ${companyName}. We have received your appointment request and will check our availability before confirming the best option for you.`;
     }
 
     return `Hi ${customerName}, thank you for contacting ${companyName}. We have received your message and will review it shortly so we can give you a clear answer.`;
   }
 
   if (category === "cancellation") {
+    if (hasReservationData) {
+      return `Hola ${customerName}, gracias por contactar con ${companyName}. Hemos recibido tu solicitud de cancelación y revisaremos los datos de la reserva que nos has enviado. Te responderemos lo antes posible con los siguientes pasos.`;
+    }
+
     return `Hola ${customerName}, gracias por contactar con ${companyName}. Para poder ayudarte con la cancelación, ¿podrías indicarnos el número de reserva o el nombre completo con el que se realizó? Lo revisaremos lo antes posible.`;
   }
 
   if (category === "booking") {
-    return `Hola ${customerName}, gracias por contactar con ${companyName}. Para poder revisar disponibilidad, ¿podrías indicarnos las fechas exactas y el número de personas? Te responderemos lo antes posible.`;
+    const missingDetails = [];
+
+    if (!hasDates) {
+      missingDetails.push("las fechas exactas");
+    }
+
+    if (!hasPeople) {
+      missingDetails.push("el número de personas");
+    }
+
+    if (missingDetails.length > 0) {
+      return `Hola ${customerName}, gracias por contactar con ${companyName}. Para poder revisar disponibilidad, ¿podrías indicarnos ${formatList(
+        missingDetails,
+        language
+      )}? Te responderemos lo antes posible.`;
+    }
+
+    return `Hola ${customerName}, gracias por contactar con ${companyName}. Hemos recibido tu solicitud de disponibilidad y vamos a revisar la información que nos has enviado. Te responderemos lo antes posible con una respuesta clara.`;
   }
 
   if (category === "complaint") {
-    return `Hola ${customerName}, sentimos lo ocurrido. Hemos recibido tu mensaje y vamos a revisarlo internamente para darte una respuesta clara lo antes posible.`;
+    return `Hola ${customerName}, sentimos lo ocurrido. Gracias por informar a ${companyName}. Hemos recibido tu mensaje y vamos a revisarlo internamente para darte una respuesta clara lo antes posible.`;
+  }
+
+  if (category === "quote_request") {
+    return `Hola ${customerName}, gracias por contactar con ${companyName}. Hemos recibido tu solicitud y vamos a revisar los detalles para poder darte una respuesta clara. Si necesitamos algún dato adicional, te lo indicaremos lo antes posible.`;
+  }
+
+  if (category === "appointment_request") {
+    return `Hola ${customerName}, gracias por contactar con ${companyName}. Hemos recibido tu solicitud de cita y revisaremos la disponibilidad de agenda antes de confirmarte la mejor opción.`;
   }
 
   return `Hola ${customerName}, gracias por contactar con ${companyName}. Hemos recibido tu consulta y la revisaremos para darte una respuesta clara lo antes posible.`;
@@ -433,13 +639,14 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         ai_priority: priority,
         ai_language: language,
         sentiment: "neutral",
-        missing_information: buildMissingInformation(category),
-        recommended_action: buildRecommendedAction(category),
+        missing_information: buildMissingInformation(category, cleanMessage),
+        recommended_action: buildRecommendedAction(category, cleanMessage),
         suggested_response: buildSuggestedResponse(
           cleanName,
           company.name,
           category,
-          language
+          language,
+          cleanMessage
         ),
         status: "new",
       })
