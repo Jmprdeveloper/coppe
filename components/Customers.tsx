@@ -14,6 +14,10 @@ type CustomersProps = {
   openCustomer: (id: string) => void;
 };
 
+type CompanyRow = {
+  id: string;
+};
+
 type CustomerRow = {
   id: string;
   name: string;
@@ -72,8 +76,23 @@ export function Customers({ openCustomer }: CustomersProps) {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
+
+  const [showCreateForm, setShowCreateForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerLanguage, setNewCustomerLanguage] = useState("es");
+
+  const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(
+    null
+  );
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
+
   const [errorMessage, setErrorMessage] = useState("");
+  const [createErrorMessage, setCreateErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     async function loadCustomers() {
@@ -117,6 +136,117 @@ export function Customers({ openCustomer }: CustomersProps) {
     setAppliedSearchTerm("");
   };
 
+  const handleOpenCreateForm = () => {
+    setShowCreateForm(true);
+    setCreateErrorMessage("");
+    setSuccessMessage("");
+    setCreatedCustomerId(null);
+  };
+
+  const handleCloseCreateForm = () => {
+    setShowCreateForm(false);
+    setCreateErrorMessage("");
+  };
+
+  const handleCreateCustomer = async () => {
+    setCreateErrorMessage("");
+    setSuccessMessage("");
+    setCreatedCustomerId(null);
+
+    const cleanName = newCustomerName.trim();
+    const cleanEmail = newCustomerEmail.trim().toLowerCase();
+    const cleanPhone = newCustomerPhone.trim();
+    const cleanLanguage = newCustomerLanguage.trim() || "es";
+
+    if (!cleanName) {
+      setCreateErrorMessage("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    setIsCreatingCustomer(true);
+
+    const { data: company, error: companyError } = await supabase
+      .from("companies")
+      .select("id")
+      .limit(1)
+      .maybeSingle<CompanyRow>();
+
+    if (companyError || !company) {
+      setIsCreatingCustomer(false);
+      setCreateErrorMessage(
+        `No se pudo localizar la empresa del usuario: ${
+          companyError?.message || "no hay empresa asociada"
+        }`
+      );
+      return;
+    }
+
+    if (cleanEmail) {
+      const { data: existingCustomer, error: existingCustomerError } =
+        await supabase
+          .from("customers")
+          .select("id")
+          .eq("company_id", company.id)
+          .eq("email", cleanEmail)
+          .limit(1)
+          .maybeSingle<{ id: string }>();
+
+      if (existingCustomerError) {
+        setIsCreatingCustomer(false);
+        setCreateErrorMessage(
+          `No se pudo comprobar si el email ya existía: ${
+            existingCustomerError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      if (existingCustomer) {
+        setIsCreatingCustomer(false);
+        setCreateErrorMessage(
+          "Ya existe un cliente con ese email en esta empresa."
+        );
+        return;
+      }
+    }
+
+    const { data: createdCustomer, error: createCustomerError } = await supabase
+      .from("customers")
+      .insert({
+        company_id: company.id,
+        name: cleanName,
+        email: cleanEmail || null,
+        phone: cleanPhone || null,
+        language: cleanLanguage,
+        status: "active",
+        last_interaction_at: null,
+      })
+      .select(
+        "id, name, email, phone, language, status, last_interaction_at, created_at"
+      )
+      .single<CustomerRow>();
+
+    setIsCreatingCustomer(false);
+
+    if (createCustomerError || !createdCustomer) {
+      setCreateErrorMessage(
+        `No se pudo crear el cliente: ${
+          createCustomerError?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setCustomers((currentCustomers) => [createdCustomer, ...currentCustomers]);
+    setCreatedCustomerId(createdCustomer.id);
+    setSuccessMessage("Cliente creado correctamente.");
+
+    setNewCustomerName("");
+    setNewCustomerEmail("");
+    setNewCustomerPhone("");
+    setNewCustomerLanguage("es");
+  };
+
   const normalizedSearch = normalizeSearchText(appliedSearchTerm);
 
   const filteredCustomers = customers.filter((customer) => {
@@ -139,11 +269,114 @@ export function Customers({ openCustomer }: CustomersProps) {
         title="Clientes"
         description="Lista simple de clientes con su última interacción."
         action={
-          <Button>
+          <Button onClick={handleOpenCreateForm}>
             <Plus size={16} /> Nuevo cliente
           </Button>
         }
       />
+
+      {showCreateForm ? (
+        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">
+                Nuevo cliente
+              </h2>
+
+              <p className="mt-1 text-sm text-slate-500">
+                Crea un cliente para asociarle consultas, notas y seguimientos.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleCloseCreateForm}
+              className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Cerrar formulario"
+            >
+              <X size={18} />
+            </button>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="text-sm font-medium text-slate-700">
+              Nombre
+              <input
+                value={newCustomerName}
+                onChange={(event) => setNewCustomerName(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                placeholder="Nombre del cliente"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Email
+              <input
+                value={newCustomerEmail}
+                onChange={(event) => setNewCustomerEmail(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                placeholder="cliente@email.com"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Teléfono
+              <input
+                value={newCustomerPhone}
+                onChange={(event) => setNewCustomerPhone(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                placeholder="+34 600 000 000"
+              />
+            </label>
+
+            <label className="text-sm font-medium text-slate-700">
+              Idioma
+              <select
+                value={newCustomerLanguage}
+                onChange={(event) => setNewCustomerLanguage(event.target.value)}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              >
+                <option value="es">Español</option>
+                <option value="en">Inglés</option>
+              </select>
+            </label>
+          </div>
+
+          {createErrorMessage ? (
+            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {createErrorMessage}
+            </div>
+          ) : null}
+
+          {successMessage ? (
+            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {successMessage}
+            </div>
+          ) : null}
+
+          <div className="mt-5 flex flex-wrap gap-2">
+            <Button
+              onClick={handleCreateCustomer}
+              disabled={isCreatingCustomer}
+            >
+              {isCreatingCustomer ? "Creando cliente..." : "Guardar cliente"}
+            </Button>
+
+            {createdCustomerId ? (
+              <Button
+                variant="secondary"
+                onClick={() => openCustomer(createdCustomerId)}
+              >
+                Ver cliente
+              </Button>
+            ) : null}
+
+            <Button variant="ghost" onClick={handleCloseCreateForm}>
+              Cancelar
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:flex-row sm:items-center">
         <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
