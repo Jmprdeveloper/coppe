@@ -279,6 +279,18 @@ export function InquiryDetail({
       return;
     }
 
+    if (
+      newStatus === "pending" &&
+      (inquiry.status === "replied" ||
+        inquiry.status === "closed" ||
+        inquiry.status === "discarded") &&
+      !window.confirm(
+        "¿Seguro que quieres reabrir esta consulta? Volverá a tratarse como pendiente."
+      )
+    ) {
+      return;
+    }
+
     setIsUpdatingStatus(true);
 
     const { error } = await supabase
@@ -303,6 +315,11 @@ export function InquiryDetail({
       ...inquiry,
       status: newStatus,
     });
+
+    if (newStatus === "pending") {
+      setStatusMessage("Consulta reabierta correctamente.");
+      return;
+    }
 
     if (newStatus === "replied") {
       setStatusMessage("Consulta marcada como respondida.");
@@ -448,6 +465,11 @@ export function InquiryDetail({
     );
   }
 
+  const canReopenInquiry =
+    inquiry.status === "replied" ||
+    inquiry.status === "closed" ||
+    inquiry.status === "discarded";
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -491,6 +513,16 @@ export function InquiryDetail({
         </div>
 
         <div className="flex flex-wrap gap-2">
+          {canReopenInquiry ? (
+            <Button
+              variant="secondary"
+              onClick={() => handleUpdateStatus("pending")}
+              disabled={isUpdatingStatus}
+            >
+              Reabrir consulta
+            </Button>
+          ) : null}
+
           <Button
             variant="secondary"
             onClick={() => handleUpdateStatus("replied")}
@@ -578,7 +610,9 @@ export function InquiryDetail({
               disabled={isCreatingFollowUp}
             >
               <CalendarClock size={16} />
-              {isCreatingFollowUp ? "Creando seguimiento..." : "Crear seguimiento"}
+              {isCreatingFollowUp
+                ? "Creando seguimiento..."
+                : "Crear seguimiento"}
             </Button>
           </div>
 

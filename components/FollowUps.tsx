@@ -33,6 +33,7 @@ type InquiryOptionRow = {
   customer_id: string | null;
   customer_name: string;
   subject: string | null;
+  status: string;
 };
 
 function isSameDay(firstDate: Date, secondDate: Date) {
@@ -210,9 +211,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       }
 
       const { data: inquiriesData, error: inquiriesError } = await supabase
-        .from("inquiries")
-        .select("id, company_id, customer_id, customer_name, subject")
-        .order("created_at", { ascending: false });
+      .from("inquiries")
+      .select("id, company_id, customer_id, customer_name, subject, status")
+      .order("created_at", { ascending: false });
 
       if (inquiriesError) {
         setErrorMessage(
@@ -230,13 +231,24 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
       const mappedInquiries = (inquiriesData ??
         []) as unknown as InquiryOptionRow[];
-
+      
+      const activeInquiryOptions = mappedInquiries.filter(
+        (inquiry) => inquiry.status === "new" || inquiry.status === "pending"
+      );
+      
       setFollowUps(mappedFollowUps);
-      setInquiryOptions(mappedInquiries);
-
-      if (mappedInquiries.length > 0) {
-        setSelectedInquiryId((currentValue) => currentValue || mappedInquiries[0].id);
-      }
+      setInquiryOptions(activeInquiryOptions);
+      
+      setSelectedInquiryId((currentValue) => {
+        if (
+          currentValue &&
+          activeInquiryOptions.some((inquiry) => inquiry.id === currentValue)
+        ) {
+          return currentValue;
+        }
+      
+        return activeInquiryOptions[0]?.id ?? "";
+      });
 
       setIsLoading(false);
     }
@@ -456,7 +468,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
               >
                 {inquiryOptions.length === 0 ? (
-                  <option value="">No hay consultas disponibles</option>
+                  <option value="">No hay consultas activas disponibles</option>
                 ) : (
                   inquiryOptions.map((inquiry) => (
                     <option key={inquiry.id} value={inquiry.id}>
