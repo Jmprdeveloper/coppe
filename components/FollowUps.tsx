@@ -211,9 +211,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       }
 
       const { data: inquiriesData, error: inquiriesError } = await supabase
-      .from("inquiries")
-      .select("id, company_id, customer_id, customer_name, subject, status")
-      .order("created_at", { ascending: false });
+        .from("inquiries")
+        .select("id, company_id, customer_id, customer_name, subject, status")
+        .order("created_at", { ascending: false });
 
       if (inquiriesError) {
         setErrorMessage(
@@ -225,20 +225,20 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         return;
       }
 
-      const mappedFollowUps = ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
-        mapFollowUpRowToFollowUp
-      );
+      const mappedFollowUps = (
+        (followUpsData ?? []) as unknown as FollowUpRow[]
+      ).map(mapFollowUpRowToFollowUp);
 
       const mappedInquiries = (inquiriesData ??
         []) as unknown as InquiryOptionRow[];
-      
+
       const activeInquiryOptions = mappedInquiries.filter(
         (inquiry) => inquiry.status === "new" || inquiry.status === "pending"
       );
-      
+
       setFollowUps(mappedFollowUps);
       setInquiryOptions(activeInquiryOptions);
-      
+
       setSelectedInquiryId((currentValue) => {
         if (
           currentValue &&
@@ -246,7 +246,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         ) {
           return currentValue;
         }
-      
+
         return activeInquiryOptions[0]?.id ?? "";
       });
 
@@ -318,11 +318,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         title: cleanTitle,
         due_at: dueDate.toISOString(),
         status: "pending",
-        urgency: resolveUrgency(
-          dueDate.toISOString(),
-          "pending",
-          null
-        ),
+        urgency: resolveUrgency(dueDate.toISOString(), "pending", null),
       })
       .select(
         [
@@ -400,6 +396,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
   const pendingFollowUps = followUps.filter(
     (followUp) => followUp.status === "pending"
+  );
+
+  const historyFollowUps = followUps.filter(
+    (followUp) =>
+      followUp.status === "completed" || followUp.status === "cancelled"
   );
 
   const overdue = pendingFollowUps.filter(
@@ -621,6 +622,28 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             )}
           </section>
         </div>
+      ) : null}
+
+      {!isLoading && !errorMessage ? (
+        <section className="mt-8">
+          <h2 className="mb-3 text-lg font-bold text-slate-950">Historial</h2>
+
+          {historyFollowUps.length === 0 ? (
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+              Todavía no hay seguimientos completados o cancelados.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {historyFollowUps.map((followUp) => (
+                <FollowUpCard
+                  key={followUp.id}
+                  followUp={followUp}
+                  onOpen={openInquiry}
+                />
+              ))}
+            </div>
+          )}
+        </section>
       ) : null}
     </div>
   );
