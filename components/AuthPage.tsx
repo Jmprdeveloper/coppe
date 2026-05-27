@@ -16,8 +16,8 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
   const register = type === "register";
 
   const [fullName, setFullName] = useState("");
-  const [companyName, setCompanyName] = useState("Hotel Costa Azul");
-  const [sector, setSector] = useState("Hotel / alojamiento turístico");
+  const [companyName, setCompanyName] = useState("");
+  const [sector, setSector] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -32,6 +32,7 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanCompanyName = companyName.trim();
     const cleanFullName = fullName.trim();
+    const cleanSector = sector.trim();
 
     if (!cleanEmail) {
       setErrorMessage("Introduce un email.");
@@ -48,6 +49,11 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
       return;
     }
 
+    if (register && !cleanSector) {
+      setErrorMessage("Selecciona un sector.");
+      return;
+    }
+
     try {
       setIsLoading(true);
 
@@ -59,7 +65,7 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
             data: {
               full_name: cleanFullName,
               company_name: cleanCompanyName,
-              sector,
+              sector: cleanSector,
             },
           },
         });
@@ -179,9 +185,12 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
                   onChange={(event) => setSector(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
                 >
-                  <option>Hotel / alojamiento turístico</option>
-                  <option>Inmobiliaria</option>
-                  <option>Clínica</option>
+                  <option value="">Selecciona un sector</option>
+                  <option value="Hotel / alojamiento turístico">
+                    Hotel / alojamiento turístico
+                  </option>
+                  <option value="Inmobiliaria">Inmobiliaria</option>
+                  <option value="Clínica">Clínica</option>
                 </select>
               </label>
             </>
