@@ -515,6 +515,17 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
+  const resetForm = () => {
+    setCreatedInquiryId(null);
+    setSuccessMessage("");
+    setErrorMessage("");
+    setCustomerName("");
+    setEmail("");
+    setPhone("");
+    setSourceChannel("");
+    setMessage("");
+  };
+
   const handleSubmit = async () => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -826,14 +837,20 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
               </div>
             ) : null}
 
-            <Button
-              className="mt-5"
-              onClick={handleSubmit}
-              disabled={isSubmitting}
-            >
-              <Sparkles size={16} />
-              {isSubmitting ? "Creando consulta..." : "Crear consulta"}
-            </Button>
+            <div className="mt-5 flex flex-wrap gap-2">
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                <Sparkles size={16} />
+                {isSubmitting ? "Creando consulta..." : "Crear consulta"}
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={resetForm}
+                disabled={isSubmitting}
+              >
+                Limpiar formulario
+              </Button>
+            </div>
           </>
         ) : (
           <div className="text-center">
@@ -862,19 +879,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                 Ir al dashboard
               </Button>
 
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setCreatedInquiryId(null);
-                  setSuccessMessage("");
-                  setErrorMessage("");
-                  setCustomerName("");
-                  setEmail("");
-                  setPhone("");
-                  setSourceChannel("");
-                  setMessage("");
-                }}
-              >
+              <Button variant="ghost" onClick={resetForm}>
                 Crear otra consulta
               </Button>
             </div>
