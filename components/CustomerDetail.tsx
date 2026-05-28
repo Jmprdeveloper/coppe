@@ -165,6 +165,30 @@ function formatCustomerStatus(status: string) {
   return "Activo";
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizePhoneForComparison(value: string | null | undefined) {
+  return (value ?? "").replace(/[^\d+]/g, "");
+}
+
+function isValidPhone(value: string) {
+  const cleanValue = value.trim();
+
+  if (!cleanValue) {
+    return false;
+  }
+
+  if (!/^[+\d\s().-]+$/.test(cleanValue)) {
+    return false;
+  }
+
+  const digits = cleanValue.replace(/\D/g, "");
+
+  return digits.length >= 7 && digits.length <= 15;
+}
+
 function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
   return {
     id: row.id,
@@ -349,6 +373,25 @@ export function CustomerDetail({
       return;
     }
 
+    if (!cleanEmail && !cleanPhone) {
+      setCustomerErrorMessage(
+        "Introduce al menos un email o un teléfono para poder identificar al cliente."
+      );
+      return;
+    }
+
+    if (cleanEmail && !isValidEmail(cleanEmail)) {
+      setCustomerErrorMessage("El email no tiene un formato válido.");
+      return;
+    }
+
+    if (cleanPhone && !isValidPhone(cleanPhone)) {
+      setCustomerErrorMessage(
+        "El teléfono no tiene un formato válido. Usa un número real, por ejemplo +34 600 000 000."
+      );
+      return;
+    }
+
     setIsSavingCustomer(true);
 
     if (cleanEmail) {
@@ -376,6 +419,44 @@ export function CustomerDetail({
         setIsSavingCustomer(false);
         setCustomerErrorMessage(
           "Ya existe otro cliente con ese email en esta empresa."
+        );
+        return;
+      }
+    }
+
+    if (cleanPhone) {
+      const { data: existingCustomersByPhone, error: existingPhoneError } =
+        await supabase
+          .from("customers")
+          .select("id, phone")
+          .eq("company_id", customer.company_id)
+          .neq("id", customer.id);
+
+      if (existingPhoneError) {
+        setIsSavingCustomer(false);
+        setCustomerErrorMessage(
+          `No se pudo comprobar si el teléfono ya existe: ${
+            existingPhoneError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      const normalizedNewPhone = normalizePhoneForComparison(cleanPhone);
+
+      const duplicatedPhoneCustomer = (
+        (existingCustomersByPhone ?? []) as Pick<CustomerRow, "id" | "phone">[]
+      ).find((existingCustomer) => {
+        return (
+          normalizePhoneForComparison(existingCustomer.phone) ===
+          normalizedNewPhone
+        );
+      });
+
+      if (duplicatedPhoneCustomer) {
+        setIsSavingCustomer(false);
+        setCustomerErrorMessage(
+          "Ya existe otro cliente con ese teléfono en esta empresa."
         );
         return;
       }
@@ -569,6 +650,7 @@ export function CustomerDetail({
               <label className="block font-medium text-slate-700">
                 Email
                 <input
+                  type="email"
                   value={editEmail}
                   onChange={(event) => {
                     setEditEmail(event.target.value);
@@ -583,6 +665,7 @@ export function CustomerDetail({
               <label className="block font-medium text-slate-700">
                 Teléfono
                 <input
+                  type="tel"
                   value={editPhone}
                   onChange={(event) => {
                     setEditPhone(event.target.value);
@@ -615,9 +698,7 @@ export function CustomerDetail({
                 <select
                   value={editStatus}
                   onChange={(event) => {
-                    setEditStatus(
-                      normalizeCustomerStatus(event.target.value)
-                    );
+                    setEditStatus(normalizeCustomerStatus(event.target.value));
                     setCustomerMessage("");
                     setCustomerErrorMessage("");
                   }}
