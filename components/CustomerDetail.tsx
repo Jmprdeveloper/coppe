@@ -198,9 +198,28 @@ function isValidPhone(value: string) {
     return false;
   }
 
-  const digits = cleanValue.replace(/\D/g, "");
+  const normalizedPhone = normalizePhoneForComparison(cleanValue);
 
-  return digits.length >= 7 && digits.length <= 15;
+  return normalizedPhone.length >= 7 && normalizedPhone.length <= 15;
+}
+
+function getCustomerDatabaseErrorMessage(message: string) {
+  if (message.includes("customers_company_email_unique")) {
+    return "Ya existe otro cliente con ese email en esta empresa.";
+  }
+
+  if (
+    message.includes("customers_company_phone_digits_unique") ||
+    message.includes("customers_company_phone_normalized_unique")
+  ) {
+    return "Ya existe otro cliente con ese teléfono en esta empresa.";
+  }
+
+  if (message.includes("duplicate key")) {
+    return "Ya existe otro cliente con esos datos en esta empresa.";
+  }
+
+  return message || "sin detalle del error";
 }
 
 function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
@@ -493,15 +512,15 @@ export function CustomerDetail({
       )
       .single<CustomerRow>();
 
-    if (updateCustomerError || !updatedCustomer) {
-      setIsSavingCustomer(false);
-      setCustomerErrorMessage(
-        `No se pudieron guardar los cambios: ${
-          updateCustomerError?.message || "sin detalle del error"
-        }`
-      );
-      return;
-    }
+      if (updateCustomerError || !updatedCustomer) {
+        setIsSavingCustomer(false);
+        setCustomerErrorMessage(
+          `No se pudieron guardar los cambios: ${getCustomerDatabaseErrorMessage(
+            updateCustomerError?.message ?? ""
+          )}`
+        );
+        return;
+      }
 
     if (cleanName !== previousName) {
       const { error: updateInquiriesError } = await supabase

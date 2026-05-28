@@ -60,9 +60,38 @@ function normalizePhoneForComparison(value: string | null | undefined) {
 }
 
 function isValidPhone(value: string) {
-  const normalizedPhone = normalizePhoneForComparison(value);
+  const cleanValue = value.trim();
+
+  if (!cleanValue) {
+    return false;
+  }
+
+  if (!/^[+\d\s().-]+$/.test(cleanValue)) {
+    return false;
+  }
+
+  const normalizedPhone = normalizePhoneForComparison(cleanValue);
 
   return normalizedPhone.length >= 7 && normalizedPhone.length <= 15;
+}
+
+function getCustomerDatabaseErrorMessage(message: string) {
+  if (message.includes("customers_company_email_unique")) {
+    return "Ya existe un cliente con ese email en esta empresa.";
+  }
+
+  if (
+    message.includes("customers_company_phone_digits_unique") ||
+    message.includes("customers_company_phone_normalized_unique")
+  ) {
+    return "Ya existe un cliente con ese teléfono en esta empresa.";
+  }
+
+  if (message.includes("duplicate key")) {
+    return "Ya existe un cliente con esos datos en esta empresa.";
+  }
+
+  return message || "sin detalle del error";
 }
 
 function detectLanguage(message: string) {
@@ -687,9 +716,9 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       if (updateCustomerError) {
         setIsSubmitting(false);
         setErrorMessage(
-          `No se pudo actualizar el cliente: ${
-            updateCustomerError.message || "sin detalle del error"
-          }`
+          `No se pudo actualizar el cliente: ${getCustomerDatabaseErrorMessage(
+            updateCustomerError.message
+          )}`
         );
         return;
       }
@@ -711,9 +740,9 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       if (createCustomerError || !newCustomer) {
         setIsSubmitting(false);
         setErrorMessage(
-          `No se pudo crear el cliente: ${
-            createCustomerError?.message || "sin detalle del error"
-          }`
+          `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
+            createCustomerError?.message ?? ""
+          )}`
         );
         return;
       }

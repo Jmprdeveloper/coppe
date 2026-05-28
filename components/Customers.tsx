@@ -124,9 +124,28 @@ function isValidPhone(value: string) {
     return false;
   }
 
-  const digits = cleanValue.replace(/\D/g, "");
+  const normalizedPhone = normalizePhoneForComparison(cleanValue);
 
-  return digits.length >= 7 && digits.length <= 15;
+  return normalizedPhone.length >= 7 && normalizedPhone.length <= 15;
+}
+
+function getCustomerDatabaseErrorMessage(message: string) {
+  if (message.includes("customers_company_email_unique")) {
+    return "Ya existe un cliente con ese email en esta empresa.";
+  }
+
+  if (
+    message.includes("customers_company_phone_digits_unique") ||
+    message.includes("customers_company_phone_normalized_unique")
+  ) {
+    return "Ya existe un cliente con ese teléfono en esta empresa.";
+  }
+
+  if (message.includes("duplicate key")) {
+    return "Ya existe un cliente con esos datos en esta empresa.";
+  }
+
+  return message || "sin detalle del error";
 }
 
 export function Customers({ openCustomer }: CustomersProps) {
@@ -206,7 +225,7 @@ export function Customers({ openCustomer }: CustomersProps) {
     setSuccessMessage("");
     setCreatedCustomerId(null);
   };
-  
+
   const handleOpenCreateForm = () => {
     resetCreateCustomerForm();
     setShowCreateForm(true);
@@ -354,9 +373,9 @@ export function Customers({ openCustomer }: CustomersProps) {
 
     if (createCustomerError || !createdCustomer) {
       setCreateErrorMessage(
-        `No se pudo crear el cliente: ${
-          createCustomerError?.message || "sin detalle del error"
-        }`
+        `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
+          createCustomerError?.message ?? ""
+        )}`
       );
       return;
     }
