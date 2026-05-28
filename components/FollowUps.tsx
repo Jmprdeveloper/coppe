@@ -365,25 +365,40 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     setFormErrorMessage("");
     setUpdatingFollowUpId(followUpId);
 
-    const { error } = await supabase
+    const { data: updatedFollowUp, error } = await supabase
       .from("follow_ups")
       .update({ status })
-      .eq("id", followUpId);
+      .eq("id", followUpId)
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
 
     setUpdatingFollowUpId(null);
 
-    if (error) {
+    if (error || !updatedFollowUp) {
       setErrorMessage(
         `No se pudo actualizar el seguimiento: ${
-          error.message || "sin detalle del error"
+          error?.message || "sin detalle del error"
         }`
       );
       return;
     }
 
+    const mappedUpdatedFollowUp = mapFollowUpRowToFollowUp(updatedFollowUp);
+
     setFollowUps((currentFollowUps) =>
       currentFollowUps.map((followUp) =>
-        followUp.id === followUpId ? { ...followUp, status } : followUp
+        followUp.id === followUpId ? mappedUpdatedFollowUp : followUp
       )
     );
 
