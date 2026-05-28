@@ -91,6 +91,30 @@ function normalizeSearchText(value: string | null | undefined) {
     .trim();
 }
 
+function isValidEmail(value: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function normalizePhoneForComparison(value: string | null | undefined) {
+  return (value ?? "").replace(/[^\d+]/g, "");
+}
+
+function isValidPhone(value: string) {
+  const cleanValue = value.trim();
+
+  if (!cleanValue) {
+    return false;
+  }
+
+  if (!/^[+\d\s().-]+$/.test(cleanValue)) {
+    return false;
+  }
+
+  const digits = cleanValue.replace(/\D/g, "");
+
+  return digits.length >= 7 && digits.length <= 15;
+}
+
 export function Customers({ openCustomer }: CustomersProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -159,11 +183,19 @@ export function Customers({ openCustomer }: CustomersProps) {
     setAppliedSearchTerm("");
   };
 
-  const handleOpenCreateForm = () => {
-    setShowCreateForm(true);
+  const resetCreateCustomerForm = () => {
+    setNewCustomerName("");
+    setNewCustomerEmail("");
+    setNewCustomerPhone("");
+    setNewCustomerLanguage("es");
     setCreateErrorMessage("");
     setSuccessMessage("");
     setCreatedCustomerId(null);
+  };
+  
+  const handleOpenCreateForm = () => {
+    resetCreateCustomerForm();
+    setShowCreateForm(true);
   };
 
   const handleCloseCreateForm = () => {
@@ -183,6 +215,25 @@ export function Customers({ openCustomer }: CustomersProps) {
 
     if (!cleanName) {
       setCreateErrorMessage("El nombre del cliente es obligatorio.");
+      return;
+    }
+
+    if (!cleanEmail && !cleanPhone) {
+      setCreateErrorMessage(
+        "Introduce al menos un email o un teléfono para poder identificar al cliente."
+      );
+      return;
+    }
+
+    if (cleanEmail && !isValidEmail(cleanEmail)) {
+      setCreateErrorMessage("El email no tiene un formato válido.");
+      return;
+    }
+
+    if (cleanPhone && !isValidPhone(cleanPhone)) {
+      setCreateErrorMessage(
+        "El teléfono no tiene un formato válido. Usa un número real, por ejemplo +34 600 000 000."
+      );
       return;
     }
 
@@ -228,6 +279,42 @@ export function Customers({ openCustomer }: CustomersProps) {
         setIsCreatingCustomer(false);
         setCreateErrorMessage(
           "Ya existe un cliente con ese email en esta empresa."
+        );
+        return;
+      }
+    }
+
+    if (cleanPhone) {
+      const { data: existingCustomersByPhone, error: existingPhoneError } =
+        await supabase
+          .from("customers")
+          .select("id, phone")
+          .eq("company_id", company.id);
+
+      if (existingPhoneError) {
+        setIsCreatingCustomer(false);
+        setCreateErrorMessage(
+          `No se pudo comprobar si el teléfono ya existía: ${
+            existingPhoneError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      const normalizedNewPhone = normalizePhoneForComparison(cleanPhone);
+
+      const duplicatedPhoneCustomer = (
+        (existingCustomersByPhone ?? []) as Pick<CustomerRow, "id" | "phone">[]
+      ).find((customer) => {
+        return (
+          normalizePhoneForComparison(customer.phone) === normalizedNewPhone
+        );
+      });
+
+      if (duplicatedPhoneCustomer) {
+        setIsCreatingCustomer(false);
+        setCreateErrorMessage(
+          "Ya existe un cliente con ese teléfono en esta empresa."
         );
         return;
       }
@@ -342,6 +429,7 @@ export function Customers({ openCustomer }: CustomersProps) {
             <label className="text-sm font-medium text-slate-700">
               Email
               <input
+                type="email"
                 value={newCustomerEmail}
                 onChange={(event) => setNewCustomerEmail(event.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
@@ -352,6 +440,7 @@ export function Customers({ openCustomer }: CustomersProps) {
             <label className="text-sm font-medium text-slate-700">
               Teléfono
               <input
+                type="tel"
                 value={newCustomerPhone}
                 onChange={(event) => setNewCustomerPhone(event.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
