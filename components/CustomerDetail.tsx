@@ -8,14 +8,14 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
+import {
+  formatDateTime,
+  normalizeInquiryCategory,
+  normalizeInquiryStatus,
+  normalizePriority,
+} from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type {
-  CustomerStatus,
-  Inquiry,
-  InquiryCategory,
-  InquiryStatus,
-  Priority,
-} from "../types";
+import type { CustomerStatus, Inquiry } from "../types";
 
 import { Button } from "./Button";
 import { InquiryCard } from "./InquiryCard";
@@ -78,67 +78,6 @@ function normalizeCustomerStatus(status: string): CustomerStatus {
   return "active";
 }
 
-function normalizeInquiryStatus(status: string): InquiryStatus {
-  if (
-    status === "new" ||
-    status === "pending" ||
-    status === "replied" ||
-    status === "closed" ||
-    status === "discarded"
-  ) {
-    return status;
-  }
-
-  return "new";
-}
-
-function normalizePriority(priority: string | null): Priority {
-  if (priority === "low" || priority === "medium" || priority === "high") {
-    return priority;
-  }
-
-  return "medium";
-}
-
-function normalizeCategory(category: string | null): InquiryCategory {
-  if (
-    category === "sales_inquiry" ||
-    category === "appointment_request" ||
-    category === "quote_request" ||
-    category === "booking" ||
-    category === "incident" ||
-    category === "general_info" ||
-    category === "follow_up" ||
-    category === "cancellation" ||
-    category === "complaint" ||
-    category === "other"
-  ) {
-    return category;
-  }
-
-  return "other";
-}
-
-function formatDateTime(value: string | null) {
-  if (!value) {
-    return "Sin interacciones";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Fecha no disponible";
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function formatLanguage(language: string | null) {
   if (language === "es") {
     return "Español";
@@ -181,7 +120,7 @@ function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
     originalMessage: row.original_message,
     aiSummary: row.ai_summary ?? "Sin resumen disponible.",
     aiIntent: row.ai_intent ?? "No identificado",
-    aiCategory: normalizeCategory(row.ai_category),
+    aiCategory: normalizeInquiryCategory(row.ai_category),
     aiPriority: normalizePriority(row.ai_priority),
     aiLanguage: row.ai_language ?? "No indicado",
     sentiment: row.sentiment ?? "No indicado",
@@ -698,7 +637,10 @@ export function CustomerDetail({
                   Última interacción
                 </div>
                 <div className="mt-1 font-medium text-slate-800">
-                  {formatDateTime(customer.last_interaction_at)}
+                  {formatDateTime(
+                    customer.last_interaction_at,
+                    "Sin interacciones"
+                  )}
                 </div>
               </div>
 

@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, XCircle } from "lucide-react";
 
+import {
+  formatDateTime,
+  normalizeInquiryCategory,
+  normalizeInquiryStatus,
+  normalizePriority,
+} from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type {
-  Inquiry,
-  InquiryCategory,
-  InquiryStatus,
-  Priority,
-} from "../types";
+import type { Inquiry, InquiryStatus } from "../types";
 
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
@@ -57,63 +58,6 @@ type InternalNoteRow = {
   created_at: string;
 };
 
-function normalizeInquiryStatus(status: string): InquiryStatus {
-  if (
-    status === "new" ||
-    status === "pending" ||
-    status === "replied" ||
-    status === "closed" ||
-    status === "discarded"
-  ) {
-    return status;
-  }
-
-  return "new";
-}
-
-function normalizePriority(priority: string | null): Priority {
-  if (priority === "low" || priority === "medium" || priority === "high") {
-    return priority;
-  }
-
-  return "medium";
-}
-
-function normalizeCategory(category: string | null): InquiryCategory {
-  if (
-    category === "sales_inquiry" ||
-    category === "appointment_request" ||
-    category === "quote_request" ||
-    category === "booking" ||
-    category === "incident" ||
-    category === "general_info" ||
-    category === "follow_up" ||
-    category === "cancellation" ||
-    category === "complaint" ||
-    category === "other"
-  ) {
-    return category;
-  }
-
-  return "other";
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Fecha no disponible";
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
   return {
     id: row.id,
@@ -124,7 +68,7 @@ function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
     originalMessage: row.original_message,
     aiSummary: row.ai_summary ?? "Sin resumen disponible.",
     aiIntent: row.ai_intent ?? "No identificado",
-    aiCategory: normalizeCategory(row.ai_category),
+    aiCategory: normalizeInquiryCategory(row.ai_category),
     aiPriority: normalizePriority(row.ai_priority),
     aiLanguage: row.ai_language ?? "No indicado",
     sentiment: row.sentiment ?? "No indicado",
@@ -262,17 +206,16 @@ export function InquiryDetail({
     loadInquiry();
   }, [inquiryId, supabase]);
 
-
   const handleUpdateStatus = async (
     newStatus: InquiryStatus
   ): Promise<boolean> => {
     if (!inquiry) {
       return false;
     }
-  
+
     setStatusMessage("");
     setStatusErrorMessage("");
-  
+
     if (
       newStatus === "discarded" &&
       !window.confirm(
@@ -281,7 +224,7 @@ export function InquiryDetail({
     ) {
       return false;
     }
-  
+
     if (
       newStatus === "pending" &&
       (inquiry.status === "replied" ||
@@ -293,18 +236,18 @@ export function InquiryDetail({
     ) {
       return false;
     }
-  
+
     setIsUpdatingStatus(true);
-  
+
     const { error } = await supabase
       .from("inquiries")
       .update({
         status: newStatus,
       })
       .eq("id", inquiry.id);
-  
+
     setIsUpdatingStatus(false);
-  
+
     if (error) {
       setStatusErrorMessage(
         `No se pudo actualizar el estado: ${
@@ -313,32 +256,32 @@ export function InquiryDetail({
       );
       return false;
     }
-  
+
     setInquiry({
       ...inquiry,
       status: newStatus,
     });
-  
+
     if (newStatus === "pending") {
       setStatusMessage("Consulta reabierta correctamente.");
       return true;
     }
-  
+
     if (newStatus === "replied") {
       setStatusMessage("Consulta marcada como respondida.");
       return true;
     }
-  
+
     if (newStatus === "closed") {
       setStatusMessage("Consulta cerrada correctamente.");
       return true;
     }
-  
+
     if (newStatus === "discarded") {
       setStatusMessage("Consulta descartada correctamente.");
       return true;
     }
-  
+
     setStatusMessage("Estado actualizado correctamente.");
     return true;
   };

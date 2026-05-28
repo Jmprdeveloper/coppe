@@ -15,14 +15,14 @@ import {
   normalizeFollowUpStatus,
   resolveFollowUpUrgency,
 } from "../lib/followUpUtils";
+import {
+  formatDateTime,
+  normalizeInquiryCategory,
+  normalizeInquiryStatus,
+  normalizePriority,
+} from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type {
-  FollowUp,
-  Inquiry,
-  InquiryCategory,
-  InquiryStatus,
-  Priority,
-} from "../types";
+import type { FollowUp, Inquiry, Priority } from "../types";
 
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
@@ -72,63 +72,6 @@ type DashboardFollowUp = FollowUp & {
   dueAtValue: string | null;
 };
 
-function normalizeInquiryStatus(status: string): InquiryStatus {
-  if (
-    status === "new" ||
-    status === "pending" ||
-    status === "replied" ||
-    status === "closed" ||
-    status === "discarded"
-  ) {
-    return status;
-  }
-
-  return "new";
-}
-
-function normalizePriority(priority: string | null): Priority {
-  if (priority === "low" || priority === "medium" || priority === "high") {
-    return priority;
-  }
-
-  return "medium";
-}
-
-function normalizeCategory(category: string | null): InquiryCategory {
-  if (
-    category === "sales_inquiry" ||
-    category === "appointment_request" ||
-    category === "quote_request" ||
-    category === "booking" ||
-    category === "incident" ||
-    category === "general_info" ||
-    category === "follow_up" ||
-    category === "cancellation" ||
-    category === "complaint" ||
-    category === "other"
-  ) {
-    return category;
-  }
-
-  return "other";
-}
-
-function formatDateTime(value: string) {
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Fecha no disponible";
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
   return {
     id: row.id,
@@ -139,7 +82,7 @@ function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
     originalMessage: row.original_message,
     aiSummary: row.ai_summary ?? "Sin resumen disponible.",
     aiIntent: row.ai_intent ?? "No identificado",
-    aiCategory: normalizeCategory(row.ai_category),
+    aiCategory: normalizeInquiryCategory(row.ai_category),
     aiPriority: normalizePriority(row.ai_priority),
     aiLanguage: row.ai_language ?? "No indicado",
     sentiment: row.sentiment ?? "No indicado",
