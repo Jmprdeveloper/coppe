@@ -10,15 +10,16 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { classNames } from "../lib/utils";
+import { getCurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
+import { classNames } from "../lib/utils";
 import { CustomerDetail } from "./CustomerDetail";
 import { Customers } from "./Customers";
 import { Dashboard } from "./Dashboard";
-import { InquiryForm } from "./InquiryForm";
 import { FollowUps } from "./FollowUps";
 import { Inquiries } from "./Inquiries";
 import { InquiryDetail } from "./InquiryDetail";
+import { InquiryForm } from "./InquiryForm";
 import { SettingsPage } from "./SettingsPage";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -31,11 +32,6 @@ const navigation = [
   { key: "settings", label: "Configuración", icon: Settings },
 ];
 
-type CompanyRow = {
-  id: string;
-  name: string;
-};
-
 type AppShellProps = {
   activeView: string;
   setActiveView: (view: string) => void;
@@ -46,7 +42,6 @@ type AppShellProps = {
   userEmail: string | null;
   onSignOut: () => void;
 };
-
 
 export function AppShell({
   activeView,
@@ -66,11 +61,7 @@ export function AppShell({
 
   useEffect(() => {
     async function loadCompany() {
-      const { data, error } = await supabase
-        .from("companies")
-        .select("id, name")
-        .limit(1)
-        .maybeSingle<CompanyRow>();
+      const { data, error } = await getCurrentCompany(supabase);
 
       if (error || !data) {
         setCompany({ name: "COPPE" });

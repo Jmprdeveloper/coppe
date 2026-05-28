@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
 
+import { getCurrentCompany } from "../lib/currentCompany";
 import {
   getCustomerDatabaseErrorMessage,
   isValidEmail,
@@ -17,11 +18,6 @@ import { PageHeader } from "./PageHeader";
 type InquiryFormProps = {
   setActiveView: (view: string) => void;
   openInquiry: (id: string) => void;
-};
-
-type CompanyRow = {
-  id: string;
-  name: string;
 };
 
 type CustomerRow = {
@@ -543,11 +539,8 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
 
     setIsSubmitting(true);
 
-    const { data: company, error: companyError } = await supabase
-      .from("companies")
-      .select("id, name")
-      .limit(1)
-      .maybeSingle<CompanyRow>();
+    const { data: company, error: companyError } =
+      await getCurrentCompany(supabase);
 
     if (companyError || !company) {
       setIsSubmitting(false);

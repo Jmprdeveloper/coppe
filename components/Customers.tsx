@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
+import { getCurrentCompany } from "../lib/currentCompany";
 import {
   getCustomerDatabaseErrorMessage,
   isValidEmail,
@@ -18,10 +19,6 @@ import { StatusBadge } from "./StatusBadge";
 
 type CustomersProps = {
   openCustomer: (id: string) => void;
-};
-
-type CompanyRow = {
-  id: string;
 };
 
 type CustomerRow = {
@@ -221,11 +218,8 @@ export function Customers({ openCustomer }: CustomersProps) {
 
     setIsCreatingCustomer(true);
 
-    const { data: company, error: companyError } = await supabase
-      .from("companies")
-      .select("id")
-      .limit(1)
-      .maybeSingle<CompanyRow>();
+    const { data: company, error: companyError } =
+      await getCurrentCompany(supabase);
 
     if (companyError || !company) {
       setIsCreatingCustomer(false);

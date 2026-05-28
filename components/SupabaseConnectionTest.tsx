@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { getCurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
 type ConnectionState = "loading" | "success" | "warning" | "error";
@@ -48,11 +49,8 @@ export function SupabaseConnectionTest() {
           return;
         }
 
-        const { data: company, error: companyError } = await supabase
-          .from("companies")
-          .select("id, name")
-          .limit(1)
-          .maybeSingle();
+        const { data: company, error: companyError } =
+          await getCurrentCompany(supabase);
 
         if (companyError) {
           setStatus({

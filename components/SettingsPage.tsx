@@ -2,20 +2,12 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { getCurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
 import { PageHeader } from "./PageHeader";
 import { SupabaseConnectionTest } from "./SupabaseConnectionTest";
-
-type CompanySettings = {
-  id: string;
-  name: string;
-  sector: string;
-  description: string | null;
-  tone: string;
-  language: string;
-};
 
 export function SettingsPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -38,11 +30,7 @@ export function SettingsPage() {
       setErrorMessage("");
       setMessage("");
 
-      const { data, error } = await supabase
-        .from("companies")
-        .select("id, name, sector, description, tone, language")
-        .limit(1)
-        .maybeSingle<CompanySettings>();
+      const { data, error } = await getCurrentCompany(supabase);
 
       if (error) {
         setErrorMessage(
@@ -55,9 +43,7 @@ export function SettingsPage() {
       }
 
       if (!data) {
-        setErrorMessage(
-          "No hay ninguna empresa asociada a este usuario."
-        );
+        setErrorMessage("No hay ninguna empresa asociada a este usuario.");
         setIsLoading(false);
         return;
       }
