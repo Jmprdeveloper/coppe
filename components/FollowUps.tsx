@@ -3,6 +3,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 
+import {
+  formatFollowUpDueAt,
+  normalizeFollowUpStatus,
+  resolveFollowUpUrgency,
+} from "../lib/followUpUtils";
 import { createClient } from "../lib/supabase/client";
 import type { FollowUp } from "../types";
 
@@ -36,108 +41,16 @@ type InquiryOptionRow = {
   status: string;
 };
 
-function isSameDay(firstDate: Date, secondDate: Date) {
-  return (
-    firstDate.getFullYear() === secondDate.getFullYear() &&
-    firstDate.getMonth() === secondDate.getMonth() &&
-    firstDate.getDate() === secondDate.getDate()
-  );
-}
-
-function normalizeFollowUpStatus(
-  status: string
-): "pending" | "completed" | "cancelled" {
-  if (status === "pending" || status === "completed" || status === "cancelled") {
-    return status;
-  }
-
-  return "pending";
-}
-
-function resolveUrgency(
-  dueAt: string | null,
-  status: string,
-  storedUrgency: string | null
-): "today" | "overdue" | "upcoming" {
-  if (status !== "pending") {
-    return "upcoming";
-  }
-
-  if (!dueAt) {
-    if (
-      storedUrgency === "today" ||
-      storedUrgency === "overdue" ||
-      storedUrgency === "upcoming"
-    ) {
-      return storedUrgency;
-    }
-
-    return "upcoming";
-  }
-
-  const dueDate = new Date(dueAt);
-
-  if (Number.isNaN(dueDate.getTime())) {
-    return "upcoming";
-  }
-
-  const now = new Date();
-
-  if (dueDate < now && !isSameDay(dueDate, now)) {
-    return "overdue";
-  }
-
-  if (isSameDay(dueDate, now)) {
-    return dueDate < now ? "overdue" : "today";
-  }
-
-  return "upcoming";
-}
-
-function formatDueAt(
-  value: string | null,
-  urgency: "today" | "overdue" | "upcoming"
-) {
-  if (!value) {
-    return "Sin fecha";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Fecha no disponible";
-  }
-
-  if (urgency === "overdue") {
-    return "Vencido";
-  }
-
-  if (urgency === "today") {
-    return `Hoy, ${new Intl.DateTimeFormat("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date)}`;
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
 function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   const status = normalizeFollowUpStatus(row.status);
-  const urgency = resolveUrgency(row.due_at, status, row.urgency);
+  const urgency = resolveFollowUpUrgency(row.due_at, status, row.urgency);
 
   return {
     id: row.id,
     title: row.title,
     customerName: row.customer?.name || "Cliente no indicado",
     inquiryId: row.inquiry_id ?? "",
-    dueAt: formatDueAt(row.due_at, urgency),
+    dueAt: formatFollowUpDueAt(row.due_at, urgency),
     status,
     urgency,
   };
@@ -318,7 +231,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         title: cleanTitle,
         due_at: dueDate.toISOString(),
         status: "pending",
-        urgency: resolveUrgency(dueDate.toISOString(), "pending", null),
+        urgency: resolveFollowUpUrgency(
+          dueDate.toISOString(),
+          "pending",
+          null
+        ),
       })
       .select(
         [
@@ -406,7 +323,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       setSuccessMessage("Seguimiento reabierto correctamente.");
       return;
     }
-    
+
     setSuccessMessage(
       status === "completed"
         ? "Seguimiento completado correctamente."
@@ -656,12 +573,12 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             <div className="space-y-3">
               {historyFollowUps.map((followUp) => (
                 <FollowUpCard
-                key={followUp.id}
-                followUp={followUp}
-                onOpen={openInquiry}
-                onReopen={(id) => handleUpdateFollowUpStatus(id, "pending")}
-                isUpdating={updatingFollowUpId === followUp.id}
-              />
+                  key={followUp.id}
+                  followUp={followUp}
+                  onOpen={openInquiry}
+                  onReopen={(id) => handleUpdateFollowUpStatus(id, "pending")}
+                  isUpdating={updatingFollowUpId === followUp.id}
+                />
               ))}
             </div>
           )}

@@ -9,6 +9,12 @@ import {
   Plus,
 } from "lucide-react";
 
+import {
+  followUpUrgencyWeight,
+  formatFollowUpDueAt,
+  normalizeFollowUpStatus,
+  resolveFollowUpUrgency,
+} from "../lib/followUpUtils";
 import { createClient } from "../lib/supabase/client";
 import type {
   FollowUp,
@@ -107,103 +113,11 @@ function normalizeCategory(category: string | null): InquiryCategory {
   return "other";
 }
 
-function normalizeFollowUpStatus(
-  status: string
-): "pending" | "completed" | "cancelled" {
-  if (status === "pending" || status === "completed" || status === "cancelled") {
-    return status;
-  }
-
-  return "pending";
-}
-
-function isSameDay(firstDate: Date, secondDate: Date) {
-  return (
-    firstDate.getFullYear() === secondDate.getFullYear() &&
-    firstDate.getMonth() === secondDate.getMonth() &&
-    firstDate.getDate() === secondDate.getDate()
-  );
-}
-
-function resolveUrgency(
-  dueAt: string | null,
-  status: string,
-  storedUrgency: string | null
-): "today" | "overdue" | "upcoming" {
-  if (status !== "pending") {
-    return "upcoming";
-  }
-
-  if (!dueAt) {
-    if (
-      storedUrgency === "today" ||
-      storedUrgency === "overdue" ||
-      storedUrgency === "upcoming"
-    ) {
-      return storedUrgency;
-    }
-
-    return "upcoming";
-  }
-
-  const dueDate = new Date(dueAt);
-
-  if (Number.isNaN(dueDate.getTime())) {
-    return "upcoming";
-  }
-
-  const now = new Date();
-
-  if (dueDate < now && !isSameDay(dueDate, now)) {
-    return "overdue";
-  }
-
-  if (isSameDay(dueDate, now)) {
-    return dueDate < now ? "overdue" : "today";
-  }
-
-  return "upcoming";
-}
-
 function formatDateTime(value: string) {
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     return "Fecha no disponible";
-  }
-
-  return new Intl.DateTimeFormat("es-ES", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(date);
-}
-
-function formatDueAt(
-  value: string | null,
-  urgency: "today" | "overdue" | "upcoming"
-) {
-  if (!value) {
-    return "Sin fecha";
-  }
-
-  const date = new Date(value);
-
-  if (Number.isNaN(date.getTime())) {
-    return "Fecha no disponible";
-  }
-
-  if (urgency === "overdue") {
-    return "Vencido";
-  }
-
-  if (urgency === "today") {
-    return `Hoy, ${new Intl.DateTimeFormat("es-ES", {
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date)}`;
   }
 
   return new Intl.DateTimeFormat("es-ES", {
@@ -241,14 +155,14 @@ function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
 
 function mapFollowUpRowToFollowUp(row: FollowUpRow): DashboardFollowUp {
   const status = normalizeFollowUpStatus(row.status);
-  const urgency = resolveUrgency(row.due_at, status, row.urgency);
+  const urgency = resolveFollowUpUrgency(row.due_at, status, row.urgency);
 
   return {
     id: row.id,
     title: row.title,
     customerName: row.customer?.name || "Cliente no indicado",
     inquiryId: row.inquiry_id ?? "",
-    dueAt: formatDueAt(row.due_at, urgency),
+    dueAt: formatFollowUpDueAt(row.due_at, urgency),
     dueAtValue: row.due_at,
     status,
     urgency,
@@ -261,18 +175,6 @@ function priorityWeight(priority: Priority) {
   }
 
   if (priority === "medium") {
-    return 2;
-  }
-
-  return 1;
-}
-
-function followUpUrgencyWeight(urgency: "today" | "overdue" | "upcoming") {
-  if (urgency === "overdue") {
-    return 3;
-  }
-
-  if (urgency === "today") {
     return 2;
   }
 
