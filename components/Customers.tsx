@@ -29,6 +29,19 @@ type CustomerRow = {
   created_at: string;
 };
 
+type CustomerStatusFilter = "all" | CustomerStatus;
+
+const customerStatusFilters: {
+  value: CustomerStatusFilter;
+  label: string;
+}[] = [
+  { value: "all", label: "Todos" },
+  { value: "active", label: "Activos" },
+  { value: "new", label: "Nuevos" },
+  { value: "inactive", label: "Inactivos" },
+  { value: "archived", label: "Archivados" },
+];
+
 function normalizeCustomerStatus(status: string): CustomerStatus {
   if (
     status === "new" ||
@@ -40,6 +53,14 @@ function normalizeCustomerStatus(status: string): CustomerStatus {
   }
 
   return "active";
+}
+
+function customerStatusFilterLabel(status: CustomerStatusFilter) {
+  const filter = customerStatusFilters.find(
+    (customerStatusFilter) => customerStatusFilter.value === status
+  );
+
+  return filter?.label ?? "Todos";
 }
 
 function formatLastInteraction(value: string | null) {
@@ -76,6 +97,8 @@ export function Customers({ openCustomer }: CustomersProps) {
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<CustomerStatusFilter>("all");
 
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [newCustomerName, setNewCustomerName] = useState("");
@@ -250,6 +273,12 @@ export function Customers({ openCustomer }: CustomersProps) {
   const normalizedSearch = normalizeSearchText(appliedSearchTerm);
 
   const filteredCustomers = customers.filter((customer) => {
+    const normalizedStatus = normalizeCustomerStatus(customer.status);
+
+    if (statusFilter !== "all" && normalizedStatus !== statusFilter) {
+      return false;
+    }
+
     if (!normalizedSearch) {
       return true;
     }
@@ -262,6 +291,7 @@ export function Customers({ openCustomer }: CustomersProps) {
   });
 
   const hasActiveSearch = appliedSearchTerm.trim().length > 0;
+  const hasActiveStatusFilter = statusFilter !== "all";
 
   return (
     <div>
@@ -412,12 +442,44 @@ export function Customers({ openCustomer }: CustomersProps) {
         </div>
       </div>
 
-      {hasActiveSearch ? (
+      <div className="mb-4 flex flex-wrap gap-2">
+        {customerStatusFilters.map((customerStatusFilter) => (
+          <button
+            key={customerStatusFilter.value}
+            type="button"
+            onClick={() => setStatusFilter(customerStatusFilter.value)}
+            className={
+              statusFilter === customerStatusFilter.value
+                ? "rounded-xl bg-[#0F4C5C] px-3 py-2 text-sm font-semibold text-white transition"
+                : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+            }
+          >
+            {customerStatusFilter.label}
+          </button>
+        ))}
+      </div>
+
+      {hasActiveSearch || hasActiveStatusFilter ? (
         <div className="mb-4 text-sm text-slate-500">
-          Mostrando resultados para{" "}
-          <span className="font-semibold text-slate-700">
-            “{appliedSearchTerm}”
-          </span>
+          {hasActiveSearch ? (
+            <>
+              Mostrando resultados para{" "}
+              <span className="font-semibold text-slate-700">
+                “{appliedSearchTerm}”
+              </span>
+            </>
+          ) : null}
+
+          {hasActiveSearch && hasActiveStatusFilter ? " · " : null}
+
+          {hasActiveStatusFilter ? (
+            <>
+              Estado:{" "}
+              <span className="font-semibold text-slate-700">
+                {customerStatusFilterLabel(statusFilter)}
+              </span>
+            </>
+          ) : null}
         </div>
       ) : null}
 
@@ -435,7 +497,7 @@ export function Customers({ openCustomer }: CustomersProps) {
 
       {!isLoading && !errorMessage && filteredCustomers.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          No hay clientes que coincidan con la búsqueda.
+          No hay clientes que coincidan con los filtros aplicados.
         </div>
       ) : null}
 
