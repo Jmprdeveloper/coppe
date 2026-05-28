@@ -358,7 +358,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
   const handleUpdateFollowUpStatus = async (
     followUpId: string,
-    status: "completed" | "cancelled"
+    status: "pending" | "completed" | "cancelled"
   ) => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -402,6 +402,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       )
     );
 
+    if (status === "pending") {
+      setSuccessMessage("Seguimiento reabierto correctamente.");
+      return;
+    }
+    
     setSuccessMessage(
       status === "completed"
         ? "Seguimiento completado correctamente."
@@ -651,10 +656,12 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             <div className="space-y-3">
               {historyFollowUps.map((followUp) => (
                 <FollowUpCard
-                  key={followUp.id}
-                  followUp={followUp}
-                  onOpen={openInquiry}
-                />
+                key={followUp.id}
+                followUp={followUp}
+                onOpen={openInquiry}
+                onReopen={(id) => handleUpdateFollowUpStatus(id, "pending")}
+                isUpdating={updatingFollowUpId === followUp.id}
+              />
               ))}
             </div>
           )}

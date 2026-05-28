@@ -1,4 +1,9 @@
-import { CheckCircle2, ChevronRight, XCircle } from "lucide-react";
+import {
+  CheckCircle2,
+  ChevronRight,
+  RotateCcw,
+  XCircle,
+} from "lucide-react";
 
 import { classNames } from "../lib/utils";
 import type { FollowUp } from "../types";
@@ -8,6 +13,7 @@ type FollowUpCardProps = {
   onOpen: (id: string) => void;
   onComplete?: (id: string) => void;
   onCancel?: (id: string) => void;
+  onReopen?: (id: string) => void;
   isUpdating?: boolean;
 };
 
@@ -16,6 +22,7 @@ export function FollowUpCard({
   onOpen,
   onComplete,
   onCancel,
+  onReopen,
   isUpdating = false,
 }: FollowUpCardProps) {
   const overdue = followUp.urgency === "overdue";
@@ -98,6 +105,20 @@ export function FollowUpCard({
               Cancelar
             </button>
           ) : null}
+        </div>
+      ) : null}
+
+      {followUp.status !== "pending" && onReopen ? (
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button
+            type="button"
+            disabled={isUpdating}
+            onClick={() => onReopen(followUp.id)}
+            className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            <RotateCcw size={14} />
+            Reabrir
+          </button>
         </div>
       ) : null}
     </div>
