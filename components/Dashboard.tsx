@@ -289,12 +289,17 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [followUps, setFollowUps] = useState<DashboardFollowUp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
+    null
+  );
   const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
   useEffect(() => {
     async function loadDashboardData() {
       setIsLoading(true);
       setErrorMessage("");
+      setSuccessMessage("");
 
       const { data: inquiriesData, error: inquiriesError } = await supabase
         .from("inquiries")
@@ -376,6 +381,58 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     loadDashboardData();
   }, [supabase]);
 
+  const handleUpdateFollowUpStatus = async (
+    followUpId: string,
+    status: "completed" | "cancelled"
+  ) => {
+    setErrorMessage("");
+    setSuccessMessage("");
+    setUpdatingFollowUpId(followUpId);
+
+    const { data: updatedFollowUp, error } = await supabase
+      .from("follow_ups")
+      .update({ status })
+      .eq("id", followUpId)
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
+
+    setUpdatingFollowUpId(null);
+
+    if (error || !updatedFollowUp) {
+      setErrorMessage(
+        `No se pudo actualizar el seguimiento: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const mappedUpdatedFollowUp = mapFollowUpRowToFollowUp(updatedFollowUp);
+
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) =>
+        followUp.id === followUpId ? mappedUpdatedFollowUp : followUp
+      )
+    );
+
+    setSuccessMessage(
+      status === "completed"
+        ? "Seguimiento completado correctamente."
+        : "Seguimiento cancelado correctamente."
+    );
+  };
+
   const newCount = inquiries.filter((inquiry) => inquiry.status === "new")
     .length;
 
@@ -396,18 +453,18 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   ).length;
 
   const priorityItems = [...inquiries]
-  .filter((inquiry) => isOpenInquiry(inquiry))
-  .sort((a, b) => {
-    const priorityDifference =
-      priorityWeight(b.aiPriority) - priorityWeight(a.aiPriority);
+    .filter((inquiry) => isOpenInquiry(inquiry))
+    .sort((a, b) => {
+      const priorityDifference =
+        priorityWeight(b.aiPriority) - priorityWeight(a.aiPriority);
 
-    if (priorityDifference !== 0) {
-      return priorityDifference;
-    }
+      if (priorityDifference !== 0) {
+        return priorityDifference;
+      }
 
-    return a.createdAt.localeCompare(b.createdAt);
-  })
-  .slice(0, 3);
+      return a.createdAt.localeCompare(b.createdAt);
+    })
+    .slice(0, 3);
 
   const nextFollowUps = [...pendingFollowUps]
     .sort((a, b) => {
@@ -440,6 +497,12 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       {errorMessage ? (
         <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMessage}
+        </div>
+      ) : null}
+
+      {successMessage ? (
+        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          {successMessage}
         </div>
       ) : null}
 
@@ -536,6 +599,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
                   key={followUp.id}
                   followUp={followUp}
                   onOpen={openInquiry}
+                  onComplete={(id) =>
+                    handleUpdateFollowUpStatus(id, "completed")
+                  }
+                  onCancel={(id) =>
+                    handleUpdateFollowUpStatus(id, "cancelled")
+                  }
+                  isUpdating={updatingFollowUpId === followUp.id}
                 />
               ))}
             </div>
