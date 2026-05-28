@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { useMemo, useState } from "react";
+import type { FormEvent } from "react";
 import { Building2 } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
@@ -25,7 +26,9 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
+    event?.preventDefault();
+
     setErrorMessage("");
     setSuccessMessage("");
 
@@ -135,7 +138,7 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
           </div>
         </div>
 
-        <div className="space-y-4">
+        <form className="space-y-4" onSubmit={handleSubmit}>
           {register ? (
             <label className="block text-sm font-medium text-slate-700">
               Nombre completo
@@ -207,33 +210,33 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
               {successMessage}
             </div>
           ) : null}
-        </div>
 
-        <Button className="mt-6 w-full" onClick={handleSubmit}>
-          {isLoading
-            ? register
-              ? "Creando cuenta..."
-              : "Entrando..."
-            : register
-              ? "Crear cuenta"
-              : "Entrar"}
-        </Button>
+          <Button className="mt-2 w-full" type="submit" disabled={isLoading}>
+            {isLoading
+              ? register
+                ? "Creando cuenta..."
+                : "Entrando..."
+              : register
+                ? "Crear cuenta"
+                : "Entrar"}
+          </Button>
 
-        <button
-          type="button"
-          className="mt-4 w-full text-sm font-semibold text-[#0F4C5C] hover:underline"
-          onClick={() => setActiveView(register ? "login" : "register")}
-        >
-          {register ? "Ya tengo cuenta" : "Crear cuenta nueva"}
-        </button>
+          <button
+            type="button"
+            className="mt-4 w-full text-sm font-semibold text-[#0F4C5C] hover:underline"
+            onClick={() => setActiveView(register ? "login" : "register")}
+          >
+            {register ? "Ya tengo cuenta" : "Crear cuenta nueva"}
+          </button>
 
-        <button
-          type="button"
-          className="mt-3 w-full text-sm text-slate-500 hover:text-slate-700"
-          onClick={() => setActiveView("landing")}
-        >
-          Volver al inicio
-        </button>
+          <button
+            type="button"
+            className="mt-3 w-full text-sm text-slate-500 hover:text-slate-700"
+            onClick={() => setActiveView("landing")}
+          >
+            Volver al inicio
+          </button>
+        </form>
       </div>
     </div>
   );
