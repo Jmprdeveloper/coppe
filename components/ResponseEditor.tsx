@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Copy } from "lucide-react";
+import { CheckCircle2, Copy } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
 import type { Inquiry } from "../types";
@@ -10,14 +10,23 @@ import { Button } from "./Button";
 
 type ResponseEditorProps = {
   inquiry: Inquiry;
+  canMarkAsReplied?: boolean;
+  isMarkingAsReplied?: boolean;
+  onMarkAsReplied?: () => Promise<boolean>;
 };
 
-export function ResponseEditor({ inquiry }: ResponseEditorProps) {
+export function ResponseEditor({
+  inquiry,
+  canMarkAsReplied = false,
+  isMarkingAsReplied = false,
+  onMarkAsReplied,
+}: ResponseEditorProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [text, setText] = useState(inquiry.suggestedResponse);
   const [isSaving, setIsSaving] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
+  const [isFinishingResponse, setIsFinishingResponse] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -26,6 +35,49 @@ export function ResponseEditor({ inquiry }: ResponseEditorProps) {
     setSuccessMessage("");
     setErrorMessage("");
   }, [inquiry.id, inquiry.suggestedResponse]);
+
+  const copyResponseText = async (cleanText: string) => {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(cleanText);
+      return;
+    }
+
+    const textarea = document.createElement("textarea");
+    textarea.value = cleanText;
+    textarea.style.position = "fixed";
+    textarea.style.left = "-9999px";
+    textarea.style.top = "0";
+
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+
+    const copied = document.execCommand("copy");
+    document.body.removeChild(textarea);
+
+    if (!copied) {
+      throw new Error("No se pudo copiar el texto.");
+    }
+  };
+
+  const saveResponseText = async (cleanText: string) => {
+    const { error } = await supabase
+      .from("inquiries")
+      .update({
+        suggested_response: cleanText,
+      })
+      .eq("id", inquiry.id);
+
+    if (error) {
+      throw new Error(
+        `No se pudieron guardar los cambios: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+    }
+
+    setText(cleanText);
+  };
 
   const handleCopy = async () => {
     setSuccessMessage("");
@@ -41,27 +93,7 @@ export function ResponseEditor({ inquiry }: ResponseEditorProps) {
     setIsCopying(true);
 
     try {
-      if (navigator.clipboard?.writeText) {
-        await navigator.clipboard.writeText(cleanText);
-      } else {
-        const textarea = document.createElement("textarea");
-        textarea.value = cleanText;
-        textarea.style.position = "fixed";
-        textarea.style.left = "-9999px";
-        textarea.style.top = "0";
-
-        document.body.appendChild(textarea);
-        textarea.focus();
-        textarea.select();
-
-        const copied = document.execCommand("copy");
-        document.body.removeChild(textarea);
-
-        if (!copied) {
-          throw new Error("No se pudo copiar el texto.");
-        }
-      }
-
+      await copyResponseText(cleanText);
       setSuccessMessage("Respuesta copiada al portapapeles.");
     } catch {
       setErrorMessage(
@@ -85,26 +117,63 @@ export function ResponseEditor({ inquiry }: ResponseEditorProps) {
 
     setIsSaving(true);
 
-    const { error } = await supabase
-      .from("inquiries")
-      .update({
-        suggested_response: cleanText,
-      })
-      .eq("id", inquiry.id);
-
-    setIsSaving(false);
-
-    if (error) {
+    try {
+      await saveResponseText(cleanText);
+      setSuccessMessage("Respuesta guardada correctamente.");
+    } catch (error) {
       setErrorMessage(
-        `No se pudieron guardar los cambios: ${
-          error.message || "sin detalle del error"
-        }`
+        error instanceof Error
+          ? error.message
+          : "No se pudieron guardar los cambios."
       );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleFinishResponse = async () => {
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    const cleanText = text.trim();
+
+    if (!cleanText) {
+      setErrorMessage("La respuesta sugerida no puede quedar vacía.");
       return;
     }
 
-    setText(cleanText);
-    setSuccessMessage("Respuesta guardada correctamente.");
+    if (!onMarkAsReplied) {
+      setErrorMessage("No se pudo marcar la consulta como respondida.");
+      return;
+    }
+
+    setIsFinishingResponse(true);
+
+    try {
+      await saveResponseText(cleanText);
+      await copyResponseText(cleanText);
+
+      const wasMarkedAsReplied = await onMarkAsReplied();
+
+      if (!wasMarkedAsReplied) {
+        setErrorMessage(
+          "La respuesta se guardó y se copió, pero no se pudo marcar la consulta como respondida."
+        );
+        return;
+      }
+
+      setSuccessMessage(
+        "Respuesta guardada, copiada y consulta marcada como respondida."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar la respuesta."
+      );
+    } finally {
+      setIsFinishingResponse(false);
+    }
   };
 
   return (
@@ -146,14 +215,39 @@ export function ResponseEditor({ inquiry }: ResponseEditorProps) {
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button onClick={handleCopy} disabled={isCopying}>
+        <Button
+          onClick={handleCopy}
+          disabled={isCopying || isFinishingResponse}
+        >
           <Copy size={16} />
           {isCopying ? "Copiando..." : "Copiar respuesta"}
         </Button>
 
-        <Button variant="secondary" onClick={handleSave} disabled={isSaving}>
+        <Button
+          variant="secondary"
+          onClick={handleSave}
+          disabled={isSaving || isFinishingResponse}
+        >
           {isSaving ? "Guardando..." : "Guardar cambios"}
         </Button>
+
+        {canMarkAsReplied ? (
+          <Button
+            variant="secondary"
+            onClick={handleFinishResponse}
+            disabled={
+              isSaving ||
+              isCopying ||
+              isFinishingResponse ||
+              isMarkingAsReplied
+            }
+          >
+            <CheckCircle2 size={16} />
+            {isFinishingResponse || isMarkingAsReplied
+              ? "Finalizando..."
+              : "Guardar, copiar y marcar respondida"}
+          </Button>
+        ) : null}
       </div>
     </div>
   );

@@ -262,23 +262,26 @@ export function InquiryDetail({
     loadInquiry();
   }, [inquiryId, supabase]);
 
-  const handleUpdateStatus = async (newStatus: InquiryStatus) => {
-    if (!inquiry) {
-      return;
-    }
 
+  const handleUpdateStatus = async (
+    newStatus: InquiryStatus
+  ): Promise<boolean> => {
+    if (!inquiry) {
+      return false;
+    }
+  
     setStatusMessage("");
     setStatusErrorMessage("");
-
+  
     if (
       newStatus === "discarded" &&
       !window.confirm(
         "¿Seguro que quieres descartar esta consulta? No se eliminará del historial, pero dejará de tratarse como pendiente."
       )
     ) {
-      return;
+      return false;
     }
-
+  
     if (
       newStatus === "pending" &&
       (inquiry.status === "replied" ||
@@ -288,55 +291,56 @@ export function InquiryDetail({
         "¿Seguro que quieres reabrir esta consulta? Volverá a tratarse como pendiente."
       )
     ) {
-      return;
+      return false;
     }
-
+  
     setIsUpdatingStatus(true);
-
+  
     const { error } = await supabase
       .from("inquiries")
       .update({
         status: newStatus,
       })
       .eq("id", inquiry.id);
-
+  
     setIsUpdatingStatus(false);
-
+  
     if (error) {
       setStatusErrorMessage(
         `No se pudo actualizar el estado: ${
           error.message || "sin detalle del error"
         }`
       );
-      return;
+      return false;
     }
-
+  
     setInquiry({
       ...inquiry,
       status: newStatus,
     });
-
+  
     if (newStatus === "pending") {
       setStatusMessage("Consulta reabierta correctamente.");
-      return;
+      return true;
     }
-
+  
     if (newStatus === "replied") {
       setStatusMessage("Consulta marcada como respondida.");
-      return;
+      return true;
     }
-
+  
     if (newStatus === "closed") {
       setStatusMessage("Consulta cerrada correctamente.");
-      return;
+      return true;
     }
-
+  
     if (newStatus === "discarded") {
       setStatusMessage("Consulta descartada correctamente.");
-      return;
+      return true;
     }
-
+  
     setStatusMessage("Estado actualizado correctamente.");
+    return true;
   };
 
   const handleSaveNote = async () => {
@@ -580,7 +584,12 @@ export function InquiryDetail({
           </div>
 
           <AIBlock inquiry={inquiry} />
-          <ResponseEditor inquiry={inquiry} />
+          <ResponseEditor
+            inquiry={inquiry}
+            canMarkAsReplied={canUseFinalActions}
+            isMarkingAsReplied={isUpdatingStatus}
+            onMarkAsReplied={() => handleUpdateStatus("replied")}
+          />
         </main>
 
         <aside className="space-y-5">
