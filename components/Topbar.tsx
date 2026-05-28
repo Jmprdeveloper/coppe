@@ -34,6 +34,7 @@ type CustomerSearchRow = {
   name: string;
   email: string | null;
   phone: string | null;
+  status: string;
 };
 
 type InquirySearchRow = {
@@ -101,6 +102,26 @@ function resultTypeLabel(type: SearchResult["type"]) {
   }
 
   return "Seguimiento";
+}
+
+function customerStatusLabel(status: string) {
+  if (status === "new") {
+    return "Nuevo";
+  }
+
+  if (status === "active") {
+    return "Activo";
+  }
+
+  if (status === "inactive") {
+    return "Inactivo";
+  }
+
+  if (status === "archived") {
+    return "Archivado";
+  }
+
+  return "Estado no indicado";
 }
 
 function inquiryStatusLabel(status: string) {
@@ -173,27 +194,26 @@ export function Topbar({
 
     setIsSearching(true);
 
-    const [
-      customersResponse,
-      inquiriesResponse,
-      followUpsResponse,
-    ] = await Promise.all([
-      supabase
-        .from("customers")
-        .select("id, name, email, phone")
-        .limit(100),
+    const [customersResponse, inquiriesResponse, followUpsResponse] =
+      await Promise.all([
+        supabase
+          .from("customers")
+          .select("id, name, email, phone, status")
+          .limit(100),
 
         supabase
-        .from("inquiries")
-        .select("id, customer_name, subject, ai_summary, original_message, status")
-        .limit(100),
+          .from("inquiries")
+          .select(
+            "id, customer_name, subject, ai_summary, original_message, status"
+          )
+          .limit(100),
 
         supabase
-        .from("follow_ups")
-        .select("id, title, inquiry_id, customer:customers(name)")
-        .eq("status", "pending")
-        .limit(100),
-    ]);
+          .from("follow_ups")
+          .select("id, title, inquiry_id, customer:customers(name)")
+          .eq("status", "pending")
+          .limit(100),
+      ]);
 
     setIsSearching(false);
     setHasSearched(true);
@@ -243,12 +263,17 @@ export function Topbar({
         );
       })
       .slice(0, 4)
-      .map((customer) => ({
-        id: customer.id,
-        type: "customer",
-        title: customer.name,
-        description: customer.email || customer.phone || "Cliente sin contacto",
-      }));
+      .map((customer) => {
+        const contact =
+          customer.email || customer.phone || "Cliente sin contacto";
+
+        return {
+          id: customer.id,
+          type: "customer",
+          title: customer.name,
+          description: `${contact} · ${customerStatusLabel(customer.status)}`,
+        };
+      });
 
     const inquiryResults: SearchResult[] = inquiries
       .filter((inquiry) => {

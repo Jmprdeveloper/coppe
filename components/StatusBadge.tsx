@@ -1,8 +1,44 @@
-import { classNames, getStatusLabel } from "../lib/utils";
+import { classNames } from "../lib/utils";
 
 type StatusBadgeProps = {
   status: string;
 };
+
+function getBadgeStatusLabel(status: string) {
+  if (status === "new") {
+    return "Nuevo";
+  }
+
+  if (status === "pending") {
+    return "Pendiente";
+  }
+
+  if (status === "replied") {
+    return "Respondida";
+  }
+
+  if (status === "closed") {
+    return "Cerrada";
+  }
+
+  if (status === "discarded") {
+    return "Descartada";
+  }
+
+  if (status === "active") {
+    return "Activo";
+  }
+
+  if (status === "inactive") {
+    return "Inactivo";
+  }
+
+  if (status === "archived") {
+    return "Archivado";
+  }
+
+  return "Sin estado";
+}
 
 export function StatusBadge({ status }: StatusBadgeProps) {
   const styles: Record<string, string> = {
@@ -13,16 +49,17 @@ export function StatusBadge({ status }: StatusBadgeProps) {
     discarded: "bg-gray-100 text-gray-600 border-gray-200",
     active: "bg-emerald-50 text-emerald-700 border-emerald-100",
     inactive: "bg-gray-100 text-gray-600 border-gray-200",
+    archived: "bg-gray-100 text-gray-600 border-gray-200",
   };
 
   return (
     <span
       className={classNames(
         "inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-medium",
-        styles[status]
+        styles[status] ?? "bg-gray-100 text-gray-600 border-gray-200"
       )}
     >
-      {getStatusLabel(status)}
+      {getBadgeStatusLabel(status)}
     </span>
   );
 }
