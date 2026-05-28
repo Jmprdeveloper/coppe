@@ -41,27 +41,28 @@ function isValidEmail(value: string) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(value);
 }
 
-function normalizePhoneForComparison(value: string) {
-  const trimmedValue = value.trim();
-  const startsWithPlus = trimmedValue.startsWith("+");
-  const digitsOnly = trimmedValue.replace(/\D/g, "");
+function normalizePhoneForComparison(value: string | null | undefined) {
+  const digitsOnly = (value ?? "").replace(/\D/g, "");
 
   if (!digitsOnly) {
     return "";
   }
 
-  return startsWithPlus ? `+${digitsOnly}` : digitsOnly;
+  if (/^0034\d{9}$/.test(digitsOnly)) {
+    return digitsOnly.slice(4);
+  }
+
+  if (/^34\d{9}$/.test(digitsOnly)) {
+    return digitsOnly.slice(2);
+  }
+
+  return digitsOnly;
 }
 
 function isValidPhone(value: string) {
   const normalizedPhone = normalizePhoneForComparison(value);
-  const digitsOnly = normalizedPhone.replace(/\D/g, "");
 
-  return (
-    /^\+?\d+$/.test(normalizedPhone) &&
-    digitsOnly.length >= 7 &&
-    digitsOnly.length <= 15
-  );
+  return normalizedPhone.length >= 7 && normalizedPhone.length <= 15;
 }
 
 function detectLanguage(message: string) {

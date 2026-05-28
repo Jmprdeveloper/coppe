@@ -170,7 +170,21 @@ function isValidEmail(value: string) {
 }
 
 function normalizePhoneForComparison(value: string | null | undefined) {
-  return (value ?? "").replace(/[^\d+]/g, "");
+  const digitsOnly = (value ?? "").replace(/\D/g, "");
+
+  if (!digitsOnly) {
+    return "";
+  }
+
+  if (/^0034\d{9}$/.test(digitsOnly)) {
+    return digitsOnly.slice(4);
+  }
+
+  if (/^34\d{9}$/.test(digitsOnly)) {
+    return digitsOnly.slice(2);
+  }
+
+  return digitsOnly;
 }
 
 function isValidPhone(value: string) {
