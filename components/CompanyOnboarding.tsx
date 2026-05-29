@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Building2, LogOut, Sparkles } from "lucide-react";
 
+import { companySectorOptions } from "../lib/companyOptions";
 import type { CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
@@ -54,7 +55,7 @@ export function CompanyOnboarding({
     }
 
     if (!cleanSector) {
-      setErrorMessage("El sector de la empresa es obligatorio.");
+      setErrorMessage("Selecciona el sector de la empresa.");
       return;
     }
 
@@ -110,17 +111,18 @@ export function CompanyOnboarding({
             </h1>
 
             <p className="mt-4 text-sm leading-6 text-white/80">
-              Esta información se usará para configurar el espacio de trabajo de tu
-              empresa y adaptar el asistente a tu actividad.
+              Esta información se usará para configurar el espacio de trabajo
+              de tu empresa y adaptar el asistente a tu actividad.
             </p>
 
             <div className="mt-8 rounded-2xl border border-white/15 bg-white/10 p-4 text-sm leading-6 text-white/80">
-            <div className="mb-2 flex items-center gap-2 font-semibold text-white">
-              <Sparkles size={16} />
+              <div className="mb-2 flex items-center gap-2 font-semibold text-white">
+                <Sparkles size={16} />
                 Espacio de trabajo privado
-            </div>
-            Después de crear la empresa, COPPE preparará tu espacio de trabajo y
-            entrarás directamente al panel principal.
+              </div>
+
+              Después de crear la empresa, COPPE preparará tu espacio de trabajo
+              y entrarás directamente al panel principal.
             </div>
 
             {userEmail ? (
@@ -167,15 +169,25 @@ export function CompanyOnboarding({
 
               <label className="block text-sm font-medium text-slate-700">
                 Sector
-                <input
+                <select
                   value={sector}
                   onChange={(event) => {
                     setSector(event.target.value);
                     setErrorMessage("");
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Ej. Alojamiento turístico, clínica, inmobiliaria..."
-                />
+                >
+                  <option value="">Selecciona un sector</option>
+
+                  {companySectorOptions.map((companySectorOption) => (
+                    <option
+                      key={companySectorOption}
+                      value={companySectorOption}
+                    >
+                      {companySectorOption}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="block text-sm font-medium text-slate-700">
@@ -207,7 +219,9 @@ export function CompanyOnboarding({
                     </option>
                     <option value="formal">Formal</option>
                     <option value="directo">Directo</option>
-                    <option value="amable y detallado">Amable y detallado</option>
+                    <option value="amable y detallado">
+                      Amable y detallado
+                    </option>
                   </select>
                 </label>
 

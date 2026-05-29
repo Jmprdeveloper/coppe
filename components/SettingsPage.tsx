@@ -2,12 +2,44 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  companySectorOptions,
+  normalizeCompanySector,
+} from "../lib/companyOptions";
 import { getCurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
 import { PageHeader } from "./PageHeader";
-import { SupabaseConnectionTest } from "./SupabaseConnectionTest";
+
+type ToneOption =
+  | "profesional y cercano"
+  | "formal"
+  | "directo"
+  | "amable y detallado";
+
+type LanguageOption = "es" | "en";
+
+function normalizeTone(value: string | null | undefined): ToneOption {
+  if (
+    value === "profesional y cercano" ||
+    value === "formal" ||
+    value === "directo" ||
+    value === "amable y detallado"
+  ) {
+    return value;
+  }
+
+  return "profesional y cercano";
+}
+
+function normalizeLanguage(value: string | null | undefined): LanguageOption {
+  if (value === "en") {
+    return "en";
+  }
+
+  return "es";
+}
 
 export function SettingsPage() {
   const supabase = useMemo(() => createClient(), []);
@@ -16,8 +48,8 @@ export function SettingsPage() {
   const [name, setName] = useState("");
   const [sector, setSector] = useState("");
   const [description, setDescription] = useState("");
-  const [tone, setTone] = useState("Profesional");
-  const [language, setLanguage] = useState("Español");
+  const [tone, setTone] = useState<ToneOption>("profesional y cercano");
+  const [language, setLanguage] = useState<LanguageOption>("es");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -34,7 +66,7 @@ export function SettingsPage() {
 
       if (error) {
         setErrorMessage(
-          `No se pudo cargar la empresa desde Supabase: ${
+          `No se pudo cargar la configuración de empresa: ${
             error.message || "sin detalle del error"
           }`
         );
@@ -43,17 +75,19 @@ export function SettingsPage() {
       }
 
       if (!data) {
-        setErrorMessage("No hay ninguna empresa asociada a este usuario.");
+        setErrorMessage(
+          "No hay ninguna empresa asociada a este usuario. Cierra sesión y vuelve a entrar para completar la configuración inicial."
+        );
         setIsLoading(false);
         return;
       }
 
       setCompanyId(data.id);
       setName(data.name ?? "");
-      setSector(data.sector ?? "");
+      setSector(normalizeCompanySector(data.sector));
       setDescription(data.description ?? "");
-      setTone(data.tone ?? "Profesional");
-      setLanguage(data.language ?? "Español");
+      setTone(normalizeTone(data.tone));
+      setLanguage(normalizeLanguage(data.language));
       setIsLoading(false);
     }
 
@@ -74,12 +108,12 @@ export function SettingsPage() {
     const cleanDescription = description.trim();
 
     if (!cleanName) {
-      setErrorMessage("El nombre de la empresa no puede estar vacío.");
+      setErrorMessage("El nombre de la empresa es obligatorio.");
       return;
     }
 
     if (!cleanSector) {
-      setErrorMessage("El sector no puede estar vacío.");
+      setErrorMessage("Selecciona el sector de la empresa.");
       return;
     }
 
@@ -90,7 +124,7 @@ export function SettingsPage() {
       .update({
         name: cleanName,
         sector: cleanSector,
-        description: cleanDescription,
+        description: cleanDescription || null,
         tone,
         language,
       })
@@ -107,17 +141,18 @@ export function SettingsPage() {
       return;
     }
 
-    setMessage("Cambios guardados correctamente.");
+    setName(cleanName);
+    setSector(cleanSector);
+    setDescription(cleanDescription);
+    setMessage("Configuración guardada correctamente.");
   };
 
   return (
     <div>
       <PageHeader
         title="Configuración"
-        description="Ajustes básicos de empresa y comportamiento del asistente COPPE."
+        description="Ajusta los datos de tu empresa y las preferencias del asistente."
       />
-
-      <SupabaseConnectionTest />
 
       {isLoading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -130,31 +165,61 @@ export function SettingsPage() {
               Información de empresa
             </h2>
 
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              Estos datos ayudan a COPPE a contextualizar las consultas y a
+              preparar respuestas más adecuadas para tu actividad.
+            </p>
+
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="text-sm font-medium text-slate-700">
                 Nombre de empresa
                 <input
                   value={name}
-                  onChange={(event) => setName(event.target.value)}
+                  onChange={(event) => {
+                    setName(event.target.value);
+                    setMessage("");
+                    setErrorMessage("");
+                  }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Ej. Hotel Costa Azul"
                 />
               </label>
 
               <label className="text-sm font-medium text-slate-700">
                 Sector
-                <input
+                <select
                   value={sector}
-                  onChange={(event) => setSector(event.target.value)}
+                  onChange={(event) => {
+                    setSector(event.target.value);
+                    setMessage("");
+                    setErrorMessage("");
+                  }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                />
+                >
+                  <option value="">Selecciona un sector</option>
+
+                  {companySectorOptions.map((companySectorOption) => (
+                    <option
+                      key={companySectorOption}
+                      value={companySectorOption}
+                    >
+                      {companySectorOption}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="text-sm font-medium text-slate-700 md:col-span-2">
                 Descripción
                 <textarea
                   value={description}
-                  onChange={(event) => setDescription(event.target.value)}
+                  onChange={(event) => {
+                    setDescription(event.target.value);
+                    setMessage("");
+                    setErrorMessage("");
+                  }}
                   className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  placeholder="Describe brevemente qué hace la empresa y qué tipo de consultas recibe."
                 />
               </label>
             </div>
@@ -171,42 +236,81 @@ export function SettingsPage() {
               </div>
             ) : null}
 
-            <Button className="mt-5" onClick={handleSave}>
+            <Button
+              className="mt-5"
+              onClick={handleSave}
+              disabled={isSaving || isLoading}
+            >
               {isSaving ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">
-              Preferencias IA
-            </h2>
+          <div className="space-y-5">
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">
+                Preferencias del asistente
+              </h2>
 
-            <div className="mt-5 space-y-4">
-              <label className="block text-sm font-medium text-slate-700">
-                Tono
-                <select
-                  value={tone}
-                  onChange={(event) => setTone(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                >
-                  <option>Profesional</option>
-                  <option>Cercano</option>
-                  <option>Breve</option>
-                  <option>Comercial</option>
-                </select>
-              </label>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Define el tono y el idioma principal que COPPE usará como base
+                al preparar respuestas.
+              </p>
 
-              <label className="block text-sm font-medium text-slate-700">
-                Idioma
-                <select
-                  value={language}
-                  onChange={(event) => setLanguage(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                >
-                  <option>Español</option>
-                  <option>Inglés</option>
-                </select>
-              </label>
+              <div className="mt-5 space-y-4">
+                <label className="block text-sm font-medium text-slate-700">
+                  Tono
+                  <select
+                    value={tone}
+                    onChange={(event) => {
+                      setTone(normalizeTone(event.target.value));
+                      setMessage("");
+                      setErrorMessage("");
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  >
+                    <option value="profesional y cercano">
+                      Profesional y cercano
+                    </option>
+                    <option value="formal">Formal</option>
+                    <option value="directo">Directo</option>
+                    <option value="amable y detallado">
+                      Amable y detallado
+                    </option>
+                  </select>
+                </label>
+
+                <label className="block text-sm font-medium text-slate-700">
+                  Idioma principal
+                  <select
+                    value={language}
+                    onChange={(event) => {
+                      setLanguage(normalizeLanguage(event.target.value));
+                      setMessage("");
+                      setErrorMessage("");
+                    }}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  >
+                    <option value="es">Español</option>
+                    <option value="en">Inglés</option>
+                  </select>
+                </label>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-6 text-slate-600 shadow-sm">
+              <h3 className="font-bold text-slate-950">
+                Cómo se aplican estos ajustes
+              </h3>
+
+              <p className="mt-2">
+                La información de empresa se usa para contextualizar nuevas
+                consultas, recomendaciones internas y respuestas sugeridas.
+              </p>
+
+              <p className="mt-3">
+                Puedes modificar estos datos cuando cambie tu actividad,
+                servicio, estilo de comunicación o idioma principal.
+              </p>
             </div>
           </div>
         </div>
