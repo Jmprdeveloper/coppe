@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 import { analyzeInquiryForCompany } from "../../../../lib/inquiryAnalysisService";
-import { type CurrentCompany } from "../../../../lib/currentCompany";
+import { getCurrentCompany } from "../../../../lib/currentCompany";
 import { createClient } from "../../../../lib/supabase/server";
 
 type AnalyzeInquiryRequestBody = {
@@ -54,12 +54,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: company, error: companyError } = await supabase
-    .from("companies")
-    .select("id, name, sector, description, tone, language")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<CurrentCompany>();
+  const { data: company, error: companyError } = await getCurrentCompany(
+    supabase
+  );
 
   if (companyError) {
     return NextResponse.json(
