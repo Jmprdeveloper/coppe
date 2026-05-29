@@ -64,6 +64,9 @@ type SearchResult = {
   inquiryId?: string | null;
 };
 
+const SEARCH_FETCH_LIMIT = 100;
+const SEARCH_RESULTS_PER_TYPE = 4;
+
 function getCurrentViewLabel(
   activeView: string,
   navigation: NavigationItem[]
@@ -187,131 +190,141 @@ export function Topbar({
 
     setIsSearching(true);
 
-    const [customersResponse, inquiriesResponse, followUpsResponse] =
-      await Promise.all([
-        supabase
-          .from("customers")
-          .select("id, name, email, phone, status")
-          .limit(100),
+    try {
+      const [customersResponse, inquiriesResponse, followUpsResponse] =
+        await Promise.all([
+          supabase
+            .from("customers")
+            .select("id, name, email, phone, status")
+            .limit(SEARCH_FETCH_LIMIT),
 
-        supabase
-          .from("inquiries")
-          .select(
-            "id, customer_name, subject, ai_summary, original_message, status"
-          )
-          .limit(100),
+          supabase
+            .from("inquiries")
+            .select(
+              "id, customer_name, subject, ai_summary, original_message, status"
+            )
+            .limit(SEARCH_FETCH_LIMIT),
 
-        supabase
-          .from("follow_ups")
-          .select("id, title, inquiry_id, customer:customers(name)")
-          .eq("status", "pending")
-          .limit(100),
-      ]);
+          supabase
+            .from("follow_ups")
+            .select("id, title, inquiry_id, customer:customers(name)")
+            .eq("status", "pending")
+            .limit(SEARCH_FETCH_LIMIT),
+        ]);
 
-    setIsSearching(false);
-    setHasSearched(true);
+      setHasSearched(true);
 
-    if (customersResponse.error) {
-      setSearchErrorMessage(
-        `No se pudieron buscar clientes: ${
-          customersResponse.error.message || "sin detalle del error"
-        }`
-      );
-      return;
-    }
-
-    if (inquiriesResponse.error) {
-      setSearchErrorMessage(
-        `No se pudieron buscar consultas: ${
-          inquiriesResponse.error.message || "sin detalle del error"
-        }`
-      );
-      return;
-    }
-
-    if (followUpsResponse.error) {
-      setSearchErrorMessage(
-        `No se pudieron buscar seguimientos: ${
-          followUpsResponse.error.message || "sin detalle del error"
-        }`
-      );
-      return;
-    }
-
-    const customers = (customersResponse.data ??
-      []) as unknown as CustomerSearchRow[];
-
-    const inquiries = (inquiriesResponse.data ??
-      []) as unknown as InquirySearchRow[];
-
-    const followUps = (followUpsResponse.data ??
-      []) as unknown as FollowUpSearchRow[];
-
-    const customerResults: SearchResult[] = customers
-      .filter((customer) => {
-        return (
-          normalizeSearchText(customer.name).includes(normalizedSearch) ||
-          normalizeSearchText(customer.email).includes(normalizedSearch) ||
-          normalizeSearchText(customer.phone).includes(normalizedSearch)
+      if (customersResponse.error) {
+        setSearchErrorMessage(
+          `No se pudieron buscar clientes: ${
+            customersResponse.error.message || "sin detalle del error"
+          }`
         );
-      })
-      .slice(0, 4)
-      .map((customer) => {
-        const contact =
-          customer.email || customer.phone || "Cliente sin contacto";
+        return;
+      }
 
-        return {
-          id: customer.id,
-          type: "customer",
-          title: customer.name,
-          description: `${contact} · ${customerStatusLabel(customer.status)}`,
-        };
-      });
-
-    const inquiryResults: SearchResult[] = inquiries
-      .filter((inquiry) => {
-        return (
-          normalizeSearchText(inquiry.customer_name).includes(
-            normalizedSearch
-          ) ||
-          normalizeSearchText(inquiry.subject).includes(normalizedSearch) ||
-          normalizeSearchText(inquiry.ai_summary).includes(normalizedSearch) ||
-          normalizeSearchText(inquiry.original_message).includes(
-            normalizedSearch
-          )
+      if (inquiriesResponse.error) {
+        setSearchErrorMessage(
+          `No se pudieron buscar consultas: ${
+            inquiriesResponse.error.message || "sin detalle del error"
+          }`
         );
-      })
-      .slice(0, 4)
-      .map((inquiry) => ({
-        id: inquiry.id,
-        type: "inquiry",
-        title: inquiry.subject || `Consulta de ${inquiry.customer_name}`,
-        description: `Consulta · ${inquiry.customer_name} · ${inquiryStatusLabel(
-          inquiry.status
-        )}`,
-      }));
+        return;
+      }
 
-    const followUpResults: SearchResult[] = followUps
-      .filter((followUp) => {
-        return (
-          normalizeSearchText(followUp.title).includes(normalizedSearch) ||
-          normalizeSearchText(followUp.customer?.name).includes(
-            normalizedSearch
-          )
+      if (followUpsResponse.error) {
+        setSearchErrorMessage(
+          `No se pudieron buscar seguimientos: ${
+            followUpsResponse.error.message || "sin detalle del error"
+          }`
         );
-      })
-      .slice(0, 4)
-      .map((followUp) => ({
-        id: followUp.id,
-        type: "follow_up",
-        title: followUp.title,
-        description: `Seguimiento · ${
-          followUp.customer?.name || "Cliente no indicado"
-        }`,
-        inquiryId: followUp.inquiry_id,
-      }));
+        return;
+      }
 
-    setResults([...customerResults, ...inquiryResults, ...followUpResults]);
+      const customers = (customersResponse.data ??
+        []) as unknown as CustomerSearchRow[];
+
+      const inquiries = (inquiriesResponse.data ??
+        []) as unknown as InquirySearchRow[];
+
+      const followUps = (followUpsResponse.data ??
+        []) as unknown as FollowUpSearchRow[];
+
+      const customerResults: SearchResult[] = customers
+        .filter((customer) => {
+          return (
+            normalizeSearchText(customer.name).includes(normalizedSearch) ||
+            normalizeSearchText(customer.email).includes(normalizedSearch) ||
+            normalizeSearchText(customer.phone).includes(normalizedSearch)
+          );
+        })
+        .slice(0, SEARCH_RESULTS_PER_TYPE)
+        .map((customer) => {
+          const contact =
+            customer.email || customer.phone || "Cliente sin contacto";
+
+          return {
+            id: customer.id,
+            type: "customer",
+            title: customer.name,
+            description: `${contact} · ${customerStatusLabel(customer.status)}`,
+          };
+        });
+
+      const inquiryResults: SearchResult[] = inquiries
+        .filter((inquiry) => {
+          return (
+            normalizeSearchText(inquiry.customer_name).includes(
+              normalizedSearch
+            ) ||
+            normalizeSearchText(inquiry.subject).includes(normalizedSearch) ||
+            normalizeSearchText(inquiry.ai_summary).includes(normalizedSearch) ||
+            normalizeSearchText(inquiry.original_message).includes(
+              normalizedSearch
+            )
+          );
+        })
+        .slice(0, SEARCH_RESULTS_PER_TYPE)
+        .map((inquiry) => ({
+          id: inquiry.id,
+          type: "inquiry",
+          title: inquiry.subject || `Consulta de ${inquiry.customer_name}`,
+          description: `Consulta · ${inquiry.customer_name} · ${inquiryStatusLabel(
+            inquiry.status
+          )}`,
+        }));
+
+      const followUpResults: SearchResult[] = followUps
+        .filter((followUp) => {
+          return (
+            normalizeSearchText(followUp.title).includes(normalizedSearch) ||
+            normalizeSearchText(followUp.customer?.name).includes(
+              normalizedSearch
+            )
+          );
+        })
+        .slice(0, SEARCH_RESULTS_PER_TYPE)
+        .map((followUp) => ({
+          id: followUp.id,
+          type: "follow_up",
+          title: followUp.title,
+          description: `Seguimiento · ${
+            followUp.customer?.name || "Cliente no indicado"
+          }`,
+          inquiryId: followUp.inquiry_id,
+        }));
+
+      setResults([...customerResults, ...inquiryResults, ...followUpResults]);
+    } catch (error) {
+      setHasSearched(true);
+      setSearchErrorMessage(
+        error instanceof Error
+          ? `No se pudo completar la búsqueda: ${error.message}`
+          : "No se pudo completar la búsqueda."
+      );
+    } finally {
+      setIsSearching(false);
+    }
   };
 
   const handleOpenResult = (result: SearchResult) => {
