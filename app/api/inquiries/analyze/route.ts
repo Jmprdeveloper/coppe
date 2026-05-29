@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 
-import { analyzeInquiry } from "../../../../lib/inquiryAnalysis";
+import { analyzeInquiryForCompany } from "../../../../lib/inquiryAnalysisService";
 import { type CurrentCompany } from "../../../../lib/currentCompany";
 import { createClient } from "../../../../lib/supabase/server";
 
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const analysis = analyzeInquiry({
+  const analysis = await analyzeInquiryForCompany({
     customerName,
     message,
     company,
