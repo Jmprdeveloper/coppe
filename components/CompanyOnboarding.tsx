@@ -110,17 +110,17 @@ export function CompanyOnboarding({
             </h1>
 
             <p className="mt-4 text-sm leading-6 text-white/80">
-              Esta información se usará para crear el espacio privado de tu
-              empresa y personalizar el comportamiento inicial del asistente.
+              Esta información se usará para configurar el espacio de trabajo de tu
+              empresa y adaptar el asistente a tu actividad.
             </p>
 
             <div className="mt-8 rounded-2xl border border-white/15 bg-white/10 p-4 text-sm leading-6 text-white/80">
-              <div className="mb-2 flex items-center gap-2 font-semibold text-white">
-                <Sparkles size={16} />
-                Primer paso del SaaS real
-              </div>
-              Después de crear la empresa, COPPE asociará tu usuario como
-              propietario y entrarás directamente al dashboard.
+            <div className="mb-2 flex items-center gap-2 font-semibold text-white">
+              <Sparkles size={16} />
+                Espacio de trabajo privado
+            </div>
+            Después de crear la empresa, COPPE preparará tu espacio de trabajo y
+            entrarás directamente al panel principal.
             </div>
 
             {userEmail ? (
@@ -147,7 +147,7 @@ export function CompanyOnboarding({
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Puedes cambiarlos más adelante desde Configuración.
+                Podrás modificarlos más adelante desde Configuración.
               </p>
             </div>
 

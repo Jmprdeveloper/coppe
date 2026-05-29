@@ -12,6 +12,47 @@ type AuthPageProps = {
   setActiveView: (view: string) => void;
 };
 
+function getAuthErrorMessage(message: string) {
+  const normalizedMessage = message.toLowerCase();
+
+  if (normalizedMessage.includes("email not confirmed")) {
+    return "El email todavía no está confirmado. Revisa tu correo y confirma la cuenta antes de iniciar sesión.";
+  }
+
+  if (normalizedMessage.includes("invalid login credentials")) {
+    return "Email o contraseña incorrectos.";
+  }
+
+  if (
+    normalizedMessage.includes("user already registered") ||
+    normalizedMessage.includes("already registered")
+  ) {
+    return "Ya existe una cuenta con ese email. Inicia sesión o utiliza otro email.";
+  }
+
+  if (normalizedMessage.includes("password should be at least")) {
+    return "La contraseña debe tener al menos 6 caracteres.";
+  }
+
+  if (normalizedMessage.includes("signup is disabled")) {
+    return "El registro de nuevas cuentas está desactivado en este momento.";
+  }
+
+  if (normalizedMessage.includes("email rate limit exceeded")) {
+    return "Se han enviado demasiados correos de confirmación. Espera unos minutos antes de intentarlo de nuevo.";
+  }
+
+  if (normalizedMessage.includes("unable to validate email address")) {
+    return "No se pudo validar el email. Comprueba que la dirección esté bien escrita.";
+  }
+
+  if (normalizedMessage.includes("network")) {
+    return "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
+  }
+
+  return message || "Ha ocurrido un error inesperado.";
+}
+
 export function AuthPage({ type, setActiveView }: AuthPageProps) {
   const supabase = useMemo(() => createClient(), []);
   const register = type === "register";
@@ -90,7 +131,7 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
     } catch (error) {
       const message =
         error instanceof Error
-          ? error.message
+          ? getAuthErrorMessage(error.message)
           : "Ha ocurrido un error inesperado.";
 
       setErrorMessage(message);
