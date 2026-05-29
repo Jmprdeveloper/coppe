@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ElementType } from "react";
 import { Building2, LogOut, Plus, Search, UserRound, X } from "lucide-react";
 
@@ -66,6 +66,7 @@ type SearchResult = {
 
 const SEARCH_FETCH_LIMIT = 100;
 const SEARCH_RESULTS_PER_TYPE = 4;
+const SEARCH_DEBOUNCE_MS = 400;
 
 function getCurrentViewLabel(
   activeView: string,
@@ -157,6 +158,8 @@ export function Topbar({
   const supabase = useMemo(() => createClient(), []);
   const current = getCurrentViewLabel(activeView, navigation);
 
+  const searchRequestId = useRef(0);
+
   const [searchTerm, setSearchTerm] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -164,168 +167,218 @@ export function Topbar({
   const [searchErrorMessage, setSearchErrorMessage] = useState("");
 
   const clearSearch = () => {
+    searchRequestId.current += 1;
     setSearchTerm("");
     setResults([]);
+    setIsSearching(false);
     setHasSearched(false);
     setSearchErrorMessage("");
   };
 
-  const handleSearch = async () => {
-    const cleanSearch = searchTerm.trim();
-    const normalizedSearch = normalizeSearchText(cleanSearch);
+  const handleSearch = useCallback(
+    async (
+      searchValue: string,
+      options: { showShortSearchError?: boolean } = {}
+    ) => {
+      const cleanSearch = searchValue.trim();
+      const normalizedSearch = normalizeSearchText(cleanSearch);
+      const currentRequestId = searchRequestId.current + 1;
 
-    setSearchErrorMessage("");
-    setResults([]);
-    setHasSearched(false);
+      searchRequestId.current = currentRequestId;
 
-    if (!normalizedSearch) {
-      return;
-    }
-
-    if (normalizedSearch.length < 2) {
-      setSearchErrorMessage("Escribe al menos 2 caracteres.");
-      setHasSearched(true);
-      return;
-    }
-
-    setIsSearching(true);
-
-    try {
-      const [customersResponse, inquiriesResponse, followUpsResponse] =
-        await Promise.all([
-          supabase
-            .from("customers")
-            .select("id, name, email, phone, status")
-            .limit(SEARCH_FETCH_LIMIT),
-
-          supabase
-            .from("inquiries")
-            .select(
-              "id, customer_name, subject, ai_summary, original_message, status"
-            )
-            .limit(SEARCH_FETCH_LIMIT),
-
-          supabase
-            .from("follow_ups")
-            .select("id, title, inquiry_id, customer:customers(name)")
-            .eq("status", "pending")
-            .limit(SEARCH_FETCH_LIMIT),
-        ]);
-
-      setHasSearched(true);
-
-      if (customersResponse.error) {
-        setSearchErrorMessage(
-          `No se pudieron buscar clientes: ${
-            customersResponse.error.message || "sin detalle del error"
-          }`
-        );
-        return;
-      }
-
-      if (inquiriesResponse.error) {
-        setSearchErrorMessage(
-          `No se pudieron buscar consultas: ${
-            inquiriesResponse.error.message || "sin detalle del error"
-          }`
-        );
-        return;
-      }
-
-      if (followUpsResponse.error) {
-        setSearchErrorMessage(
-          `No se pudieron buscar seguimientos: ${
-            followUpsResponse.error.message || "sin detalle del error"
-          }`
-        );
-        return;
-      }
-
-      const customers = (customersResponse.data ??
-        []) as unknown as CustomerSearchRow[];
-
-      const inquiries = (inquiriesResponse.data ??
-        []) as unknown as InquirySearchRow[];
-
-      const followUps = (followUpsResponse.data ??
-        []) as unknown as FollowUpSearchRow[];
-
-      const customerResults: SearchResult[] = customers
-        .filter((customer) => {
-          return (
-            normalizeSearchText(customer.name).includes(normalizedSearch) ||
-            normalizeSearchText(customer.email).includes(normalizedSearch) ||
-            normalizeSearchText(customer.phone).includes(normalizedSearch)
-          );
-        })
-        .slice(0, SEARCH_RESULTS_PER_TYPE)
-        .map((customer) => {
-          const contact =
-            customer.email || customer.phone || "Cliente sin contacto";
-
-          return {
-            id: customer.id,
-            type: "customer",
-            title: customer.name,
-            description: `${contact} · ${customerStatusLabel(customer.status)}`,
-          };
-        });
-
-      const inquiryResults: SearchResult[] = inquiries
-        .filter((inquiry) => {
-          return (
-            normalizeSearchText(inquiry.customer_name).includes(
-              normalizedSearch
-            ) ||
-            normalizeSearchText(inquiry.subject).includes(normalizedSearch) ||
-            normalizeSearchText(inquiry.ai_summary).includes(normalizedSearch) ||
-            normalizeSearchText(inquiry.original_message).includes(
-              normalizedSearch
-            )
-          );
-        })
-        .slice(0, SEARCH_RESULTS_PER_TYPE)
-        .map((inquiry) => ({
-          id: inquiry.id,
-          type: "inquiry",
-          title: inquiry.subject || `Consulta de ${inquiry.customer_name}`,
-          description: `Consulta · ${inquiry.customer_name} · ${inquiryStatusLabel(
-            inquiry.status
-          )}`,
-        }));
-
-      const followUpResults: SearchResult[] = followUps
-        .filter((followUp) => {
-          return (
-            normalizeSearchText(followUp.title).includes(normalizedSearch) ||
-            normalizeSearchText(followUp.customer?.name).includes(
-              normalizedSearch
-            )
-          );
-        })
-        .slice(0, SEARCH_RESULTS_PER_TYPE)
-        .map((followUp) => ({
-          id: followUp.id,
-          type: "follow_up",
-          title: followUp.title,
-          description: `Seguimiento · ${
-            followUp.customer?.name || "Cliente no indicado"
-          }`,
-          inquiryId: followUp.inquiry_id,
-        }));
-
-      setResults([...customerResults, ...inquiryResults, ...followUpResults]);
-    } catch (error) {
-      setHasSearched(true);
-      setSearchErrorMessage(
-        error instanceof Error
-          ? `No se pudo completar la búsqueda: ${error.message}`
-          : "No se pudo completar la búsqueda."
-      );
-    } finally {
+      setSearchErrorMessage("");
+      setResults([]);
+      setHasSearched(false);
       setIsSearching(false);
+
+      if (!normalizedSearch) {
+        return;
+      }
+
+      if (normalizedSearch.length < 2) {
+        if (options.showShortSearchError) {
+          setSearchErrorMessage("Escribe al menos 2 caracteres.");
+          setHasSearched(true);
+        }
+
+        return;
+      }
+
+      setIsSearching(true);
+
+      try {
+        const [customersResponse, inquiriesResponse, followUpsResponse] =
+          await Promise.all([
+            supabase
+              .from("customers")
+              .select("id, name, email, phone, status")
+              .limit(SEARCH_FETCH_LIMIT),
+
+            supabase
+              .from("inquiries")
+              .select(
+                "id, customer_name, subject, ai_summary, original_message, status"
+              )
+              .limit(SEARCH_FETCH_LIMIT),
+
+            supabase
+              .from("follow_ups")
+              .select("id, title, inquiry_id, customer:customers(name)")
+              .eq("status", "pending")
+              .limit(SEARCH_FETCH_LIMIT),
+          ]);
+
+        if (searchRequestId.current !== currentRequestId) {
+          return;
+        }
+
+        setHasSearched(true);
+
+        if (customersResponse.error) {
+          setSearchErrorMessage(
+            `No se pudieron buscar clientes: ${
+              customersResponse.error.message || "sin detalle del error"
+            }`
+          );
+          return;
+        }
+
+        if (inquiriesResponse.error) {
+          setSearchErrorMessage(
+            `No se pudieron buscar consultas: ${
+              inquiriesResponse.error.message || "sin detalle del error"
+            }`
+          );
+          return;
+        }
+
+        if (followUpsResponse.error) {
+          setSearchErrorMessage(
+            `No se pudieron buscar seguimientos: ${
+              followUpsResponse.error.message || "sin detalle del error"
+            }`
+          );
+          return;
+        }
+
+        const customers = (customersResponse.data ??
+          []) as unknown as CustomerSearchRow[];
+
+        const inquiries = (inquiriesResponse.data ??
+          []) as unknown as InquirySearchRow[];
+
+        const followUps = (followUpsResponse.data ??
+          []) as unknown as FollowUpSearchRow[];
+
+        const customerResults: SearchResult[] = customers
+          .filter((customer) => {
+            return (
+              normalizeSearchText(customer.name).includes(normalizedSearch) ||
+              normalizeSearchText(customer.email).includes(normalizedSearch) ||
+              normalizeSearchText(customer.phone).includes(normalizedSearch)
+            );
+          })
+          .slice(0, SEARCH_RESULTS_PER_TYPE)
+          .map((customer) => {
+            const contact =
+              customer.email || customer.phone || "Cliente sin contacto";
+
+            return {
+              id: customer.id,
+              type: "customer",
+              title: customer.name,
+              description: `${contact} · ${customerStatusLabel(
+                customer.status
+              )}`,
+            };
+          });
+
+        const inquiryResults: SearchResult[] = inquiries
+          .filter((inquiry) => {
+            return (
+              normalizeSearchText(inquiry.customer_name).includes(
+                normalizedSearch
+              ) ||
+              normalizeSearchText(inquiry.subject).includes(normalizedSearch) ||
+              normalizeSearchText(inquiry.ai_summary).includes(
+                normalizedSearch
+              ) ||
+              normalizeSearchText(inquiry.original_message).includes(
+                normalizedSearch
+              )
+            );
+          })
+          .slice(0, SEARCH_RESULTS_PER_TYPE)
+          .map((inquiry) => ({
+            id: inquiry.id,
+            type: "inquiry",
+            title: inquiry.subject || `Consulta de ${inquiry.customer_name}`,
+            description: `Consulta · ${
+              inquiry.customer_name
+            } · ${inquiryStatusLabel(inquiry.status)}`,
+          }));
+
+        const followUpResults: SearchResult[] = followUps
+          .filter((followUp) => {
+            return (
+              normalizeSearchText(followUp.title).includes(normalizedSearch) ||
+              normalizeSearchText(followUp.customer?.name).includes(
+                normalizedSearch
+              )
+            );
+          })
+          .slice(0, SEARCH_RESULTS_PER_TYPE)
+          .map((followUp) => ({
+            id: followUp.id,
+            type: "follow_up",
+            title: followUp.title,
+            description: `Seguimiento · ${
+              followUp.customer?.name || "Cliente no indicado"
+            }`,
+            inquiryId: followUp.inquiry_id,
+          }));
+
+        setResults([...customerResults, ...inquiryResults, ...followUpResults]);
+      } catch (error) {
+        if (searchRequestId.current !== currentRequestId) {
+          return;
+        }
+
+        setHasSearched(true);
+        setSearchErrorMessage(
+          error instanceof Error
+            ? `No se pudo completar la búsqueda: ${error.message}`
+            : "No se pudo completar la búsqueda."
+        );
+      } finally {
+        if (searchRequestId.current === currentRequestId) {
+          setIsSearching(false);
+        }
+      }
+    },
+    [supabase]
+  );
+
+  useEffect(() => {
+    const normalizedSearch = normalizeSearchText(searchTerm);
+
+    if (!normalizedSearch || normalizedSearch.length < 2) {
+      searchRequestId.current += 1;
+      setResults([]);
+      setIsSearching(false);
+      setHasSearched(false);
+      setSearchErrorMessage("");
+      return;
     }
-  };
+
+    const timeoutId = window.setTimeout(() => {
+      handleSearch(searchTerm);
+    }, SEARCH_DEBOUNCE_MS);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [handleSearch, searchTerm]);
 
   const handleOpenResult = (result: SearchResult) => {
     clearSearch();
@@ -380,7 +433,8 @@ export function Topbar({
             onChange={(event) => setSearchTerm(event.target.value)}
             onKeyDown={(event) => {
               if (event.key === "Enter") {
-                handleSearch();
+                event.preventDefault();
+                handleSearch(searchTerm, { showShortSearchError: true });
               }
 
               if (event.key === "Escape") {
@@ -404,7 +458,9 @@ export function Topbar({
 
           <button
             type="button"
-            onClick={handleSearch}
+            onClick={() =>
+              handleSearch(searchTerm, { showShortSearchError: true })
+            }
             disabled={isSearching}
             className="rounded-lg p-1 text-slate-400 hover:bg-slate-200 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
             title="Buscar"
