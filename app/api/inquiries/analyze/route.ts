@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 
+import { type AnalyzeInquiryRequestBody } from "../../../../lib/inquiryAnalysisApi";
 import { analyzeInquiryForCompany } from "../../../../lib/inquiryAnalysisService";
 import { getCurrentCompany } from "../../../../lib/currentCompany";
 import { createClient } from "../../../../lib/supabase/server";
 
-type AnalyzeInquiryRequestBody = {
-  customerName?: unknown;
-  message?: unknown;
-};
 
 export async function POST(request: Request) {
   const supabase = await createClient();

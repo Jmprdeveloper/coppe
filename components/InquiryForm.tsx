@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useMemo, useState } from "react";
 import { Sparkles } from "lucide-react";
@@ -10,7 +10,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
-import { type InquiryAnalysisResult } from "../lib/inquiryAnalysis";
+import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -33,10 +33,6 @@ type CreatedInquiryRow = {
 };
 
 
-type AnalyzeInquiryResponse = {
-  analysis?: InquiryAnalysisResult;
-  error?: string;
-};
 
 export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -135,20 +131,20 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       return;
     }
 
-    let analysisPayload: AnalyzeInquiryResponse = {};
+    let analysisPayload: AnalyzeInquiryResponse | null = null;
 
     try {
       analysisPayload = (await analysisResponse.json()) as AnalyzeInquiryResponse;
     } catch {
-      analysisPayload = {};
+      analysisPayload = null;
     }
 
     const analysisErrorMessage =
-      typeof analysisPayload.error === "string" && analysisPayload.error.trim()
+      typeof analysisPayload?.error === "string" && analysisPayload.error.trim()
         ? analysisPayload.error.trim()
         : "No se pudo analizar la consulta antes de guardarla.";
 
-    if (!analysisResponse.ok || !analysisPayload.analysis) {
+    if (!analysisResponse.ok || !analysisPayload?.analysis) {
       setIsSubmitting(false);
       setErrorMessage(analysisErrorMessage);
       return;
