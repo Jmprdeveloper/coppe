@@ -10,9 +10,8 @@ import {
 } from "../lib/customerValidation";
 import {
   formatDateTime,
-  normalizeInquiryCategory,
-  normalizeInquiryStatus,
-  normalizePriority,
+  mapInquiryRowToInquiry,
+  type InquiryRow,
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
 import type { CustomerStatus, Inquiry } from "../types";
@@ -42,26 +41,6 @@ type CustomerRow = {
 type InternalNoteRow = {
   id: string;
   body: string;
-  created_at: string;
-};
-
-type InquiryRow = {
-  id: string;
-  customer_id: string | null;
-  customer_name: string;
-  source_channel: string;
-  subject: string | null;
-  original_message: string;
-  ai_summary: string | null;
-  ai_intent: string | null;
-  ai_category: string | null;
-  ai_priority: string | null;
-  ai_language: string | null;
-  sentiment: string | null;
-  missing_information: string[] | null;
-  recommended_action: string | null;
-  suggested_response: string | null;
-  status: string;
   created_at: string;
 };
 
@@ -108,30 +87,6 @@ function formatCustomerStatus(status: string) {
   }
 
   return "Activo";
-}
-
-function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
-  return {
-    id: row.id,
-    customerId: row.customer_id ?? "",
-    customerName: row.customer_name,
-    sourceChannel: row.source_channel,
-    subject: row.subject ?? "Sin asunto",
-    originalMessage: row.original_message,
-    aiSummary: row.ai_summary ?? "Sin resumen disponible.",
-    aiIntent: row.ai_intent ?? "No identificado",
-    aiCategory: normalizeInquiryCategory(row.ai_category),
-    aiPriority: normalizePriority(row.ai_priority),
-    aiLanguage: row.ai_language ?? "No indicado",
-    sentiment: row.sentiment ?? "No indicado",
-    missingInformation: row.missing_information ?? [],
-    recommendedAction:
-      row.recommended_action ?? "No hay acción recomendada disponible.",
-    suggestedResponse:
-      row.suggested_response ?? "No hay respuesta sugerida disponible.",
-    status: normalizeInquiryStatus(row.status),
-    createdAt: formatDateTime(row.created_at),
-  };
 }
 
 export function CustomerDetail({
