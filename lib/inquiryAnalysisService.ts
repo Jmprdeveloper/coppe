@@ -42,14 +42,29 @@ async function analyzeInquiryWithLocalEngine({
   });
 }
 
-export async function analyzeInquiryForCompany(
-  input: AnalyzeInquiryForCompanyInput
+async function analyzeInquiryWithSelectedEngine(
+  input: AnalyzeInquiryForCompanyInput,
+  engine: InquiryAnalysisEngine
 ): Promise<InquiryAnalysisResult> {
-  const engine = getInquiryAnalysisEngine();
-
   if (engine === "local") {
     return analyzeInquiryWithLocalEngine(input);
   }
 
   return analyzeInquiryWithLocalEngine(input);
+}
+
+export async function analyzeInquiryForCompany(
+  input: AnalyzeInquiryForCompanyInput
+): Promise<InquiryAnalysisResult> {
+  const engine = getInquiryAnalysisEngine();
+
+  try {
+    return await analyzeInquiryWithSelectedEngine(input, engine);
+  } catch (error) {
+    if (engine !== "local") {
+      return analyzeInquiryWithLocalEngine(input);
+    }
+
+    throw error;
+  }
 }
