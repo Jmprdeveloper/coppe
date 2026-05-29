@@ -1,8 +1,10 @@
-import { type CurrentCompany } from "./currentCompany";
+﻿import { type CurrentCompany } from "./currentCompany";
 import {
   analyzeInquiry,
   type InquiryAnalysisResult,
 } from "./inquiryAnalysis";
+
+type InquiryAnalysisEngine = "local";
 
 type AnalyzeInquiryForCompanyInput = {
   customerName: string;
@@ -10,7 +12,9 @@ type AnalyzeInquiryForCompanyInput = {
   company: CurrentCompany;
 };
 
-export async function analyzeInquiryForCompany({
+const DEFAULT_INQUIRY_ANALYSIS_ENGINE: InquiryAnalysisEngine = "local";
+
+async function analyzeInquiryWithLocalEngine({
   customerName,
   message,
   company,
@@ -20,4 +24,16 @@ export async function analyzeInquiryForCompany({
     message,
     company,
   });
+}
+
+export async function analyzeInquiryForCompany(
+  input: AnalyzeInquiryForCompanyInput
+): Promise<InquiryAnalysisResult> {
+  const engine = DEFAULT_INQUIRY_ANALYSIS_ENGINE;
+
+  if (engine === "local") {
+    return analyzeInquiryWithLocalEngine(input);
+  }
+
+  return analyzeInquiryWithLocalEngine(input);
 }
