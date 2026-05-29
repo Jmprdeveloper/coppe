@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
 import { getCurrentCompany } from "../lib/currentCompany";
+import { normalizeCustomerStatus } from "../lib/customerUtils";
 import {
   getCustomerDatabaseErrorMessage,
   isValidEmail,
@@ -44,19 +45,6 @@ const customerStatusFilters: {
   { value: "inactive", label: "Inactivos" },
   { value: "archived", label: "Archivados" },
 ];
-
-function normalizeCustomerStatus(status: string): CustomerStatus {
-  if (
-    status === "new" ||
-    status === "active" ||
-    status === "inactive" ||
-    status === "archived"
-  ) {
-    return status;
-  }
-
-  return "active";
-}
 
 function customerStatusFilterLabel(status: CustomerStatusFilter) {
   const filter = customerStatusFilters.find(

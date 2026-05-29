@@ -8,6 +8,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
+import { normalizeCustomerStatus } from "../lib/customerUtils";
 import {
   formatDateTime,
   mapInquiryRowToInquiry,
@@ -43,19 +44,6 @@ type InternalNoteRow = {
   body: string;
   created_at: string;
 };
-
-function normalizeCustomerStatus(status: string): CustomerStatus {
-  if (
-    status === "new" ||
-    status === "active" ||
-    status === "inactive" ||
-    status === "archived"
-  ) {
-    return status;
-  }
-
-  return "active";
-}
 
 function formatLanguage(language: string | null) {
   if (language === "es") {
