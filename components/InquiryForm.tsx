@@ -10,6 +10,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
+import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -30,14 +31,6 @@ type CustomerRow = {
 type CreatedInquiryRow = {
   id: string;
 };
-
-function normalizeSearchText(value: string) {
-  return value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
 
 function detectLanguage(message: string) {
   const normalizedMessage = normalizeSearchText(message);
@@ -752,56 +745,56 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         {!createdInquiryId ? (
           <>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-700">
-                Nombre
-                <input
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Nombre del cliente"
-                />
-              </label>
+  <label className="text-sm font-medium text-slate-700">
+    Nombre
+    <input
+      value={customerName}
+      onChange={(event) => setCustomerName(event.target.value)}
+      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+      placeholder="Nombre del cliente"
+    />
+  </label>
 
-              <label className="text-sm font-medium text-slate-700">
-                Email
-                <input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="cliente@email.com"
-                />
-              </label>
+  <label className="text-sm font-medium text-slate-700">
+    Email
+    <input
+      value={email}
+      onChange={(event) => setEmail(event.target.value)}
+      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+      placeholder="cliente@email.com"
+    />
+  </label>
 
-              <label className="text-sm font-medium text-slate-700">
-                Teléfono
-                <input
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="+34 600 000 000"
-                />
-              </label>
+  <label className="text-sm font-medium text-slate-700">
+    Teléfono
+    <input
+      value={phone}
+      onChange={(event) => setPhone(event.target.value)}
+      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+      placeholder="+34 600 000 000"
+    />
+  </label>
 
-              <label className="text-sm font-medium text-slate-700">
-                Canal
-                <input
-                  value={sourceChannel}
-                  onChange={(event) => setSourceChannel(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Formulario web, email, WhatsApp..."
-                />
-              </label>
+  <label className="text-sm font-medium text-slate-700">
+    Canal
+    <input
+      value={sourceChannel}
+      onChange={(event) => setSourceChannel(event.target.value)}
+      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+      placeholder="Formulario web, email, WhatsApp..."
+    />
+  </label>
 
-              <label className="text-sm font-medium text-slate-700 md:col-span-2">
-                Mensaje
-                <textarea
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Pega aquí el mensaje recibido del cliente..."
-                />
-              </label>
-            </div>
+  <label className="text-sm font-medium text-slate-700 md:col-span-2">
+    Mensaje
+    <textarea
+      value={message}
+      onChange={(event) => setMessage(event.target.value)}
+      className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+      placeholder="Pega aquí el mensaje recibido del cliente..."
+    />
+  </label>
+</div>
 
             {errorMessage ? (
               <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">

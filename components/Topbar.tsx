@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { ElementType } from "react";
 import { Building2, LogOut, Plus, Search, UserRound, X } from "lucide-react";
 
+import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -82,14 +83,6 @@ function getCurrentViewLabel(
   };
 
   return detailLabels[activeView] ?? "COPPE";
-}
-
-function normalizeSearchText(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
 }
 
 function resultTypeLabel(type: SearchResult["type"]) {
@@ -318,11 +311,7 @@ export function Topbar({
         inquiryId: followUp.inquiry_id,
       }));
 
-    setResults([
-      ...customerResults,
-      ...inquiryResults,
-      ...followUpResults,
-    ]);
+    setResults([...customerResults, ...inquiryResults, ...followUpResults]);
   };
 
   const handleOpenResult = (result: SearchResult) => {
@@ -343,9 +332,7 @@ export function Topbar({
       return;
     }
 
-    setSearchErrorMessage(
-      "Este seguimiento no tiene una consulta asociada."
-    );
+    setSearchErrorMessage("Este seguimiento no tiene una consulta asociada.");
   };
 
   const showSearchPanel =

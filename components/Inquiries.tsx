@@ -9,6 +9,7 @@ import {
   normalizeInquiryStatus,
   normalizePriority,
 } from "../lib/inquiryUtils";
+import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -34,14 +35,6 @@ type InquiryRow = {
   status: string;
   created_at: string;
 };
-
-function normalizeSearchText(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-}
 
 export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   const supabase = useMemo(() => createClient(), []);

@@ -11,6 +11,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
+import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 import type { CustomerStatus } from "../types";
 
@@ -72,14 +73,6 @@ function formatLastInteraction(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
-}
-
-function normalizeSearchText(value: string | null | undefined) {
-  return (value ?? "")
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
 }
 
 export function Customers({ openCustomer }: CustomersProps) {
