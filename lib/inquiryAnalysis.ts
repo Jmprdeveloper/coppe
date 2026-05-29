@@ -1,7 +1,7 @@
 import { type CurrentCompany } from "./currentCompany";
 import { normalizeSearchText } from "./searchUtils";
 
-type MessageLanguage = "es" | "en";
+export type MessageLanguage = "es" | "en";
 
 type ResponseTone =
   | "profesional y cercano"
@@ -704,3 +704,56 @@ export function buildSubject(message: string, fallbackCategory: string) {
 
   return subjects[fallbackCategory] ?? "Nueva consulta";
 }
+
+type AnalyzeInquiryInput = {
+  customerName: string;
+  message: string;
+  company: CurrentCompany;
+};
+
+type InquiryAnalysisResult = {
+  subject: string;
+  summary: string;
+  intent: string;
+  category: string;
+  priority: string;
+  language: MessageLanguage;
+  missingInformation: string[];
+  recommendedAction: string;
+  suggestedResponse: string;
+};
+
+export function analyzeInquiry({
+  customerName,
+  message,
+  company,
+}: AnalyzeInquiryInput): InquiryAnalysisResult {
+  const language = detectLanguage(message, company.language);
+  const category = inferCategory(message);
+  const priority = inferPriority(category, message);
+  const subject = buildSubject(message, category);
+  const summary = buildSummary(customerName, message, category, company);
+  const intent = buildIntent(category);
+  const missingInformation = buildMissingInformation(category, message);
+  const recommendedAction = buildRecommendedAction(category, message, company);
+  const suggestedResponse = buildSuggestedResponse(
+    customerName,
+    company,
+    category,
+    language,
+    message
+  );
+
+  return {
+    subject,
+    summary,
+    intent,
+    category,
+    priority,
+    language,
+    missingInformation,
+    recommendedAction,
+    suggestedResponse,
+  };
+}
+

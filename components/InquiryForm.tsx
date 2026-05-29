@@ -10,17 +10,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
-import {
-  buildIntent,
-  buildMissingInformation,
-  buildRecommendedAction,
-  buildSubject,
-  buildSuggestedResponse,
-  buildSummary,
-  detectLanguage,
-  inferCategory,
-  inferPriority,
-} from "../lib/inquiryAnalysis";
+import { analyzeInquiry } from "../lib/inquiryAnalysis";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -118,7 +108,11 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       return;
     }
 
-    const language = detectLanguage(cleanMessage, company.language);
+    const inquiryAnalysis = analyzeInquiry({
+      customerName: cleanName,
+      message: cleanMessage,
+      company,
+    });
 
     let customerId: string | null = null;
     let customerByEmail: CustomerRow | null = null;
@@ -205,7 +199,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         status: string;
         last_interaction_at: string;
       } = {
-        language,
+        language: inquiryAnalysis.language,
         status: "active",
         last_interaction_at: new Date().toISOString(),
       };
@@ -240,7 +234,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
           name: cleanName,
           email: cleanEmail || null,
           phone: normalizedPhone || null,
-          language,
+          language: inquiryAnalysis.language,
           status: "active",
           last_interaction_at: new Date().toISOString(),
         })
@@ -260,10 +254,6 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       customerId = newCustomer.id;
     }
 
-    const category = inferCategory(cleanMessage);
-    const priority = inferPriority(category, cleanMessage);
-    const subject = buildSubject(cleanMessage, category);
-
     const { data: createdInquiry, error: createInquiryError } = await supabase
       .from("inquiries")
       .insert({
@@ -271,27 +261,17 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         customer_id: customerId,
         customer_name: cleanName,
         source_channel: cleanSourceChannel,
-        subject,
+        subject: inquiryAnalysis.subject,
         original_message: cleanMessage,
-        ai_summary: buildSummary(cleanName, cleanMessage, category, company),
-        ai_intent: buildIntent(category),
-        ai_category: category,
-        ai_priority: priority,
-        ai_language: language,
+        ai_summary: inquiryAnalysis.summary,
+        ai_intent: inquiryAnalysis.intent,
+        ai_category: inquiryAnalysis.category,
+        ai_priority: inquiryAnalysis.priority,
+        ai_language: inquiryAnalysis.language,
         sentiment: "neutral",
-        missing_information: buildMissingInformation(category, cleanMessage),
-        recommended_action: buildRecommendedAction(
-          category,
-          cleanMessage,
-          company
-        ),
-        suggested_response: buildSuggestedResponse(
-          cleanName,
-          company,
-          category,
-          language,
-          cleanMessage
-        ),
+        missing_information: inquiryAnalysis.missingInformation,
+        recommended_action: inquiryAnalysis.recommendedAction,
+        suggested_response: inquiryAnalysis.suggestedResponse,
         status: "new",
       })
       .select("id")
