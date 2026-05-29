@@ -114,16 +114,26 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       return;
     }
 
-    const analysisResponse = await fetch("/api/inquiries/analyze", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        customerName: cleanName,
-        message: cleanMessage,
-      }),
-    });
+    let analysisResponse: Response;
+
+    try {
+      analysisResponse = await fetch("/api/inquiries/analyze", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerName: cleanName,
+          message: cleanMessage,
+        }),
+      });
+    } catch {
+      setIsSubmitting(false);
+      setErrorMessage(
+        "No se pudo conectar con el servicio de análisis. Inténtalo de nuevo en unos segundos."
+      );
+      return;
+    }
 
     let analysisPayload: AnalyzeInquiryResponse = {};
 
@@ -133,12 +143,14 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       analysisPayload = {};
     }
 
+    const analysisErrorMessage =
+      typeof analysisPayload.error === "string" && analysisPayload.error.trim()
+        ? analysisPayload.error.trim()
+        : "No se pudo analizar la consulta antes de guardarla.";
+
     if (!analysisResponse.ok || !analysisPayload.analysis) {
       setIsSubmitting(false);
-      setErrorMessage(
-        analysisPayload.error ||
-          "No se pudo analizar la consulta antes de guardarla."
-      );
+      setErrorMessage(analysisErrorMessage);
       return;
     }
 
