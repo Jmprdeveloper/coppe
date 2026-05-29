@@ -79,11 +79,23 @@ export async function POST(request: Request) {
     );
   }
 
-  const analysis = await analyzeInquiryForCompany({
-    customerName,
-    message,
-    company,
-  });
+  try {
+    const analysis = await analyzeInquiryForCompany({
+      customerName,
+      message,
+      company,
+    });
 
-  return NextResponse.json({ analysis });
+    return NextResponse.json({ analysis });
+  } catch (error) {
+    console.error("Unexpected inquiry analysis error:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          "No se pudo preparar el análisis de la consulta. Inténtalo de nuevo en unos segundos.",
+      },
+      { status: 500 }
+    );
+  }
 }
