@@ -6,7 +6,7 @@ import {
   companySectorOptions,
   normalizeCompanySector,
 } from "../lib/companyOptions";
-import { getCurrentCompany } from "../lib/currentCompany";
+import { getCurrentCompany, type CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -19,6 +19,10 @@ type ToneOption =
   | "amable y detallado";
 
 type LanguageOption = "es" | "en";
+
+type SettingsPageProps = {
+  onCompanyUpdated?: (company: CurrentCompany) => void;
+};
 
 function normalizeTone(value: string | null | undefined): ToneOption {
   if (
@@ -41,7 +45,7 @@ function normalizeLanguage(value: string | null | undefined): LanguageOption {
   return "es";
 }
 
-export function SettingsPage() {
+export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
   const [companyId, setCompanyId] = useState<string | null>(null);
@@ -104,7 +108,7 @@ export function SettingsPage() {
     }
 
     const cleanName = name.trim();
-    const cleanSector = sector.trim();
+    const cleanSector = normalizeCompanySector(sector);
     const cleanDescription = description.trim();
 
     if (!cleanName) {
@@ -119,7 +123,7 @@ export function SettingsPage() {
 
     setIsSaving(true);
 
-    const { error } = await supabase
+    const { data: updatedCompany, error } = await supabase
       .from("companies")
       .update({
         name: cleanName,
@@ -128,22 +132,28 @@ export function SettingsPage() {
         tone,
         language,
       })
-      .eq("id", companyId);
+      .eq("id", companyId)
+      .select("id, name, sector, description, tone, language")
+      .single<CurrentCompany>();
 
     setIsSaving(false);
 
-    if (error) {
+    if (error || !updatedCompany) {
       setErrorMessage(
         `No se pudieron guardar los cambios: ${
-          error.message || "sin detalle del error"
+          error?.message || "sin detalle del error"
         }`
       );
       return;
     }
 
-    setName(cleanName);
-    setSector(cleanSector);
-    setDescription(cleanDescription);
+    setName(updatedCompany.name ?? "");
+    setSector(normalizeCompanySector(updatedCompany.sector));
+    setDescription(updatedCompany.description ?? "");
+    setTone(normalizeTone(updatedCompany.tone));
+    setLanguage(normalizeLanguage(updatedCompany.language));
+
+    onCompanyUpdated?.(updatedCompany);
     setMessage("Configuración guardada correctamente.");
   };
 

@@ -104,6 +104,11 @@ export function AppShell({
     setActiveView("dashboard");
   };
 
+  const handleCompanyUpdated = (updatedCompany: CurrentCompany) => {
+    setCompany(updatedCompany);
+    setCompanyErrorMessage("");
+  };
+
   const openInquiry = (id: string) => {
     setSelectedInquiryId(id);
     setActiveView("inquiryDetail");
@@ -156,7 +161,7 @@ export function AppShell({
         return <FollowUps openInquiry={openInquiry} />;
 
       case "settings":
-        return <SettingsPage />;
+        return <SettingsPage onCompanyUpdated={handleCompanyUpdated} />;
 
       case "InquiryForm":
         return (
