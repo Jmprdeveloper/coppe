@@ -711,7 +711,7 @@ type AnalyzeInquiryInput = {
   company: CurrentCompany;
 };
 
-type InquiryAnalysisResult = {
+export type InquiryAnalysisResult = {
   subject: string;
   summary: string;
   intent: string;
