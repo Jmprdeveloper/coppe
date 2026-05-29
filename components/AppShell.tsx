@@ -10,7 +10,11 @@ import {
   UsersRound,
 } from "lucide-react";
 
-import { getCurrentCompany } from "../lib/currentCompany";
+import { CompanyOnboarding } from "./CompanyOnboarding";
+import {
+  getCurrentCompany,
+  type CurrentCompany,
+} from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 import { classNames } from "../lib/utils";
 import { CustomerDetail } from "./CustomerDetail";
@@ -55,24 +59,50 @@ export function AppShell({
 }: AppShellProps) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [company, setCompany] = useState({
-    name: "COPPE",
-  });
+  const [company, setCompany] = useState<CurrentCompany | null>(null);
+  const [isCompanyLoading, setIsCompanyLoading] = useState(true);
+  const [companyErrorMessage, setCompanyErrorMessage] = useState("");
 
   useEffect(() => {
+    let mounted = true;
+
     async function loadCompany() {
+      setIsCompanyLoading(true);
+      setCompanyErrorMessage("");
+
       const { data, error } = await getCurrentCompany(supabase);
 
-      if (error || !data) {
-        setCompany({ name: "COPPE" });
+      if (!mounted) {
         return;
       }
 
-      setCompany({ name: data.name });
+      if (error) {
+        setCompany(null);
+        setCompanyErrorMessage(
+          `No se pudo cargar la empresa asociada al usuario: ${
+            error.message || "sin detalle del error"
+          }`
+        );
+        setIsCompanyLoading(false);
+        return;
+      }
+
+      setCompany(data ?? null);
+      setIsCompanyLoading(false);
     }
 
     loadCompany();
+
+    return () => {
+      mounted = false;
+    };
   }, [supabase]);
+
+  const handleCompanyCreated = (createdCompany: CurrentCompany) => {
+    setCompany(createdCompany);
+    setCompanyErrorMessage("");
+    setActiveView("dashboard");
+  };
 
   const openInquiry = (id: string) => {
     setSelectedInquiryId(id);
@@ -145,6 +175,50 @@ export function AppShell({
         );
     }
   };
+
+  if (isCompanyLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F9FA] px-6">
+        <div className="rounded-3xl border border-slate-200 bg-white px-6 py-5 text-sm font-medium text-slate-600 shadow-xl shadow-slate-200/70">
+          Cargando empresa...
+        </div>
+      </div>
+    );
+  }
+
+  if (companyErrorMessage) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#F7F9FA] px-6">
+        <div className="w-full max-w-lg rounded-3xl border border-red-200 bg-white p-6 text-center shadow-xl shadow-slate-200/70">
+          <h1 className="text-lg font-bold text-slate-950">
+            No se pudo cargar la empresa
+          </h1>
+
+          <p className="mt-3 text-sm leading-6 text-slate-500">
+            {companyErrorMessage}
+          </p>
+
+          <button
+            type="button"
+            onClick={onSignOut}
+            className="mt-5 rounded-xl bg-[#0F4C5C] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#0b3d4a]"
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <CompanyOnboarding
+        userEmail={userEmail}
+        onCompanyCreated={handleCompanyCreated}
+        onSignOut={onSignOut}
+      />
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F7F9FA] text-slate-900">
