@@ -32,6 +32,67 @@ type CreatedInquiryRow = {
   id: string;
 };
 
+type InquiryAnalysisRequestResult =
+  | {
+      analysis: NonNullable<AnalyzeInquiryResponse["analysis"]>;
+      errorMessage: "";
+    }
+  | {
+      analysis: null;
+      errorMessage: string;
+    };
+
+async function requestInquiryAnalysis(
+  customerName: string,
+  message: string
+): Promise<InquiryAnalysisRequestResult> {
+  let analysisResponse: Response;
+
+  try {
+    analysisResponse = await fetch("/api/inquiries/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        customerName,
+        message,
+      }),
+    });
+  } catch {
+    return {
+      analysis: null,
+      errorMessage:
+        "No se pudo conectar con el servicio de análisis. Inténtalo de nuevo en unos segundos.",
+    };
+  }
+
+  let analysisPayload: AnalyzeInquiryResponse | null = null;
+
+  try {
+    analysisPayload = (await analysisResponse.json()) as AnalyzeInquiryResponse;
+  } catch {
+    analysisPayload = null;
+  }
+
+  const analysisErrorMessage =
+    typeof analysisPayload?.error === "string" && analysisPayload.error.trim()
+      ? analysisPayload.error.trim()
+      : "No se pudo analizar la consulta antes de guardarla.";
+
+  if (!analysisResponse.ok || !analysisPayload?.analysis) {
+    return {
+      analysis: null,
+      errorMessage: analysisErrorMessage,
+    };
+  }
+
+  return {
+    analysis: analysisPayload.analysis,
+    errorMessage: "",
+  };
+}
+
 
 
 export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
@@ -110,47 +171,16 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       return;
     }
 
-    let analysisResponse: Response;
+    const {
+      analysis: inquiryAnalysis,
+      errorMessage: analysisErrorMessage,
+    } = await requestInquiryAnalysis(cleanName, cleanMessage);
 
-    try {
-      analysisResponse = await fetch("/api/inquiries/analyze", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          customerName: cleanName,
-          message: cleanMessage,
-        }),
-      });
-    } catch {
-      setIsSubmitting(false);
-      setErrorMessage(
-        "No se pudo conectar con el servicio de análisis. Inténtalo de nuevo en unos segundos."
-      );
-      return;
-    }
-
-    let analysisPayload: AnalyzeInquiryResponse | null = null;
-
-    try {
-      analysisPayload = (await analysisResponse.json()) as AnalyzeInquiryResponse;
-    } catch {
-      analysisPayload = null;
-    }
-
-    const analysisErrorMessage =
-      typeof analysisPayload?.error === "string" && analysisPayload.error.trim()
-        ? analysisPayload.error.trim()
-        : "No se pudo analizar la consulta antes de guardarla.";
-
-    if (!analysisResponse.ok || !analysisPayload?.analysis) {
+    if (!inquiryAnalysis) {
       setIsSubmitting(false);
       setErrorMessage(analysisErrorMessage);
       return;
     }
-
-    const inquiryAnalysis = analysisPayload.analysis;
 
     let customerId: string | null = null;
     let customerByEmail: CustomerRow | null = null;
