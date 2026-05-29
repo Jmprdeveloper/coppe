@@ -10,7 +10,6 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
-import { analyzeInquiry } from "../lib/inquiryAnalysis";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -30,6 +29,23 @@ type CustomerRow = {
 
 type CreatedInquiryRow = {
   id: string;
+};
+
+type InquiryAnalysis = {
+  subject: string;
+  summary: string;
+  intent: string;
+  category: string;
+  priority: string;
+  language: string;
+  missingInformation: string[];
+  recommendedAction: string;
+  suggestedResponse: string;
+};
+
+type AnalyzeInquiryResponse = {
+  analysis?: InquiryAnalysis;
+  error?: string;
 };
 
 export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
@@ -108,11 +124,35 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       return;
     }
 
-    const inquiryAnalysis = analyzeInquiry({
-      customerName: cleanName,
-      message: cleanMessage,
-      company,
+    const analysisResponse = await fetch("/api/inquiries/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        customerName: cleanName,
+        message: cleanMessage,
+      }),
     });
+
+    let analysisPayload: AnalyzeInquiryResponse = {};
+
+    try {
+      analysisPayload = (await analysisResponse.json()) as AnalyzeInquiryResponse;
+    } catch {
+      analysisPayload = {};
+    }
+
+    if (!analysisResponse.ok || !analysisPayload.analysis) {
+      setIsSubmitting(false);
+      setErrorMessage(
+        analysisPayload.error ||
+          "No se pudo analizar la consulta antes de guardarla."
+      );
+      return;
+    }
+
+    const inquiryAnalysis = analysisPayload.analysis;
 
     let customerId: string | null = null;
     let customerByEmail: CustomerRow | null = null;
