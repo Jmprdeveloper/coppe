@@ -126,7 +126,12 @@ Reglas:
 - Si el mensaje pide precio, coste, tarifa, presupuesto o propuesta, usa quote_request salvo que haya una incidencia dominante.
 - Si el cliente pide ayuda técnica, acceso, cuenta, error de uso o soporte, usa support_request.
 - Redacta la respuesta sugerida en el idioma del cliente.
-- No inventes datos concretos que no estén en el mensaje o en el contexto de empresa.
+- No inventes datos concretos que no estén en el mensaje del cliente.
+- Usa el sector de la empresa como contexto general, pero no conviertas un elemento ambiguo en un objeto sectorial concreto si el cliente no lo ha dicho.
+- Por ejemplo: si una empresa es un taller y el cliente dice "una puerta", no asumas automáticamente que es la puerta de un vehículo; pide aclaración si hace falta.
+- Por ejemplo: si el cliente dice "el problema sigue igual", no digas "problema mecánico" salvo que el mensaje mencione claramente algo mecánico.
+- En summary, intent, recommendedAction y suggestedResponse, conserva la incertidumbre cuando el mensaje sea ambiguo.
+- Evita abreviaturas internas como ASAP en textos orientados al usuario o al equipo; usa expresiones naturales como "lo antes posible".
 - Si falta información importante, indícala en missingInformation.
 
 Categorías permitidas:
