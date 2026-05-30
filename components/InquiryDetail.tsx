@@ -87,6 +87,26 @@ function getDefaultFollowUpDateTimeLocal() {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function formatDateTimeLocalFromIso(value: string | null) {
+  if (!value) {
+    return getDefaultFollowUpDateTimeLocal();
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return getDefaultFollowUpDateTimeLocal();
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function InquiryDetail({
   inquiryId,
   setActiveView,
@@ -103,11 +123,20 @@ export function InquiryDetail({
   const [followUpDueAt, setFollowUpDueAt] = useState(
     getDefaultFollowUpDateTimeLocal()
   );
+  const [showCreateFollowUpForm, setShowCreateFollowUpForm] = useState(false);
+  const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(
+    null
+  );
+  const [editFollowUpTitle, setEditFollowUpTitle] = useState("");
+  const [editFollowUpDueAt, setEditFollowUpDueAt] = useState(
+    getDefaultFollowUpDateTimeLocal()
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
+  const [isSavingFollowUpEdit, setIsSavingFollowUpEdit] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
     null
   );
@@ -117,8 +146,12 @@ export function InquiryDetail({
   const [statusErrorMessage, setStatusErrorMessage] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
-  const [followUpMessage, setFollowUpMessage] = useState("");
-  const [followUpErrorMessage, setFollowUpErrorMessage] = useState("");
+  const [followUpCreateMessage, setFollowUpCreateMessage] = useState("");
+  const [followUpCreateErrorMessage, setFollowUpCreateErrorMessage] =
+    useState("");
+  const [followUpActionMessage, setFollowUpActionMessage] = useState("");
+  const [followUpActionErrorMessage, setFollowUpActionErrorMessage] =
+    useState("");
 
   useEffect(() => {
     async function loadInquiry() {
@@ -128,8 +161,10 @@ export function InquiryDetail({
       setStatusErrorMessage("");
       setNoteMessage("");
       setNoteErrorMessage("");
-      setFollowUpMessage("");
-      setFollowUpErrorMessage("");
+      setFollowUpCreateMessage("");
+      setFollowUpCreateErrorMessage("");
+      setFollowUpActionMessage("");
+      setFollowUpActionErrorMessage("");
       setInquiry(null);
       setRawInquiry(null);
       setCustomer(null);
@@ -138,6 +173,10 @@ export function InquiryDetail({
       setNote("");
       setFollowUpTitle("");
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+      setShowCreateFollowUpForm(false);
+      setEditingFollowUpId(null);
+      setEditFollowUpTitle("");
+      setEditFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
       const { data: inquiryData, error: inquiryError } = await supabase
         .from("inquiries")
@@ -385,18 +424,18 @@ export function InquiryDetail({
   };
 
   const handleCreateFollowUp = async () => {
-    setFollowUpMessage("");
-    setFollowUpErrorMessage("");
+    setFollowUpCreateMessage("");
+    setFollowUpCreateErrorMessage("");
 
     if (!rawInquiry || !inquiry) {
-      setFollowUpErrorMessage(
+      setFollowUpCreateErrorMessage(
         "No se puede crear el seguimiento porque no hay consulta cargada."
       );
       return;
     }
 
     if (inquiry.status !== "new" && inquiry.status !== "pending") {
-      setFollowUpErrorMessage(
+      setFollowUpCreateErrorMessage(
         "No se puede crear un seguimiento sobre una consulta finalizada. Reabre la consulta primero."
       );
       return;
@@ -405,12 +444,12 @@ export function InquiryDetail({
     const cleanFollowUpTitle = followUpTitle.trim();
 
     if (!cleanFollowUpTitle) {
-      setFollowUpErrorMessage("El título del seguimiento es obligatorio.");
+      setFollowUpCreateErrorMessage("El título del seguimiento es obligatorio.");
       return;
     }
 
     if (!followUpDueAt) {
-      setFollowUpErrorMessage(
+      setFollowUpCreateErrorMessage(
         "La fecha y hora del seguimiento son obligatorias."
       );
       return;
@@ -419,7 +458,7 @@ export function InquiryDetail({
     const dueDate = new Date(followUpDueAt);
 
     if (Number.isNaN(dueDate.getTime())) {
-      setFollowUpErrorMessage("La fecha indicada no es válida.");
+      setFollowUpCreateErrorMessage("La fecha indicada no es válida.");
       return;
     }
 
@@ -470,7 +509,7 @@ export function InquiryDetail({
     setIsCreatingFollowUp(false);
 
     if (error || !data) {
-      setFollowUpErrorMessage(
+      setFollowUpCreateErrorMessage(
         `No se pudo crear el seguimiento: ${
           error?.message || "sin detalle del error"
         }`
@@ -483,15 +522,129 @@ export function InquiryDetail({
       ...currentFollowUps,
     ]);
 
-    setFollowUpMessage("Seguimiento creado correctamente.");
+    setShowCreateFollowUpForm(false);
+    setFollowUpCreateMessage("Seguimiento creado correctamente.");
+  };
+
+  const handleOpenCreateFollowUpForm = () => {
+    setFollowUpCreateMessage("");
+    setFollowUpCreateErrorMessage("");
+    setShowCreateFollowUpForm(true);
+  };
+
+  const handleCancelCreateFollowUpForm = () => {
+    setShowCreateFollowUpForm(false);
+    setFollowUpCreateErrorMessage("");
+  };
+
+  const handleOpenEditFollowUpForm = (followUp: FollowUp) => {
+    setFollowUpActionMessage("");
+    setFollowUpActionErrorMessage("");
+    setEditingFollowUpId(followUp.id);
+    setEditFollowUpTitle(followUp.title);
+    setEditFollowUpDueAt(formatDateTimeLocalFromIso(followUp.dueAtIso));
+  };
+
+  const handleCancelEditFollowUp = () => {
+    setEditingFollowUpId(null);
+    setEditFollowUpTitle("");
+    setEditFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+    setFollowUpActionErrorMessage("");
+  };
+
+  const handleSaveFollowUpEdit = async () => {
+    setFollowUpActionMessage("");
+    setFollowUpActionErrorMessage("");
+
+    const editingFollowUp = followUps.find(
+      (followUp) => followUp.id === editingFollowUpId
+    );
+
+    if (!editingFollowUp) {
+      setFollowUpActionErrorMessage(
+        "No se puede editar el seguimiento porque no se encontró en pantalla."
+      );
+      return;
+    }
+
+    const cleanEditFollowUpTitle = editFollowUpTitle.trim();
+
+    if (!cleanEditFollowUpTitle) {
+      setFollowUpActionErrorMessage("El título del seguimiento es obligatorio.");
+      return;
+    }
+
+    if (!editFollowUpDueAt) {
+      setFollowUpActionErrorMessage(
+        "La fecha y hora del seguimiento son obligatorias."
+      );
+      return;
+    }
+
+    const dueDate = new Date(editFollowUpDueAt);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      setFollowUpActionErrorMessage("La fecha indicada no es válida.");
+      return;
+    }
+
+    const dueAt = dueDate.toISOString();
+
+    setIsSavingFollowUpEdit(true);
+
+    const { data, error } = await supabase
+      .from("follow_ups")
+      .update({
+        title: cleanEditFollowUpTitle,
+        due_at: dueAt,
+        urgency: resolveFollowUpUrgency(dueAt, editingFollowUp.status, null),
+      })
+      .eq("id", editingFollowUp.id)
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
+
+    setIsSavingFollowUpEdit(false);
+
+    if (error || !data) {
+      setFollowUpActionErrorMessage(
+        `No se pudo actualizar el seguimiento: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const mappedFollowUp = mapFollowUpRowToFollowUp(data);
+
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) =>
+        followUp.id === editingFollowUp.id ? mappedFollowUp : followUp
+      )
+    );
+
+    setEditingFollowUpId(null);
+    setEditFollowUpTitle("");
+    setEditFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+    setFollowUpActionMessage("Seguimiento actualizado correctamente.");
   };
 
   const handleUpdateFollowUpStatus = async (
     followUpId: string,
     status: "pending" | "completed" | "cancelled"
   ) => {
-    setFollowUpMessage("");
-    setFollowUpErrorMessage("");
+    setFollowUpActionMessage("");
+    setFollowUpActionErrorMessage("");
     setUpdatingFollowUpId(followUpId);
 
     const { data: updatedFollowUp, error } = await supabase
@@ -515,7 +668,7 @@ export function InquiryDetail({
     setUpdatingFollowUpId(null);
 
     if (error || !updatedFollowUp) {
-      setFollowUpErrorMessage(
+      setFollowUpActionErrorMessage(
         `No se pudo actualizar el seguimiento: ${
           error?.message || "sin detalle del error"
         }`
@@ -532,11 +685,11 @@ export function InquiryDetail({
     );
 
     if (status === "pending") {
-      setFollowUpMessage("Seguimiento reabierto correctamente.");
+      setFollowUpActionMessage("Seguimiento reabierto correctamente.");
       return;
     }
 
-    setFollowUpMessage(
+    setFollowUpActionMessage(
       status === "completed"
         ? "Seguimiento completado correctamente."
         : "Seguimiento cancelado correctamente."
@@ -595,9 +748,16 @@ export function InquiryDetail({
     (followUp) => followUp.status === "pending"
   );
 
+  const shouldShowCreateFollowUpForm =
+    pendingFollowUps.length === 0 || showCreateFollowUpForm;
+
   const historyFollowUps = followUps.filter(
     (followUp) =>
       followUp.status === "completed" || followUp.status === "cancelled"
+  );
+
+  const editingFollowUp = followUps.find(
+    (followUp) => followUp.id === editingFollowUpId
   );
 
   return (
@@ -697,6 +857,7 @@ export function InquiryDetail({
           </div>
 
           <AIBlock inquiry={inquiry} />
+
           <ResponseEditor
             inquiry={inquiry}
             canMarkAsReplied={canUseFinalActions}
@@ -724,71 +885,110 @@ export function InquiryDetail({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">
-              Seguimiento sugerido
+              {pendingFollowUps.length > 0
+                ? "Crear otro seguimiento"
+                : "Crear seguimiento"}
             </h3>
 
             {canCreateFollowUp ? (
-              <>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Define cuándo quieres revisar esta consulta para no dejarla sin seguimiento.
-                </p>
+              shouldShowCreateFollowUpForm ? (
+                <>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Crea una nueva tarea para volver a revisar esta consulta en una fecha concreta.
+                  </p>
 
-                {pendingFollowUps.length > 0 ? (
-                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                    Esta consulta ya tiene{" "}
-                    {pendingFollowUps.length === 1
-                      ? "un seguimiento pendiente"
-                      : `${pendingFollowUps.length} seguimientos pendientes`}
-                    . Revisa si necesitas crear otro.
+                  {pendingFollowUps.length > 0 ? (
+                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                      Ya existe un seguimiento pendiente para esta consulta.
+                      Crea otro solo si necesitas un recordatorio adicional.
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 space-y-3">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Título
+                      <input
+                        value={followUpTitle}
+                        onChange={(event) =>
+                          setFollowUpTitle(event.target.value)
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      />
+                    </label>
+
+                    <label className="block text-sm font-medium text-slate-700">
+                      Fecha y hora
+                      <input
+                        type="datetime-local"
+                        value={followUpDueAt}
+                        onChange={(event) =>
+                          setFollowUpDueAt(event.target.value)
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      />
+                    </label>
                   </div>
-                ) : null}
 
-                <div className="mt-4 space-y-3">
-                  <label className="block text-sm font-medium text-slate-700">
-                    Título
-                    <input
-                      value={followUpTitle}
-                      onChange={(event) => setFollowUpTitle(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                    />
-                  </label>
+                  {followUpCreateErrorMessage ? (
+                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {followUpCreateErrorMessage}
+                    </div>
+                  ) : null}
 
-                  <label className="block text-sm font-medium text-slate-700">
-                    Fecha y hora
-                    <input
-                      type="datetime-local"
-                      value={followUpDueAt}
-                      onChange={(event) => setFollowUpDueAt(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                    />
-                  </label>
-                </div>
+                  {followUpCreateMessage ? (
+                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {followUpCreateMessage}
+                    </div>
+                  ) : null}
 
-                {followUpErrorMessage ? (
-                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {followUpErrorMessage}
+                  <div
+                    className={
+                      pendingFollowUps.length > 0
+                        ? "mt-4 grid grid-cols-2 gap-2"
+                        : "mt-4"
+                    }
+                  >
+                    <Button
+                      className="w-full"
+                      onClick={handleCreateFollowUp}
+                      disabled={isCreatingFollowUp}
+                    >
+                      <CalendarClock size={16} />
+                      {isCreatingFollowUp
+                        ? "Creando seguimiento..."
+                        : pendingFollowUps.length > 0
+                          ? "Guardar otro seguimiento"
+                          : "Crear seguimiento"}
+                    </Button>
+
+                    {pendingFollowUps.length > 0 ? (
+                      <Button
+                        variant="secondary"
+                        className="w-full"
+                        onClick={handleCancelCreateFollowUpForm}
+                        disabled={isCreatingFollowUp}
+                      >
+                        Cancelar
+                      </Button>
+                    ) : null}
                   </div>
-                ) : null}
+                </>
+              ) : (
+                <>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    Esta consulta ya tiene un seguimiento pendiente. Si necesitas
+                    programar otro recordatorio distinto, puedes crear uno adicional.
+                  </p>
 
-                {followUpMessage ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {followUpMessage}
-                  </div>
-                ) : null}
-
-                <Button
-                  className="mt-4 w-full"
-                  onClick={handleCreateFollowUp}
-                  disabled={isCreatingFollowUp}
-                >
-                  <CalendarClock size={16} />
-                  {isCreatingFollowUp
-                    ? "Creando seguimiento..."
-                    : pendingFollowUps.length > 0
-                      ? "Crear otro seguimiento"
-                      : "Crear seguimiento"}
-                </Button>
-              </>
+                  <Button
+                    className="mt-4 w-full"
+                    onClick={handleOpenCreateFollowUpForm}
+                  >
+                    <CalendarClock size={16} />
+                    Crear otro seguimiento
+                  </Button>
+                </>
+              )
             ) : (
               <>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
@@ -796,15 +996,15 @@ export function InquiryDetail({
                   primero reabre la consulta.
                 </p>
 
-                {followUpErrorMessage ? (
+                {followUpCreateErrorMessage ? (
                   <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {followUpErrorMessage}
+                    {followUpCreateErrorMessage}
                   </div>
                 ) : null}
 
-                {followUpMessage ? (
+                {followUpCreateMessage ? (
                   <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {followUpMessage}
+                    {followUpCreateMessage}
                   </div>
                 ) : null}
               </>
@@ -815,6 +1015,70 @@ export function InquiryDetail({
             <h3 className="font-bold text-slate-950">
               Seguimientos de la consulta
             </h3>
+
+            {followUpActionErrorMessage ? (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {followUpActionErrorMessage}
+              </div>
+            ) : null}
+
+            {followUpActionMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {followUpActionMessage}
+              </div>
+            ) : null}
+
+            {editingFollowUp ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <h4 className="text-sm font-bold text-slate-950">
+                  Editar seguimiento
+                </h4>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Actualiza el título o la fecha de este seguimiento.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Título
+                    <input
+                      value={editFollowUpTitle}
+                      onChange={(event) =>
+                        setEditFollowUpTitle(event.target.value)
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Fecha y hora
+                    <input
+                      type="datetime-local"
+                      value={editFollowUpDueAt}
+                      onChange={(event) =>
+                        setEditFollowUpDueAt(event.target.value)
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    />
+                  </label>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button
+                    onClick={handleSaveFollowUpEdit}
+                    disabled={isSavingFollowUpEdit}
+                  >
+                    {isSavingFollowUpEdit
+                      ? "Guardando cambios..."
+                      : "Guardar cambios"}
+                  </Button>
+
+                  <Button variant="secondary" onClick={handleCancelEditFollowUp}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            ) : null}
 
             {followUps.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-600">
@@ -833,13 +1097,18 @@ export function InquiryDetail({
                         <FollowUpCard
                           key={followUp.id}
                           followUp={followUp}
+                          onEdit={handleOpenEditFollowUpForm}
                           onComplete={(id) =>
                             handleUpdateFollowUpStatus(id, "completed")
                           }
                           onCancel={(id) =>
                             handleUpdateFollowUpStatus(id, "cancelled")
                           }
-                          isUpdating={updatingFollowUpId === followUp.id}
+                          isUpdating={
+                            updatingFollowUpId === followUp.id ||
+                            (isSavingFollowUpEdit &&
+                              editingFollowUpId === followUp.id)
+                          }
                         />
                       ))}
                     </div>
@@ -857,10 +1126,15 @@ export function InquiryDetail({
                         <FollowUpCard
                           key={followUp.id}
                           followUp={followUp}
+                          onEdit={handleOpenEditFollowUpForm}
                           onReopen={(id) =>
                             handleUpdateFollowUpStatus(id, "pending")
                           }
-                          isUpdating={updatingFollowUpId === followUp.id}
+                          isUpdating={
+                            updatingFollowUpId === followUp.id ||
+                            (isSavingFollowUpEdit &&
+                              editingFollowUpId === followUp.id)
+                          }
                         />
                       ))}
                     </div>
