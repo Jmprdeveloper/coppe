@@ -163,50 +163,220 @@ export function detectLanguage(
 export function inferCategory(message: string) {
   const normalizedMessage = normalizeSearchText(message);
 
+  const hasAnySignal = (signals: string[]) =>
+    signals.some((signal) => normalizedMessage.includes(signal));
+
   if (
-    normalizedMessage.includes("cancel") ||
-    normalizedMessage.includes("cancelar") ||
-    normalizedMessage.includes("cancelacion")
+    hasAnySignal([
+      "factura",
+      "facturacion",
+      "facturación",
+      "pago",
+      "cobro",
+      "recibo",
+      "invoice",
+      "payment",
+      "billing",
+      "charge",
+      "receipt",
+    ])
   ) {
-    return "cancellation";
+    return "billing_or_payment";
   }
 
   if (
-    normalizedMessage.includes("queja") ||
-    normalizedMessage.includes("reclamacion") ||
-    normalizedMessage.includes("complaint") ||
-    normalizedMessage.includes("problema")
+    hasAnySignal([
+      "seguimiento",
+      "estado de mi solicitud",
+      "estado del pedido",
+      "sigo esperando",
+      "follow up",
+      "following up",
+      "status update",
+      "any update",
+    ])
   ) {
-    return "complaint";
+    return "follow_up";
   }
 
   if (
-    normalizedMessage.includes("presupuesto") ||
-    normalizedMessage.includes("precio") ||
-    normalizedMessage.includes("quote") ||
-    normalizedMessage.includes("budget")
+    hasAnySignal([
+      "presupuesto",
+      "precio",
+      "tarifa",
+      "coste",
+      "cotizacion",
+      "cotización",
+      "quote",
+      "budget",
+      "estimate",
+      "price",
+      "cost",
+      "proposal",
+    ])
   ) {
     return "quote_request";
   }
 
+  const explicitCancellationSignal = hasAnySignal([
+    "cancel",
+    "cancelar",
+    "cancelacion",
+    "cancelación",
+    "anular",
+    "anulacion",
+    "anulación",
+    "dar de baja",
+    "devolucion",
+    "devolución",
+    "return",
+    "refund",
+  ]);
+
+  const changeActionSignal = hasAnySignal([
+    "cambiar",
+    "modificar",
+    "aplazar",
+    "reprogramar",
+    "change",
+    "modify",
+    "reschedule",
+  ]);
+
+  const changeTargetSignal = hasAnySignal([
+    "cita",
+    "reserva",
+    "pedido",
+    "solicitud",
+    "fecha",
+    "hora",
+    "turno",
+    "reunion",
+    "reunión",
+    "appointment",
+    "booking",
+    "reservation",
+    "order",
+    "request",
+    "date",
+    "time",
+    "meeting",
+  ]);
+
+  if (explicitCancellationSignal || (changeActionSignal && changeTargetSignal)) {
+    return "change_or_cancellation";
+  }
+
   if (
-    normalizedMessage.includes("cita") ||
-    normalizedMessage.includes("appointment")
+    hasAnySignal([
+      "queja",
+      "reclamacion",
+      "reclamación",
+      "incidencia",
+      "problema",
+      "averia",
+      "avería",
+      "error",
+      "no funciona",
+      "complaint",
+      "problem",
+      "issue",
+      "incident",
+      "broken",
+    ])
+  ) {
+    return "complaint_or_incident";
+  }
+
+  if (
+    hasAnySignal([
+      "cita",
+      "reunion",
+      "reunión",
+      "llamada",
+      "visita",
+      "appointment",
+      "meeting",
+      "call",
+    ])
   ) {
     return "appointment_request";
   }
 
   if (
-    normalizedMessage.includes("reserva") ||
-    normalizedMessage.includes("habitacion") ||
-    normalizedMessage.includes("habitación") ||
-    normalizedMessage.includes("booking") ||
-    normalizedMessage.includes("availability") ||
-    normalizedMessage.includes("disponibilidad") ||
-    normalizedMessage.includes("check in") ||
-    normalizedMessage.includes("check-in")
+    hasAnySignal([
+      "ayuda",
+      "soporte",
+      "asistencia",
+      "consulta tecnica",
+      "consulta técnica",
+      "no puedo acceder",
+      "acceso",
+      "support",
+      "help",
+      "technical",
+      "login",
+      "access",
+    ])
   ) {
-    return "booking";
+    return "support_request";
+  }
+
+  if (
+    hasAnySignal([
+      "pedido",
+      "orden",
+      "compra",
+      "contratar",
+      "contratacion",
+      "contratación",
+      "reserva",
+      "inscripcion",
+      "inscripción",
+      "plaza",
+      "disponibilidad",
+      "stock",
+      "order",
+      "purchase",
+      "booking",
+      "reservation",
+      "availability",
+      "sign up",
+      "enroll",
+    ])
+  ) {
+    return "order_or_reservation";
+  }
+
+  if (
+    hasAnySignal([
+      "producto",
+      "servicio",
+      "informacion sobre",
+      "información sobre",
+      "caracteristicas",
+      "características",
+      "reparar",
+      "arreglar",
+      "instalar",
+      "mantenimiento",
+      "revision",
+      "revisión",
+      "cambio de",
+      "cambiar los",
+      "cambiar las",
+      "product",
+      "service",
+      "details",
+      "features",
+      "repair",
+      "replace",
+      "install",
+      "installation",
+      "maintenance",
+    ])
+  ) {
+    return "product_service_inquiry";
   }
 
   return "general_info";
@@ -216,10 +386,12 @@ export function inferPriority(category: string, message: string) {
   const normalizedMessage = normalizeSearchText(message);
 
   if (
-    category === "cancellation" ||
-    category === "complaint" ||
+    category === "change_or_cancellation" ||
+    category === "complaint_or_incident" ||
     normalizedMessage.includes("urgente") ||
     normalizedMessage.includes("urgent") ||
+    normalizedMessage.includes("hoy") ||
+    normalizedMessage.includes("today") ||
     normalizedMessage.includes("mañana") ||
     normalizedMessage.includes("tomorrow")
   ) {
@@ -241,24 +413,40 @@ export function buildSummary(
     ? ` en el sector ${companyContext.sector}`
     : "";
 
-  if (category === "cancellation") {
-    return `${customerName} solicita cancelar o modificar una reserva${sectorContext}.`;
+  if (category === "change_or_cancellation") {
+    return `${customerName} solicita cambiar o cancelar una solicitud, pedido, cita, reserva o servicio${sectorContext}.`;
   }
 
-  if (category === "booking") {
-    return `${customerName} realiza una consulta relacionada con reserva, disponibilidad o estancia${sectorContext}.`;
+  if (category === "order_or_reservation") {
+    return `${customerName} realiza una consulta relacionada con pedido, reserva, contratación, inscripción o disponibilidad${sectorContext}.`;
   }
 
-  if (category === "complaint") {
-    return `${customerName} comunica una incidencia o queja que requiere revisión por parte de ${companyContext.name}.`;
+  if (category === "complaint_or_incident") {
+    return `${customerName} comunica una queja o incidencia que requiere revisión por parte de ${companyContext.name}.`;
   }
 
   if (category === "quote_request") {
-    return `${customerName} solicita información de precio o presupuesto para un servicio de ${companyContext.name}.`;
+    return `${customerName} solicita información de precio, tarifa o presupuesto para un producto o servicio de ${companyContext.name}.`;
   }
 
   if (category === "appointment_request") {
-    return `${customerName} solicita una cita o confirmación de disponibilidad de agenda con ${companyContext.name}.`;
+    return `${customerName} solicita una cita, llamada, reunión o confirmación de disponibilidad de agenda con ${companyContext.name}.`;
+  }
+
+  if (category === "product_service_inquiry") {
+    return `${customerName} solicita información sobre un producto o servicio de ${companyContext.name}.`;
+  }
+
+  if (category === "support_request") {
+    return `${customerName} solicita soporte o ayuda relacionada con un producto, servicio o proceso de ${companyContext.name}.`;
+  }
+
+  if (category === "billing_or_payment") {
+    return `${customerName} realiza una consulta relacionada con facturación, pagos, cobros o recibos.`;
+  }
+
+  if (category === "follow_up") {
+    return `${customerName} solicita seguimiento o actualización sobre una gestión previa.`;
   }
 
   if (companyContext.description) {
@@ -278,12 +466,16 @@ export function buildSummary(
 
 export function buildIntent(category: string) {
   const intents: Record<string, string> = {
-    cancellation: "Gestionar cancelación o modificación de reserva",
-    booking: "Consultar disponibilidad o información de reserva",
-    complaint: "Comunicar incidencia o queja",
-    quote_request: "Solicitar precio o presupuesto",
-    appointment_request: "Solicitar cita",
     general_info: "Solicitar información general",
+    product_service_inquiry: "Consultar información sobre producto o servicio",
+    quote_request: "Solicitar precio, tarifa o presupuesto",
+    appointment_request: "Solicitar cita, reunión o llamada",
+    order_or_reservation: "Solicitar pedido, reserva, contratación o disponibilidad",
+    change_or_cancellation: "Solicitar cambio o cancelación",
+    complaint_or_incident: "Comunicar queja o incidencia",
+    support_request: "Solicitar soporte o ayuda",
+    billing_or_payment: "Consultar facturación o pagos",
+    follow_up: "Solicitar seguimiento de una gestión previa",
   };
 
   return intents[category] ?? "Solicitar información";
@@ -371,10 +563,17 @@ function hasReservationReference(normalizedMessage: string) {
   return (
     normalizedMessage.includes("numero de reserva") ||
     normalizedMessage.includes("número de reserva") ||
+    normalizedMessage.includes("numero de pedido") ||
+    normalizedMessage.includes("número de pedido") ||
     normalizedMessage.includes("referencia") ||
     normalizedMessage.includes("localizador") ||
+    normalizedMessage.includes("ticket") ||
+    normalizedMessage.includes("expediente") ||
     normalizedMessage.includes("booking reference") ||
-    normalizedMessage.includes("reservation number")
+    normalizedMessage.includes("reservation number") ||
+    normalizedMessage.includes("order number") ||
+    normalizedMessage.includes("case number") ||
+    normalizedMessage.includes("reference number")
   );
 }
 
@@ -384,30 +583,46 @@ export function buildMissingInformation(
 ) {
   const normalizedMessage = normalizeSearchText(originalMessage);
 
-  if (category === "booking") {
+  if (category === "order_or_reservation") {
     const missingInformation: string[] = [];
 
     if (!hasDateSignal(normalizedMessage)) {
-      missingInformation.push("fechas exactas");
-    }
-
-    if (!hasPeopleSignal(normalizedMessage)) {
-      missingInformation.push("número de personas");
+      missingInformation.push("fecha, plazo o disponibilidad deseada");
     }
 
     return missingInformation;
   }
 
-  if (category === "cancellation") {
+  if (category === "appointment_request") {
+    if (hasDateSignal(normalizedMessage)) {
+      return [];
+    }
+
+    return ["fecha u horario preferido"];
+  }
+
+  if (category === "change_or_cancellation") {
     if (hasReservationReference(normalizedMessage)) {
       return [];
     }
 
-    return ["número de reserva", "nombre completo de la reserva"];
+    return ["referencia o número asociado", "datos identificativos de la solicitud"];
   }
 
   if (category === "quote_request") {
-    return ["servicio solicitado", "fecha aproximada"];
+    return ["producto o servicio solicitado", "detalles básicos para preparar la propuesta"];
+  }
+
+  if (category === "support_request") {
+    return ["descripción del problema", "producto, servicio o proceso afectado"];
+  }
+
+  if (category === "billing_or_payment") {
+    if (hasReservationReference(normalizedMessage)) {
+      return [];
+    }
+
+    return ["referencia de factura, pedido, cliente o solicitud"];
   }
 
   return [];
@@ -421,31 +636,31 @@ export function buildRecommendedAction(
   const normalizedMessage = normalizeSearchText(originalMessage);
   const companyContext = buildCompanyContext(company);
 
-  if (category === "cancellation") {
+  if (category === "change_or_cancellation") {
     if (hasReservationReference(normalizedMessage)) {
-      return `Revisar la reserva indicada en ${companyContext.name} y responder al cliente con los siguientes pasos.`;
+      return `Revisar la referencia indicada en ${companyContext.name} y responder al cliente con los siguientes pasos.`;
     }
 
-    return "Solicitar el número de reserva o el nombre completo de la reserva antes de gestionar la cancelación.";
+    return "Solicitar una referencia, número de pedido, número de solicitud o dato identificativo antes de gestionar el cambio o la cancelación.";
   }
 
-  if (category === "booking") {
+  if (category === "order_or_reservation") {
     const missingInformation = buildMissingInformation(category, originalMessage);
 
     if (missingInformation.length === 0) {
-      return `Revisar disponibilidad según la operativa de ${companyContext.name} y responder al cliente con una confirmación o alternativa.`;
+      return `Revisar la solicitud según la operativa de ${companyContext.name} y responder con confirmación, alternativa o siguientes pasos.`;
     }
 
-    return "Solicitar los datos que faltan y revisar disponibilidad antes de confirmar.";
+    return "Solicitar los datos que faltan y revisar disponibilidad, condiciones o viabilidad antes de confirmar.";
   }
 
-  if (category === "complaint") {
+  if (category === "complaint_or_incident") {
     return `Revisar la incidencia internamente teniendo en cuenta el servicio de ${companyContext.sector} y responder con una solución clara.`;
   }
 
   if (category === "quote_request") {
     if (companyContext.description) {
-      return "Revisar la solicitud según los servicios descritos por la empresa y pedir cualquier dato necesario antes de preparar una propuesta o presupuesto.";
+      return "Revisar la solicitud según los productos o servicios descritos por la empresa y pedir cualquier dato necesario antes de preparar una propuesta o presupuesto.";
     }
 
     return "Revisar la solicitud y pedir cualquier dato necesario antes de preparar una propuesta o presupuesto.";
@@ -453,6 +668,22 @@ export function buildRecommendedAction(
 
   if (category === "appointment_request") {
     return "Confirmar disponibilidad de agenda antes de proponer una hora concreta.";
+  }
+
+  if (category === "product_service_inquiry") {
+    return `Responder con información clara sobre el producto o servicio solicitado y pedir aclaración si falta contexto.`;
+  }
+
+  if (category === "support_request") {
+    return "Revisar la solicitud de soporte, identificar el producto, servicio o proceso afectado y responder con pasos concretos.";
+  }
+
+  if (category === "billing_or_payment") {
+    return "Revisar la información de facturación o pago asociada y responder con una aclaración precisa o los siguientes pasos.";
+  }
+
+  if (category === "follow_up") {
+    return "Comprobar el estado de la gestión previa y responder con una actualización clara.";
   }
 
   if (category === "general_info") {
@@ -512,48 +743,34 @@ function buildSpanishResponse(
   const normalizedMessage = normalizeSearchText(originalMessage);
 
   const greeting = getSpanishGreeting(customerName, companyContext.tone);
-  const hasDates = hasDateSignal(normalizedMessage);
-  const hasPeople = hasPeopleSignal(normalizedMessage);
-  const hasReservationData = hasReservationReference(normalizedMessage);
+  const hasReference = hasReservationReference(normalizedMessage);
 
   const companyDescriptionContext = companyContext.description
     ? " Tendremos en cuenta la información de nuestra empresa para darte una respuesta adecuada."
     : "";
 
-  if (category === "cancellation") {
-    if (hasReservationData) {
-      if (companyContext.tone === "directo") {
-        return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cancelación y revisaremos los datos de la reserva. Te responderemos con los siguientes pasos.`;
-      }
-
-      return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cancelación y revisaremos los datos de la reserva que nos has enviado. Te responderemos lo antes posible con los siguientes pasos.`;
+  if (category === "change_or_cancellation") {
+    if (hasReference) {
+      return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cambio o cancelación y revisaremos los datos que nos has enviado. Te responderemos lo antes posible con los siguientes pasos.`;
     }
 
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Para poder ayudarte con la cancelación, ¿podrías indicarnos el número de reserva o el nombre completo con el que se realizó? Lo revisaremos lo antes posible.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Para poder ayudarte con el cambio o la cancelación, ¿podrías indicarnos una referencia, número de pedido, número de solicitud o dato identificativo? Lo revisaremos lo antes posible.`;
   }
 
-  if (category === "booking") {
-    const missingDetails: string[] = [];
-
-    if (!hasDates) {
-      missingDetails.push("las fechas exactas");
-    }
-
-    if (!hasPeople) {
-      missingDetails.push("el número de personas");
-    }
+  if (category === "order_or_reservation") {
+    const missingDetails = buildMissingInformation(category, originalMessage);
 
     if (missingDetails.length > 0) {
-      return `${greeting}, gracias por contactar con ${companyContext.name}. Para poder revisar disponibilidad, ¿podrías indicarnos ${formatList(
+      return `${greeting}, gracias por contactar con ${companyContext.name}. Para poder revisar tu solicitud, ¿podrías indicarnos ${formatList(
         missingDetails,
         "es"
       )}? Te responderemos lo antes posible.`;
     }
 
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de disponibilidad y vamos a revisar la información que nos has enviado. Te responderemos lo antes posible con una respuesta clara.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud y vamos a revisar la información que nos has enviado. Te responderemos lo antes posible con una respuesta clara.`;
   }
 
-  if (category === "complaint") {
+  if (category === "complaint_or_incident") {
     if (companyContext.tone === "formal") {
       return `${greeting}, sentimos lo ocurrido. Gracias por informar a ${companyContext.name}. Hemos recibido tu mensaje y lo revisaremos internamente para ofrecerte una respuesta clara lo antes posible.`;
     }
@@ -570,7 +787,23 @@ function buildSpanishResponse(
   }
 
   if (category === "appointment_request") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cita y revisaremos la disponibilidad de agenda antes de confirmarte la mejor opción.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cita, reunión o llamada y revisaremos la disponibilidad antes de confirmarte la mejor opción.`;
+  }
+
+  if (category === "product_service_inquiry") {
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta sobre nuestros productos o servicios y la revisaremos para darte una respuesta clara.`;
+  }
+
+  if (category === "support_request") {
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de soporte y revisaremos la información para indicarte los siguientes pasos.`;
+  }
+
+  if (category === "billing_or_payment") {
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta sobre facturación o pagos y la revisaremos para darte una respuesta clara.`;
+  }
+
+  if (category === "follow_up") {
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Revisaremos el estado de la gestión anterior y te responderemos con una actualización lo antes posible.`;
   }
 
   if (companyContext.tone === "amable y detallado") {
@@ -594,48 +827,34 @@ function buildEnglishResponse(
   const normalizedMessage = normalizeSearchText(originalMessage);
 
   const greeting = getEnglishGreeting(customerName, companyContext.tone);
-  const hasDates = hasDateSignal(normalizedMessage);
-  const hasPeople = hasPeopleSignal(normalizedMessage);
-  const hasReservationData = hasReservationReference(normalizedMessage);
+  const hasReference = hasReservationReference(normalizedMessage);
 
   const companyDescriptionContext = companyContext.description
     ? " We will take our company information into account so we can give you an appropriate answer."
     : "";
 
-  if (category === "cancellation") {
-    if (hasReservationData) {
-      if (companyContext.tone === "directo") {
-        return `${greeting}, thank you for contacting ${companyContext.name}. We have received your cancellation request and will review the booking details. We will get back to you with the next steps.`;
-      }
-
-      return `${greeting}, thank you for contacting ${companyContext.name}. We have received your cancellation request and will review the booking details you have sent us. We will get back to you as soon as possible with the next steps.`;
+  if (category === "change_or_cancellation") {
+    if (hasReference) {
+      return `${greeting}, thank you for contacting ${companyContext.name}. We have received your change or cancellation request and will review the details you have sent us. We will get back to you as soon as possible with the next steps.`;
     }
 
-    return `${greeting}, thank you for contacting ${companyContext.name}. To help with the cancellation, could you please send us your booking reference or the full name used for the reservation? We will review it as soon as possible.`;
+    return `${greeting}, thank you for contacting ${companyContext.name}. To help with the change or cancellation, could you please send us a reference, order number, request number or identifying detail? We will review it as soon as possible.`;
   }
 
-  if (category === "booking") {
-    const missingDetails: string[] = [];
-
-    if (!hasDates) {
-      missingDetails.push("the exact dates");
-    }
-
-    if (!hasPeople) {
-      missingDetails.push("the number of guests");
-    }
+  if (category === "order_or_reservation") {
+    const missingDetails = buildMissingInformation(category, originalMessage);
 
     if (missingDetails.length > 0) {
-      return `${greeting}, thank you for contacting ${companyContext.name}. To check availability, could you please confirm ${formatList(
+      return `${greeting}, thank you for contacting ${companyContext.name}. To review your request, could you please confirm ${formatList(
         missingDetails,
         "en"
-      )}? We will review the options and get back to you shortly.`;
+      )}? We will get back to you shortly.`;
     }
 
-    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your availability request and will review the information you have sent us. We will get back to you shortly with a clear answer.`;
+    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your request and will review the information you have sent us. We will get back to you shortly with a clear answer.`;
   }
 
-  if (category === "complaint") {
+  if (category === "complaint_or_incident") {
     if (companyContext.tone === "formal") {
       return `${greeting}, we are sorry to hear about this. Thank you for letting ${companyContext.name} know. We have received your message and will review it internally so we can provide a clear response as soon as possible.`;
     }
@@ -652,7 +871,23 @@ function buildEnglishResponse(
   }
 
   if (category === "appointment_request") {
-    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your appointment request and will check our availability before confirming the best option for you.`;
+    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your appointment, meeting or call request and will check our availability before confirming the best option for you.`;
+  }
+
+  if (category === "product_service_inquiry") {
+    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your question about our products or services and will review it so we can give you a clear answer.`;
+  }
+
+  if (category === "support_request") {
+    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your support request and will review the information so we can tell you the next steps.`;
+  }
+
+  if (category === "billing_or_payment") {
+    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your billing or payment question and will review it so we can give you a clear answer.`;
+  }
+
+  if (category === "follow_up") {
+    return `${greeting}, thank you for contacting ${companyContext.name}. We will check the status of the previous request and get back to you with an update as soon as possible.`;
   }
 
   if (companyContext.tone === "amable y detallado") {
@@ -694,12 +929,16 @@ export function buildSubject(message: string, fallbackCategory: string) {
   }
 
   const subjects: Record<string, string> = {
-    cancellation: "Solicitud de cancelación",
-    booking: "Consulta de reserva",
-    complaint: "Incidencia de cliente",
+    general_info: "Consulta general",
+    product_service_inquiry: "Consulta sobre producto o servicio",
     quote_request: "Solicitud de presupuesto",
     appointment_request: "Solicitud de cita",
-    general_info: "Consulta general",
+    order_or_reservation: "Solicitud de pedido o reserva",
+    change_or_cancellation: "Solicitud de cambio o cancelación",
+    complaint_or_incident: "Queja o incidencia de cliente",
+    support_request: "Solicitud de soporte",
+    billing_or_payment: "Consulta de facturación o pago",
+    follow_up: "Solicitud de seguimiento",
   };
 
   return subjects[fallbackCategory] ?? "Nueva consulta";
