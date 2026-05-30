@@ -11,6 +11,7 @@ import {
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
 import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
+import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -416,6 +417,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                 <textarea
                   value={message}
                   onChange={(event) => setMessage(event.target.value)}
+                  maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
                   className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                   placeholder="Pega aquí el mensaje recibido del cliente..."
                 />

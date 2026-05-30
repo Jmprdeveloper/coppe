@@ -1,11 +1,11 @@
 import { NextResponse } from "next/server";
 
 import { type AnalyzeInquiryRequestBody } from "../../../../lib/inquiryAnalysisApi";
+import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../../../../lib/inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "../../../../lib/inquiryAnalysisService";
 import { getCurrentCompany } from "../../../../lib/currentCompany";
 import { createClient } from "../../../../lib/supabase/server";
 
-const MAX_ANALYSIS_MESSAGE_LENGTH = 6000;
 
 export async function POST(request: Request) {
   const supabase = await createClient();

@@ -1,0 +1,1 @@
+export const MAX_ANALYSIS_MESSAGE_LENGTH = 6000;
