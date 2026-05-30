@@ -116,16 +116,10 @@ export function detectLanguage(
     "buenas noches",
     "reserva",
     "disponibilidad",
-    "habitacion",
-    "habitación",
     "aparcamiento",
     "parking",
     "llegada",
     "vuelo",
-    "huesped",
-    "huespedes",
-    "huésped",
-    "huéspedes",
     "persona",
     "personas",
     "precio",
@@ -538,24 +532,6 @@ function hasDateSignal(normalizedMessage: string) {
   return (
     dateSignals.some((signal) => normalizedMessage.includes(signal)) ||
     /\b\d{1,2}[/-]\d{1,2}/.test(normalizedMessage)
-  );
-}
-
-function hasPeopleSignal(normalizedMessage: string) {
-  return (
-    normalizedMessage.includes("persona") ||
-    normalizedMessage.includes("personas") ||
-    normalizedMessage.includes("huesped") ||
-    normalizedMessage.includes("huespedes") ||
-    normalizedMessage.includes("huésped") ||
-    normalizedMessage.includes("huéspedes") ||
-    normalizedMessage.includes("guest") ||
-    normalizedMessage.includes("guests") ||
-    normalizedMessage.includes("people") ||
-    normalizedMessage.includes("pax") ||
-    /\b\d+\s*(persona|personas|huesped|huespedes|guest|guests|people|pax)\b/.test(
-      normalizedMessage
-    )
   );
 }
 
