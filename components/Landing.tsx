@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import {
     Building2,
@@ -29,7 +29,7 @@ type Feature = {
     {
       icon: CalendarClock,
       title: "Seguimiento",
-      text: "Evita olvidar clientes, reservas o solicitudes pendientes.",
+      text: "Evita olvidar clientes, solicitudes o seguimientos pendientes.",
     },
   ];
 
@@ -111,7 +111,7 @@ export function Landing({ setActiveView }: LandingProps) {
                 </div>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Necesito cancelar mi reserva de mañana por un problema
+                  Necesito cambiar la cita que tenía prevista para mañana por un problema
                   familiar...
                 </p>
               </div>
@@ -122,7 +122,7 @@ export function Landing({ setActiveView }: LandingProps) {
                 </div>
 
                 <p className="mt-2 text-sm leading-6 text-slate-700">
-                  Cliente solicita cancelar una reserva prevista para mañana.
+                  Cliente solicita cambiar una cita prevista para mañana.
                   Requiere respuesta prioritaria.
                 </p>
               </div>
