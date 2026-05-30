@@ -30,15 +30,16 @@ export type Priority =
   | "high";
 
 export type InquiryCategory =
-  | "sales_inquiry"
-  | "appointment_request"
-  | "quote_request"
-  | "booking"
-  | "incident"
   | "general_info"
+  | "product_service_inquiry"
+  | "quote_request"
+  | "appointment_request"
+  | "order_or_reservation"
+  | "change_or_cancellation"
+  | "complaint_or_incident"
+  | "support_request"
+  | "billing_or_payment"
   | "follow_up"
-  | "cancellation"
-  | "complaint"
   | "other";
 
 export type Customer = {

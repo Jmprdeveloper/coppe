@@ -9,6 +9,7 @@ import {
   normalizeInquiryStatus,
   normalizePriority,
 } from "../lib/inquiryUtils";
+import { inquiryCategoryOptions } from "../lib/inquiryCategories";
 import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 
@@ -111,7 +112,8 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
       priorityFilter === "all" || inquiry.ai_priority === priorityFilter;
 
     const matchesCategory =
-      categoryFilter === "all" || inquiry.ai_category === categoryFilter;
+      categoryFilter === "all" ||
+      normalizeInquiryCategory(inquiry.ai_category) === categoryFilter;
 
     return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
   });
@@ -208,16 +210,15 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
             >
               <option value="all">Todas</option>
-              <option value="booking">Reserva</option>
-              <option value="general_info">Información</option>
-              <option value="cancellation">Cancelación</option>
-              <option value="complaint">Queja</option>
-              <option value="quote_request">Presupuesto</option>
-              <option value="appointment_request">Cita</option>
-              <option value="sales_inquiry">Venta</option>
-              <option value="incident">Incidencia</option>
-              <option value="follow_up">Seguimiento</option>
-              <option value="other">Otra</option>
+
+              {inquiryCategoryOptions.map((categoryOption) => (
+                <option
+                  key={categoryOption.value}
+                  value={categoryOption.value}
+                >
+                  {categoryOption.label}
+                </option>
+              ))}
             </select>
           </label>
         </div>

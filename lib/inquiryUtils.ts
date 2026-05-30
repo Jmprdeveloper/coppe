@@ -1,9 +1,11 @@
 import type {
   Inquiry,
-  InquiryCategory,
   InquiryStatus,
   Priority,
 } from "../types";
+import { normalizeInquiryCategory } from "./inquiryCategories";
+
+export { normalizeInquiryCategory };
 
 export type InquiryRow = {
   id: string;
@@ -45,27 +47,6 @@ export function normalizePriority(priority: string | null): Priority {
   }
 
   return "medium";
-}
-
-export function normalizeInquiryCategory(
-  category: string | null
-): InquiryCategory {
-  if (
-    category === "sales_inquiry" ||
-    category === "appointment_request" ||
-    category === "quote_request" ||
-    category === "booking" ||
-    category === "incident" ||
-    category === "general_info" ||
-    category === "follow_up" ||
-    category === "cancellation" ||
-    category === "complaint" ||
-    category === "other"
-  ) {
-    return category;
-  }
-
-  return "other";
 }
 
 export function formatDateTime(
