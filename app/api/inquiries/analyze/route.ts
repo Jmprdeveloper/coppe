@@ -5,6 +5,7 @@ import { analyzeInquiryForCompany } from "../../../../lib/inquiryAnalysisService
 import { getCurrentCompany } from "../../../../lib/currentCompany";
 import { createClient } from "../../../../lib/supabase/server";
 
+const MAX_ANALYSIS_MESSAGE_LENGTH = 6000;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -47,6 +48,15 @@ export async function POST(request: Request) {
   if (!message) {
     return NextResponse.json(
       { error: "El mensaje de la consulta es obligatorio." },
+      { status: 400 }
+    );
+  }
+
+  if (message.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
+    return NextResponse.json(
+      {
+        error: `El mensaje de la consulta no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres.`,
+      },
       { status: 400 }
     );
   }
