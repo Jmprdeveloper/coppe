@@ -424,6 +424,21 @@ export function InquiryDetail({
 
     const dueAt = dueDate.toISOString();
 
+    const currentPendingFollowUps = followUps.filter(
+      (followUp) => followUp.status === "pending"
+    );
+
+    if (
+      currentPendingFollowUps.length > 0 &&
+      !window.confirm(
+        currentPendingFollowUps.length === 1
+          ? "Esta consulta ya tiene un seguimiento pendiente. ¿Quieres crear otro seguimiento de todos modos?"
+          : `Esta consulta ya tiene ${currentPendingFollowUps.length} seguimientos pendientes. ¿Quieres crear otro seguimiento de todos modos?`
+      )
+    ) {
+      return;
+    }
+
     setIsCreatingFollowUp(true);
 
     const { data, error } = await supabase
@@ -717,6 +732,16 @@ export function InquiryDetail({
                   Define cuándo quieres revisar esta consulta para no dejarla sin seguimiento.
                 </p>
 
+                {pendingFollowUps.length > 0 ? (
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    Esta consulta ya tiene{" "}
+                    {pendingFollowUps.length === 1
+                      ? "un seguimiento pendiente"
+                      : `${pendingFollowUps.length} seguimientos pendientes`}
+                    . Revisa si necesitas crear otro.
+                  </div>
+                ) : null}
+
                 <div className="mt-4 space-y-3">
                   <label className="block text-sm font-medium text-slate-700">
                     Título
@@ -758,7 +783,9 @@ export function InquiryDetail({
                   <CalendarClock size={16} />
                   {isCreatingFollowUp
                     ? "Creando seguimiento..."
-                    : "Crear seguimiento"}
+                    : pendingFollowUps.length > 0
+                      ? "Crear otro seguimiento"
+                      : "Crear seguimiento"}
                 </Button>
               </>
             ) : (
