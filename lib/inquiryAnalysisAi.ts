@@ -29,6 +29,7 @@ type OpenAiResponsesApiResult = {
 const OPENAI_RESPONSES_API_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
 const DEFAULT_OPENAI_REQUEST_TIMEOUT_MS = 15000;
+const DEFAULT_OPENAI_MAX_OUTPUT_TOKENS = 1200;
 
 const inquiryAnalysisJsonSchema = {
   type: "object",
@@ -118,6 +119,22 @@ function getOpenAiRequestTimeoutMs() {
 
   if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
     return DEFAULT_OPENAI_REQUEST_TIMEOUT_MS;
+  }
+
+  return parsedValue;
+}
+
+function getOpenAiMaxOutputTokens() {
+  const rawValue = process.env.OPENAI_MAX_OUTPUT_TOKENS?.trim();
+
+  if (!rawValue) {
+    return DEFAULT_OPENAI_MAX_OUTPUT_TOKENS;
+  }
+
+  const parsedValue = Number(rawValue);
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return DEFAULT_OPENAI_MAX_OUTPUT_TOKENS;
   }
 
   return parsedValue;
@@ -233,6 +250,7 @@ export async function analyzeInquiryWithAiEngine(
       signal: abortController.signal,
       body: JSON.stringify({
         model: getOpenAiModel(),
+        max_output_tokens: getOpenAiMaxOutputTokens(),
         input: [
           {
             role: "system",
