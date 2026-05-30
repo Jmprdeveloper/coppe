@@ -3,18 +3,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, XCircle } from "lucide-react";
 
-import { resolveFollowUpUrgency } from "../lib/followUpUtils";
+import {
+  formatFollowUpDueAt,
+  normalizeFollowUpStatus,
+  resolveFollowUpUrgency,
+} from "../lib/followUpUtils";
 import {
   formatDateTime,
   mapInquiryRowToInquiry,
   type InquiryRow,
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type { Inquiry, InquiryStatus } from "../types";
+import type { FollowUp, Inquiry, InquiryStatus } from "../types";
 
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
 import { CategoryBadge } from "./CategoryBadge";
+import { FollowUpCard } from "./FollowUpCard";
 import { PriorityBadge } from "./PriorityBadge";
 import { ResponseEditor } from "./ResponseEditor";
 import { StatusBadge } from "./StatusBadge";
@@ -41,6 +46,34 @@ type InternalNoteRow = {
   created_at: string;
 };
 
+type FollowUpRow = {
+  id: string;
+  title: string;
+  due_at: string | null;
+  status: string;
+  urgency: string | null;
+  inquiry_id: string | null;
+  created_at: string;
+  customer: {
+    name: string | null;
+  } | null;
+};
+
+function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
+  const status = normalizeFollowUpStatus(row.status);
+  const urgency = resolveFollowUpUrgency(row.due_at, status, row.urgency);
+
+  return {
+    id: row.id,
+    title: row.title,
+    customerName: row.customer?.name || "Cliente no indicado",
+    inquiryId: row.inquiry_id ?? "",
+    dueAt: formatFollowUpDueAt(row.due_at, urgency),
+    status,
+    urgency,
+  };
+}
+
 function getDefaultFollowUpDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -63,6 +96,7 @@ export function InquiryDetail({
   const [rawInquiry, setRawInquiry] = useState<InquiryDetailRow | null>(null);
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [notes, setNotes] = useState<InternalNoteRow[]>([]);
+  const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [note, setNote] = useState("");
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDueAt, setFollowUpDueAt] = useState(
@@ -73,6 +107,9 @@ export function InquiryDetail({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
+  const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
+    null
+  );
 
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -96,6 +133,7 @@ export function InquiryDetail({
       setRawInquiry(null);
       setCustomer(null);
       setNotes([]);
+      setFollowUps([]);
       setNote("");
       setFollowUpTitle("");
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
@@ -162,6 +200,34 @@ export function InquiryDetail({
         }
       }
 
+      const { data: followUpsData, error: followUpsError } = await supabase
+        .from("follow_ups")
+        .select(
+          [
+            "id",
+            "title",
+            "due_at",
+            "status",
+            "urgency",
+            "inquiry_id",
+            "created_at",
+            "customer:customers(name)",
+          ].join(", ")
+        )
+        .eq("inquiry_id", inquiryData.id)
+        .order("due_at", { ascending: true, nullsFirst: false })
+        .order("created_at", { ascending: false });
+
+      if (followUpsError) {
+        setErrorMessage(
+          `Se cargó la consulta, pero no se pudieron cargar sus seguimientos: ${
+            followUpsError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const { data: notesData, error: notesError } = await supabase
         .from("internal_notes")
         .select("id, body, created_at")
@@ -178,6 +244,11 @@ export function InquiryDetail({
         return;
       }
 
+      setFollowUps(
+        ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
+          mapFollowUpRowToFollowUp
+        )
+      );
       setNotes((notesData ?? []) as InternalNoteRow[]);
       setIsLoading(false);
     }
@@ -355,28 +426,105 @@ export function InquiryDetail({
 
     setIsCreatingFollowUp(true);
 
-    const { error } = await supabase.from("follow_ups").insert({
-      company_id: rawInquiry.company_id,
-      customer_id: rawInquiry.customer_id,
-      inquiry_id: rawInquiry.id,
-      title: cleanFollowUpTitle,
-      due_at: dueAt,
-      status: "pending",
-      urgency: resolveFollowUpUrgency(dueAt, "pending", null),
-    });
+    const { data, error } = await supabase
+      .from("follow_ups")
+      .insert({
+        company_id: rawInquiry.company_id,
+        customer_id: rawInquiry.customer_id,
+        inquiry_id: rawInquiry.id,
+        title: cleanFollowUpTitle,
+        due_at: dueAt,
+        status: "pending",
+        urgency: resolveFollowUpUrgency(dueAt, "pending", null),
+      })
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
 
     setIsCreatingFollowUp(false);
 
-    if (error) {
+    if (error || !data) {
       setFollowUpErrorMessage(
         `No se pudo crear el seguimiento: ${
-          error.message || "sin detalle del error"
+          error?.message || "sin detalle del error"
         }`
       );
       return;
     }
 
+    setFollowUps((currentFollowUps) => [
+      mapFollowUpRowToFollowUp(data),
+      ...currentFollowUps,
+    ]);
+
     setFollowUpMessage("Seguimiento creado correctamente.");
+  };
+
+  const handleUpdateFollowUpStatus = async (
+    followUpId: string,
+    status: "pending" | "completed" | "cancelled"
+  ) => {
+    setFollowUpMessage("");
+    setFollowUpErrorMessage("");
+    setUpdatingFollowUpId(followUpId);
+
+    const { data: updatedFollowUp, error } = await supabase
+      .from("follow_ups")
+      .update({ status })
+      .eq("id", followUpId)
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
+
+    setUpdatingFollowUpId(null);
+
+    if (error || !updatedFollowUp) {
+      setFollowUpErrorMessage(
+        `No se pudo actualizar el seguimiento: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const mappedUpdatedFollowUp = mapFollowUpRowToFollowUp(updatedFollowUp);
+
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) =>
+        followUp.id === followUpId ? mappedUpdatedFollowUp : followUp
+      )
+    );
+
+    if (status === "pending") {
+      setFollowUpMessage("Seguimiento reabierto correctamente.");
+      return;
+    }
+
+    setFollowUpMessage(
+      status === "completed"
+        ? "Seguimiento completado correctamente."
+        : "Seguimiento cancelado correctamente."
+    );
   };
 
   if (isLoading) {
@@ -426,6 +574,15 @@ export function InquiryDetail({
 
   const canCreateFollowUp =
     inquiry.status === "new" || inquiry.status === "pending";
+
+  const pendingFollowUps = followUps.filter(
+    (followUp) => followUp.status === "pending"
+  );
+
+  const historyFollowUps = followUps.filter(
+    (followUp) =>
+      followUp.status === "completed" || followUp.status === "cancelled"
+  );
 
   return (
     <div>
@@ -605,10 +762,83 @@ export function InquiryDetail({
                 </Button>
               </>
             ) : (
-              <p className="mt-2 text-sm leading-6 text-slate-600">
-                Esta consulta está finalizada. Para crear un seguimiento,
-                primero reabre la consulta.
+              <>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Esta consulta está finalizada. Para crear un seguimiento,
+                  primero reabre la consulta.
+                </p>
+
+                {followUpErrorMessage ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {followUpErrorMessage}
+                  </div>
+                ) : null}
+
+                {followUpMessage ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {followUpMessage}
+                  </div>
+                ) : null}
+              </>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-bold text-slate-950">
+              Seguimientos de la consulta
+            </h3>
+
+            {followUps.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Todavía no hay seguimientos asociados a esta consulta.
               </p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {pendingFollowUps.length > 0 ? (
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Pendientes
+                    </h4>
+
+                    <div className="space-y-3">
+                      {pendingFollowUps.map((followUp) => (
+                        <FollowUpCard
+                          key={followUp.id}
+                          followUp={followUp}
+                          onComplete={(id) =>
+                            handleUpdateFollowUpStatus(id, "completed")
+                          }
+                          onCancel={(id) =>
+                            handleUpdateFollowUpStatus(id, "cancelled")
+                          }
+                          isUpdating={updatingFollowUpId === followUp.id}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {historyFollowUps.length > 0 ? (
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Historial
+                    </h4>
+
+                    <div className="space-y-3">
+                      {historyFollowUps.map((followUp) => (
+                        <FollowUpCard
+                          key={followUp.id}
+                          followUp={followUp}
+                          onReopen={(id) =>
+                            handleUpdateFollowUpStatus(id, "pending")
+                          }
+                          isUpdating={updatingFollowUpId === followUp.id}
+                        />
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
             )}
           </div>
 

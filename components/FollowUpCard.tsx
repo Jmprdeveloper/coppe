@@ -10,7 +10,7 @@ import type { FollowUp } from "../types";
 
 type FollowUpCardProps = {
   followUp: FollowUp;
-  onOpen: (id: string) => void;
+  onOpen?: (id: string) => void;
   onComplete?: (id: string) => void;
   onCancel?: (id: string) => void;
   onReopen?: (id: string) => void;
@@ -68,7 +68,7 @@ export function FollowUpCard({
           ) : null}
         </div>
 
-        {followUp.inquiryId ? (
+        {followUp.inquiryId && onOpen ? (
           <button
             type="button"
             onClick={() => onOpen(followUp.inquiryId)}
