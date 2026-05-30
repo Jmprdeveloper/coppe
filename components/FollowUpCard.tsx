@@ -1,6 +1,7 @@
 import {
   CheckCircle2,
   ChevronRight,
+  Pencil,
   RotateCcw,
   XCircle,
 } from "lucide-react";
@@ -11,6 +12,7 @@ import type { FollowUp } from "../types";
 type FollowUpCardProps = {
   followUp: FollowUp;
   onOpen?: (id: string) => void;
+  onEdit?: (followUp: FollowUp) => void;
   onComplete?: (id: string) => void;
   onCancel?: (id: string) => void;
   onReopen?: (id: string) => void;
@@ -20,6 +22,7 @@ type FollowUpCardProps = {
 export function FollowUpCard({
   followUp,
   onOpen,
+  onEdit,
   onComplete,
   onCancel,
   onReopen,
@@ -68,16 +71,30 @@ export function FollowUpCard({
           ) : null}
         </div>
 
-        {followUp.inquiryId && onOpen ? (
-          <button
-            type="button"
-            onClick={() => onOpen(followUp.inquiryId)}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            title="Abrir consulta"
-          >
-            <ChevronRight size={16} />
-          </button>
-        ) : null}
+        <div className="flex shrink-0 items-center gap-1">
+          {onEdit ? (
+            <button
+              type="button"
+              disabled={isUpdating}
+              onClick={() => onEdit(followUp)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 disabled:cursor-not-allowed disabled:opacity-60"
+              title="Editar seguimiento"
+            >
+              <Pencil size={16} />
+            </button>
+          ) : null}
+
+          {followUp.inquiryId && onOpen ? (
+            <button
+              type="button"
+              onClick={() => onOpen(followUp.inquiryId)}
+              className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              title="Abrir consulta"
+            >
+              <ChevronRight size={16} />
+            </button>
+          ) : null}
+        </div>
       </div>
 
       {followUp.status === "pending" && (onComplete || onCancel) ? (

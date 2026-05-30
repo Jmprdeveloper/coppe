@@ -69,6 +69,7 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
     customerName: row.customer?.name || "Cliente no indicado",
     inquiryId: row.inquiry_id ?? "",
     dueAt: formatFollowUpDueAt(row.due_at, urgency),
+    dueAtIso: row.due_at,
     status,
     urgency,
   };

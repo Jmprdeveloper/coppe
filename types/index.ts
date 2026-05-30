@@ -1,4 +1,4 @@
-﻿export type View =
+export type View =
   | "landing"
   | "login"
   | "register"
@@ -78,6 +78,7 @@ export type FollowUp = {
   customerName: string;
   inquiryId: string;
   dueAt: string;
+  dueAtIso: string | null;
   status: "pending" | "completed" | "cancelled";
   urgency: "today" | "overdue" | "upcoming";
 };

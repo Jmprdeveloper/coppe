@@ -51,6 +51,7 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
     customerName: row.customer?.name || "Cliente no indicado",
     inquiryId: row.inquiry_id ?? "",
     dueAt: formatFollowUpDueAt(row.due_at, urgency),
+    dueAtIso: row.due_at,
     status,
     urgency,
   };
@@ -68,6 +69,26 @@ function getDefaultDateTimeLocal() {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function formatDateTimeLocalFromIso(value: string | null) {
+  if (!value) {
+    return getDefaultDateTimeLocal();
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return getDefaultDateTimeLocal();
+  }
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function FollowUps({ openInquiry }: FollowUpsProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -75,6 +96,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
   const [inquiryOptions, setInquiryOptions] = useState<InquiryOptionRow[]>([]);
 
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(
+    null
+  );
   const [selectedInquiryId, setSelectedInquiryId] = useState("");
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState(getDefaultDateTimeLocal());
@@ -173,33 +197,46 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     (inquiry) => inquiry.id === selectedInquiryId
   );
 
+  const editingFollowUp = followUps.find(
+    (followUp) => followUp.id === editingFollowUpId
+  );
+
+  const isEditing = Boolean(editingFollowUp);
+
   const handleOpenCreateForm = () => {
+    setEditingFollowUpId(null);
     setShowCreateForm(true);
     setSuccessMessage("");
     setFormErrorMessage("");
 
-    if (!title && selectedInquiry) {
+    if (selectedInquiry) {
       setTitle(`Revisar consulta de ${selectedInquiry.customer_name}`);
+    } else {
+      setTitle("");
     }
 
-    if (!dueAt) {
-      setDueAt(getDefaultDateTimeLocal());
-    }
+    setDueAt(getDefaultDateTimeLocal());
+  };
+
+  const handleOpenEditForm = (followUp: FollowUp) => {
+    setEditingFollowUpId(followUp.id);
+    setShowCreateForm(true);
+    setSuccessMessage("");
+    setFormErrorMessage("");
+    setSelectedInquiryId(followUp.inquiryId);
+    setTitle(followUp.title);
+    setDueAt(formatDateTimeLocalFromIso(followUp.dueAtIso));
   };
 
   const handleCancelCreateForm = () => {
     setShowCreateForm(false);
+    setEditingFollowUpId(null);
     setFormErrorMessage("");
   };
 
-  const handleCreateFollowUp = async () => {
+  const handleSaveFollowUp = async () => {
     setSuccessMessage("");
     setFormErrorMessage("");
-
-    if (!selectedInquiry) {
-      setFormErrorMessage("Selecciona una consulta antes de crear el seguimiento.");
-      return;
-    }
 
     const cleanTitle = title.trim();
 
@@ -220,6 +257,69 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       return;
     }
 
+    const dueAtIso = dueDate.toISOString();
+
+    if (editingFollowUp) {
+      setIsCreating(true);
+
+      const { data, error } = await supabase
+        .from("follow_ups")
+        .update({
+          title: cleanTitle,
+          due_at: dueAtIso,
+          urgency: resolveFollowUpUrgency(
+            dueAtIso,
+            editingFollowUp.status,
+            null
+          ),
+        })
+        .eq("id", editingFollowUp.id)
+        .select(
+          [
+            "id",
+            "title",
+            "due_at",
+            "status",
+            "urgency",
+            "inquiry_id",
+            "created_at",
+            "customer:customers(name)",
+          ].join(", ")
+        )
+        .single<FollowUpRow>();
+
+      setIsCreating(false);
+
+      if (error || !data) {
+        setFormErrorMessage(
+          `No se pudo actualizar el seguimiento: ${
+            error?.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      const mappedFollowUp = mapFollowUpRowToFollowUp(data);
+
+      setFollowUps((currentFollowUps) =>
+        currentFollowUps.map((followUp) =>
+          followUp.id === editingFollowUp.id ? mappedFollowUp : followUp
+        )
+      );
+
+      setEditingFollowUpId(null);
+      setShowCreateForm(false);
+      setTitle("");
+      setDueAt(getDefaultDateTimeLocal());
+      setSuccessMessage("Seguimiento actualizado correctamente.");
+      return;
+    }
+
+    if (!selectedInquiry) {
+      setFormErrorMessage("Selecciona una consulta antes de crear el seguimiento.");
+      return;
+    }
+
     setIsCreating(true);
 
     const { data, error } = await supabase
@@ -229,13 +329,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         customer_id: selectedInquiry.customer_id,
         inquiry_id: selectedInquiry.id,
         title: cleanTitle,
-        due_at: dueDate.toISOString(),
+        due_at: dueAtIso,
         status: "pending",
-        urgency: resolveFollowUpUrgency(
-          dueDate.toISOString(),
-          "pending",
-          null
-        ),
+        urgency: resolveFollowUpUrgency(dueAtIso, "pending", null),
       })
       .select(
         [
@@ -369,10 +465,13 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-950">
-                Crear seguimiento
+                {isEditing ? "Editar seguimiento" : "Crear seguimiento"}
               </h2>
+
               <p className="mt-1 text-sm text-slate-500">
-                Asocia una tarea pendiente a una consulta existente.
+                {isEditing
+                  ? "Actualiza el título o la fecha de este seguimiento."
+                  : "Asocia una tarea pendiente a una consulta existente."}
               </p>
             </div>
 
@@ -387,35 +486,44 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
           </div>
 
           <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-medium text-slate-700 md:col-span-2">
-              Consulta asociada
-              <select
-                value={selectedInquiryId}
-                onChange={(event) => {
-                  const nextInquiryId = event.target.value;
-                  const nextInquiry = inquiryOptions.find(
-                    (inquiry) => inquiry.id === nextInquiryId
-                  );
+            {isEditing ? (
+              <div className="text-sm font-medium text-slate-700 md:col-span-2">
+                Consulta asociada
+                <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
+                  {editingFollowUp?.customerName || "Cliente no indicado"}
+                </div>
+              </div>
+            ) : (
+              <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                Consulta asociada
+                <select
+                  value={selectedInquiryId}
+                  onChange={(event) => {
+                    const nextInquiryId = event.target.value;
+                    const nextInquiry = inquiryOptions.find(
+                      (inquiry) => inquiry.id === nextInquiryId
+                    );
 
-                  setSelectedInquiryId(nextInquiryId);
+                    setSelectedInquiryId(nextInquiryId);
 
-                  if (nextInquiry) {
-                    setTitle(`Revisar consulta de ${nextInquiry.customer_name}`);
-                  }
-                }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-              >
-                {inquiryOptions.length === 0 ? (
-                  <option value="">No hay consultas activas disponibles</option>
-                ) : (
-                  inquiryOptions.map((inquiry) => (
-                    <option key={inquiry.id} value={inquiry.id}>
-                      {inquiry.customer_name} · {inquiry.subject || "Sin asunto"}
-                    </option>
-                  ))
-                )}
-              </select>
-            </label>
+                    if (nextInquiry) {
+                      setTitle(`Revisar consulta de ${nextInquiry.customer_name}`);
+                    }
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                >
+                  {inquiryOptions.length === 0 ? (
+                    <option value="">No hay consultas activas disponibles</option>
+                  ) : (
+                    inquiryOptions.map((inquiry) => (
+                      <option key={inquiry.id} value={inquiry.id}>
+                        {inquiry.customer_name} · {inquiry.subject || "Sin asunto"}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+            )}
 
             <label className="text-sm font-medium text-slate-700">
               Título
@@ -445,10 +553,16 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
           <div className="mt-5 flex flex-wrap gap-2">
             <Button
-              onClick={handleCreateFollowUp}
-              disabled={isCreating || inquiryOptions.length === 0}
+              onClick={handleSaveFollowUp}
+              disabled={isCreating || (!isEditing && inquiryOptions.length === 0)}
             >
-              {isCreating ? "Creando seguimiento..." : "Guardar seguimiento"}
+              {isCreating
+                ? isEditing
+                  ? "Guardando cambios..."
+                  : "Creando seguimiento..."
+                : isEditing
+                  ? "Guardar cambios"
+                  : "Guardar seguimiento"}
             </Button>
 
             <Button variant="secondary" onClick={handleCancelCreateForm}>
@@ -492,6 +606,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     key={followUp.id}
                     followUp={followUp}
                     onOpen={openInquiry}
+                    onEdit={handleOpenEditForm}
                     onComplete={(id) =>
                       handleUpdateFollowUpStatus(id, "completed")
                     }
@@ -519,6 +634,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     key={followUp.id}
                     followUp={followUp}
                     onOpen={openInquiry}
+                    onEdit={handleOpenEditForm}
                     onComplete={(id) =>
                       handleUpdateFollowUpStatus(id, "completed")
                     }
@@ -546,6 +662,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     key={followUp.id}
                     followUp={followUp}
                     onOpen={openInquiry}
+                    onEdit={handleOpenEditForm}
                     onComplete={(id) =>
                       handleUpdateFollowUpStatus(id, "completed")
                     }
@@ -576,6 +693,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                   key={followUp.id}
                   followUp={followUp}
                   onOpen={openInquiry}
+                  onEdit={handleOpenEditForm}
                   onReopen={(id) => handleUpdateFollowUpStatus(id, "pending")}
                   isUpdating={updatingFollowUpId === followUp.id}
                 />
