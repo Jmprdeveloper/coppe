@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, CheckCircle2, XCircle } from "lucide-react";
 
+import { resolveFollowUpUrgency } from "../lib/followUpUtils";
 import {
   formatDateTime,
   mapInquiryRowToInquiry,
@@ -40,6 +41,18 @@ type InternalNoteRow = {
   created_at: string;
 };
 
+function getDefaultFollowUpDateTimeLocal() {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 export function InquiryDetail({
   inquiryId,
   setActiveView,
@@ -51,6 +64,10 @@ export function InquiryDetail({
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [notes, setNotes] = useState<InternalNoteRow[]>([]);
   const [note, setNote] = useState("");
+  const [followUpTitle, setFollowUpTitle] = useState("");
+  const [followUpDueAt, setFollowUpDueAt] = useState(
+    getDefaultFollowUpDateTimeLocal()
+  );
 
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
@@ -80,6 +97,8 @@ export function InquiryDetail({
       setCustomer(null);
       setNotes([]);
       setNote("");
+      setFollowUpTitle("");
+      setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
       const { data: inquiryData, error: inquiryError } = await supabase
         .from("inquiries")
@@ -128,6 +147,8 @@ export function InquiryDetail({
 
       setInquiry(mapInquiryRowToInquiry(inquiryData));
       setRawInquiry(inquiryData);
+      setFollowUpTitle(`Revisar consulta de ${inquiryData.customer_name}`);
+      setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
       if (inquiryData.customer_id) {
         const { data: customerData, error: customerError } = await supabase
@@ -309,8 +330,28 @@ export function InquiryDetail({
       return;
     }
 
-    const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-    const title = `Revisar consulta de ${inquiry.customerName}`;
+    const cleanFollowUpTitle = followUpTitle.trim();
+
+    if (!cleanFollowUpTitle) {
+      setFollowUpErrorMessage("El título del seguimiento es obligatorio.");
+      return;
+    }
+
+    if (!followUpDueAt) {
+      setFollowUpErrorMessage(
+        "La fecha y hora del seguimiento son obligatorias."
+      );
+      return;
+    }
+
+    const dueDate = new Date(followUpDueAt);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      setFollowUpErrorMessage("La fecha indicada no es válida.");
+      return;
+    }
+
+    const dueAt = dueDate.toISOString();
 
     setIsCreatingFollowUp(true);
 
@@ -318,10 +359,10 @@ export function InquiryDetail({
       company_id: rawInquiry.company_id,
       customer_id: rawInquiry.customer_id,
       inquiry_id: rawInquiry.id,
-      title,
+      title: cleanFollowUpTitle,
       due_at: dueAt,
       status: "pending",
-      urgency: "upcoming",
+      urgency: resolveFollowUpUrgency(dueAt, "pending", null),
     });
 
     setIsCreatingFollowUp(false);
@@ -335,9 +376,7 @@ export function InquiryDetail({
       return;
     }
 
-    setFollowUpMessage(
-      "Seguimiento creado correctamente para dentro de 24 horas."
-    );
+    setFollowUpMessage("Seguimiento creado correctamente.");
   };
 
   if (isLoading) {
@@ -518,8 +557,29 @@ export function InquiryDetail({
             {canCreateFollowUp ? (
               <>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Crear seguimiento para revisar esta consulta en menos de 24 horas.
+                  Define cuándo quieres revisar esta consulta para no dejarla sin seguimiento.
                 </p>
+
+                <div className="mt-4 space-y-3">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Título
+                    <input
+                      value={followUpTitle}
+                      onChange={(event) => setFollowUpTitle(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Fecha y hora
+                    <input
+                      type="datetime-local"
+                      value={followUpDueAt}
+                      onChange={(event) => setFollowUpDueAt(event.target.value)}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    />
+                  </label>
+                </div>
 
                 {followUpErrorMessage ? (
                   <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
