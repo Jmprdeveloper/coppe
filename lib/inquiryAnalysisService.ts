@@ -1,10 +1,11 @@
 ﻿import { type CurrentCompany } from "./currentCompany";
+import { analyzeInquiryWithAiEngine } from "./inquiryAnalysisAi";
 import {
   analyzeInquiry,
   type InquiryAnalysisResult,
 } from "./inquiryAnalysis";
 
-type InquiryAnalysisEngine = "local";
+type InquiryAnalysisEngine = "local" | "ai";
 
 type AnalyzeInquiryForCompanyInput = {
   customerName: string;
@@ -17,6 +18,10 @@ const DEFAULT_INQUIRY_ANALYSIS_ENGINE: InquiryAnalysisEngine = "local";
 function normalizeInquiryAnalysisEngine(
   value: string | null | undefined
 ): InquiryAnalysisEngine {
+  if (value === "ai") {
+    return "ai";
+  }
+
   if (value === "local") {
     return "local";
   }
@@ -46,8 +51,8 @@ async function analyzeInquiryWithSelectedEngine(
   input: AnalyzeInquiryForCompanyInput,
   engine: InquiryAnalysisEngine
 ): Promise<InquiryAnalysisResult> {
-  if (engine === "local") {
-    return analyzeInquiryWithLocalEngine(input);
+  if (engine === "ai") {
+    return analyzeInquiryWithAiEngine(input);
   }
 
   return analyzeInquiryWithLocalEngine(input);
@@ -62,6 +67,11 @@ export async function analyzeInquiryForCompany(
     return await analyzeInquiryWithSelectedEngine(input, engine);
   } catch (error) {
     if (engine !== "local") {
+      console.warn(
+        "Inquiry analysis AI engine failed. Falling back to local engine.",
+        error
+      );
+
       return analyzeInquiryWithLocalEngine(input);
     }
 
