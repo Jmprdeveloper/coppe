@@ -421,6 +421,10 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                   className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                   placeholder="Pega aquí el mensaje recibido del cliente..."
                 />
+
+                <p className="mt-1 text-right text-xs text-slate-500">
+                  {message.length}/{MAX_ANALYSIS_MESSAGE_LENGTH} caracteres
+                </p>
               </label>
             </div>
 
