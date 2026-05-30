@@ -132,6 +132,10 @@ Reglas:
 - Por ejemplo: si el cliente dice "el problema sigue igual", no digas "problema mecánico" salvo que el mensaje mencione claramente algo mecánico.
 - En summary, intent, recommendedAction y suggestedResponse, conserva la incertidumbre cuando el mensaje sea ambiguo.
 - Evita abreviaturas internas como ASAP en textos orientados al usuario o al equipo; usa expresiones naturales como "lo antes posible".
+- Cuida la redacción: usa espacios correctos después de puntos y comas, evita frases pegadas y devuelve textos listos para copiar.
+- La respuesta sugerida debe sonar natural, profesional y revisada, no como una nota interna.
+- En missingInformation, usa elementos breves y neutros. Evita ejemplos sectoriales concretos entre paréntesis salvo que sean imprescindibles.
+- Si el cliente menciona un objeto ambiguo, pide el contexto de forma neutral. Por ejemplo: "tipo de puerta o contexto de la reparación", no "puerta de vehículo".
 - Si falta información importante, indícala en missingInformation.
 
 Categorías permitidas:
