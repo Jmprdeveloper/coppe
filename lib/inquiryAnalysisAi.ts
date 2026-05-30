@@ -28,6 +28,7 @@ type OpenAiResponsesApiResult = {
 
 const OPENAI_RESPONSES_API_URL = "https://api.openai.com/v1/responses";
 const DEFAULT_OPENAI_MODEL = "gpt-4o-mini";
+const DEFAULT_OPENAI_REQUEST_TIMEOUT_MS = 15000;
 
 const inquiryAnalysisJsonSchema = {
   type: "object",
@@ -104,6 +105,22 @@ function getOpenAiApiKey() {
 
 function getOpenAiModel() {
   return process.env.OPENAI_MODEL?.trim() || DEFAULT_OPENAI_MODEL;
+}
+
+function getOpenAiRequestTimeoutMs() {
+  const rawValue = process.env.OPENAI_REQUEST_TIMEOUT_MS?.trim();
+
+  if (!rawValue) {
+    return DEFAULT_OPENAI_REQUEST_TIMEOUT_MS;
+  }
+
+  const parsedValue = Number(rawValue);
+
+  if (!Number.isFinite(parsedValue) || parsedValue <= 0) {
+    return DEFAULT_OPENAI_REQUEST_TIMEOUT_MS;
+  }
+
+  return parsedValue;
 }
 
 function buildAllowedCategoriesText() {
@@ -199,34 +216,46 @@ export async function analyzeInquiryWithAiEngine(
     throw new Error("Falta OPENAI_API_KEY.");
   }
 
-  const response = await fetch(OPENAI_RESPONSES_API_URL, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: getOpenAiModel(),
-      input: [
-        {
-          role: "system",
-          content: buildSystemPrompt(),
-        },
-        {
-          role: "user",
-          content: buildUserPrompt(input),
-        },
-      ],
-      text: {
-        format: {
-          type: "json_schema",
-          name: "coppe_inquiry_analysis",
-          strict: true,
-          schema: inquiryAnalysisJsonSchema,
-        },
+  const abortController = new AbortController();
+  const timeout = setTimeout(() => {
+    abortController.abort();
+  }, getOpenAiRequestTimeoutMs());
+
+  let response: Response;
+
+  try {
+    response = await fetch(OPENAI_RESPONSES_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
       },
-    }),
-  });
+      signal: abortController.signal,
+      body: JSON.stringify({
+        model: getOpenAiModel(),
+        input: [
+          {
+            role: "system",
+            content: buildSystemPrompt(),
+          },
+          {
+            role: "user",
+            content: buildUserPrompt(input),
+          },
+        ],
+        text: {
+          format: {
+            type: "json_schema",
+            name: "coppe_inquiry_analysis",
+            strict: true,
+            schema: inquiryAnalysisJsonSchema,
+          },
+        },
+      }),
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
 
   if (!response.ok) {
     const errorText = await response.text();
