@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -248,8 +248,9 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     (followUp) => followUp.status === "pending"
   );
 
-  const todayFollowUps = pendingFollowUps.filter(
-    (followUp) => followUp.urgency === "today"
+  const urgentFollowUps = pendingFollowUps.filter(
+    (followUp) =>
+      followUp.urgency === "overdue" || followUp.urgency === "today"
   ).length;
 
   const priorityItems = [...inquiries]
@@ -335,10 +336,10 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         />
 
         <StatCard
-          title="Seguimientos hoy"
-          value={todayFollowUps}
+          title="Seguimientos urgentes"
+          value={urgentFollowUps}
           icon={CalendarClock}
-          caption="Tareas previstas para hoy"
+          caption="Vencidos o para hoy"
         />
       </div>
 
@@ -377,7 +378,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-950">
-              Seguimientos próximos
+              Seguimientos que atender
             </h2>
 
             <button
