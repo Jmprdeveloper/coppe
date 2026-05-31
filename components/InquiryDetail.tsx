@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, CheckCircle2, XCircle } from "lucide-react";
+import { CalendarClock, CheckCircle2, Sparkles, XCircle } from "lucide-react";
 
 import {
   formatFollowUpDueAt,
@@ -13,6 +13,8 @@ import {
   mapInquiryRowToInquiry,
   type InquiryRow,
 } from "../lib/inquiryUtils";
+import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
+import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import { createClient } from "../lib/supabase/client";
 import type { FollowUp, Inquiry, InquiryStatus } from "../types";
 
@@ -58,6 +60,74 @@ type FollowUpRow = {
     name: string | null;
   } | null;
 };
+
+type InquiryAnalysisRequestResult =
+  | {
+      analysis: NonNullable<AnalyzeInquiryResponse["analysis"]>;
+      errorMessage: "";
+    }
+  | {
+      analysis: null;
+      errorMessage: string;
+    };
+
+async function requestInquiryAnalysis(
+  customerName: string,
+  message: string
+): Promise<InquiryAnalysisRequestResult> {
+  let analysisResponse: Response;
+
+  try {
+    analysisResponse = await fetch("/api/inquiries/analyze", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        customerName,
+        message,
+      }),
+    });
+  } catch {
+    return {
+      analysis: null,
+      errorMessage:
+        "No se pudo conectar con el servicio de análisis. Inténtalo de nuevo en unos segundos.",
+    };
+  }
+
+  let analysisPayload: AnalyzeInquiryResponse | null = null;
+
+  try {
+    analysisPayload = (await analysisResponse.json()) as AnalyzeInquiryResponse;
+  } catch {
+    analysisPayload = null;
+  }
+
+  const analysisErrorMessage =
+    typeof analysisPayload?.error === "string" && analysisPayload.error.trim()
+      ? analysisPayload.error.trim()
+      : "No se pudo reanalizar la consulta.";
+
+  if (!analysisResponse.ok || !analysisPayload?.analysis) {
+    return {
+      analysis: null,
+      errorMessage: analysisErrorMessage,
+    };
+  }
+
+  return {
+    analysis: analysisPayload.analysis,
+    errorMessage: "",
+  };
+}
+
+function buildInquiryContextWithAdditionalInfo(
+  currentMessage: string,
+  additionalInfo: string
+) {
+  return `${currentMessage.trim()}\n\nInformación adicional recibida del cliente:\n${additionalInfo.trim()}`;
+}
 
 function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   const status = normalizeFollowUpStatus(row.status);
@@ -119,6 +189,7 @@ export function InquiryDetail({
   const [notes, setNotes] = useState<InternalNoteRow[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [note, setNote] = useState("");
+  const [additionalCustomerInfo, setAdditionalCustomerInfo] = useState("");
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDueAt, setFollowUpDueAt] = useState(
     getDefaultFollowUpDateTimeLocal()
@@ -135,6 +206,7 @@ export function InquiryDetail({
   const [isLoading, setIsLoading] = useState(true);
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
+  const [isReanalyzingInquiry, setIsReanalyzingInquiry] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
   const [isSavingFollowUpEdit, setIsSavingFollowUpEdit] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
@@ -146,6 +218,8 @@ export function InquiryDetail({
   const [statusErrorMessage, setStatusErrorMessage] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
+  const [reanalysisMessage, setReanalysisMessage] = useState("");
+  const [reanalysisErrorMessage, setReanalysisErrorMessage] = useState("");
   const [followUpCreateMessage, setFollowUpCreateMessage] = useState("");
   const [followUpCreateErrorMessage, setFollowUpCreateErrorMessage] =
     useState("");
@@ -161,6 +235,8 @@ export function InquiryDetail({
       setStatusErrorMessage("");
       setNoteMessage("");
       setNoteErrorMessage("");
+      setReanalysisMessage("");
+      setReanalysisErrorMessage("");
       setFollowUpCreateMessage("");
       setFollowUpCreateErrorMessage("");
       setFollowUpActionMessage("");
@@ -171,6 +247,7 @@ export function InquiryDetail({
       setNotes([]);
       setFollowUps([]);
       setNote("");
+      setAdditionalCustomerInfo("");
       setFollowUpTitle("");
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
       setShowCreateFollowUpForm(false);
@@ -421,6 +498,116 @@ export function InquiryDetail({
     setNotes((currentNotes) => [data, ...currentNotes]);
     setNote("");
     setNoteMessage("Nota interna guardada correctamente.");
+  };
+
+  const handleReanalyzeInquiry = async () => {
+    setReanalysisMessage("");
+    setReanalysisErrorMessage("");
+
+    if (!rawInquiry || !inquiry) {
+      setReanalysisErrorMessage(
+        "No se puede reanalizar porque no hay consulta cargada."
+      );
+      return;
+    }
+
+    const cleanAdditionalInfo = additionalCustomerInfo.trim();
+
+    if (!cleanAdditionalInfo) {
+      setReanalysisErrorMessage(
+        "Pega la nueva información recibida del cliente antes de reanalizar."
+      );
+      return;
+    }
+
+    const updatedOriginalMessage = buildInquiryContextWithAdditionalInfo(
+      inquiry.originalMessage,
+      cleanAdditionalInfo
+    );
+
+    if (updatedOriginalMessage.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
+      setReanalysisErrorMessage(
+        `La consulta completa no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres. Resume la información adicional antes de reanalizar.`
+      );
+      return;
+    }
+
+    setIsReanalyzingInquiry(true);
+
+    const {
+      analysis,
+      errorMessage: analysisErrorMessage,
+    } = await requestInquiryAnalysis(inquiry.customerName, updatedOriginalMessage);
+
+    if (!analysis) {
+      setIsReanalyzingInquiry(false);
+      setReanalysisErrorMessage(analysisErrorMessage);
+      return;
+    }
+
+    const nextStatus =
+      inquiry.status === "new" || inquiry.status === "pending"
+        ? inquiry.status
+        : "pending";
+
+    const { data: updatedInquiry, error } = await supabase
+      .from("inquiries")
+      .update({
+        subject: analysis.subject,
+        original_message: updatedOriginalMessage,
+        ai_summary: analysis.summary,
+        ai_intent: analysis.intent,
+        ai_category: analysis.category,
+        ai_priority: analysis.priority,
+        ai_language: analysis.language,
+        sentiment: "neutral",
+        missing_information: analysis.missingInformation,
+        recommended_action: analysis.recommendedAction,
+        suggested_response: analysis.suggestedResponse,
+        status: nextStatus,
+      })
+      .eq("id", rawInquiry.id)
+      .select(
+        [
+          "id",
+          "company_id",
+          "customer_id",
+          "customer_name",
+          "source_channel",
+          "subject",
+          "original_message",
+          "ai_summary",
+          "ai_intent",
+          "ai_category",
+          "ai_priority",
+          "ai_language",
+          "sentiment",
+          "missing_information",
+          "recommended_action",
+          "suggested_response",
+          "status",
+          "created_at",
+        ].join(", ")
+      )
+      .single<InquiryDetailRow>();
+
+    setIsReanalyzingInquiry(false);
+
+    if (error || !updatedInquiry) {
+      setReanalysisErrorMessage(
+        `No se pudo guardar el nuevo análisis: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setRawInquiry(updatedInquiry);
+    setInquiry(mapInquiryRowToInquiry(updatedInquiry));
+    setAdditionalCustomerInfo("");
+    setReanalysisMessage(
+      "Consulta reanalizada correctamente con la información adicional del cliente."
+    );
   };
 
   const handleCreateFollowUp = async () => {
@@ -848,12 +1035,76 @@ export function InquiryDetail({
         <main className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Mensaje original
+              Mensaje original y contexto acumulado
             </div>
 
-            <p className="text-base leading-7 text-slate-900">
+            <p className="whitespace-pre-wrap text-base leading-7 text-slate-900">
               {inquiry.originalMessage}
             </p>
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="text-lg font-bold text-slate-950">
+              Información adicional del cliente
+            </h2>
+
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Usa este bloque cuando el cliente aporte datos nuevos sobre esta
+              misma consulta. COPPE reanalizará la consulta completa sin crear
+              una consulta nueva.
+            </p>
+
+            <textarea
+              value={additionalCustomerInfo}
+              onChange={(event) => {
+                setAdditionalCustomerInfo(event.target.value);
+                setReanalysisMessage("");
+                setReanalysisErrorMessage("");
+              }}
+              maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
+              className="mt-4 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
+              placeholder="Ej. Es un Ford Focus del año 2005..."
+            />
+
+            <p className="mt-1 text-right text-xs text-slate-500">
+              {additionalCustomerInfo.length}/{MAX_ANALYSIS_MESSAGE_LENGTH} caracteres
+            </p>
+
+            {reanalysisErrorMessage ? (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {reanalysisErrorMessage}
+              </div>
+            ) : null}
+
+            {reanalysisMessage ? (
+              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                {reanalysisMessage}
+              </div>
+            ) : null}
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button
+                onClick={handleReanalyzeInquiry}
+                disabled={isReanalyzingInquiry}
+              >
+                <Sparkles size={16} />
+                {isReanalyzingInquiry
+                  ? "Reanalizando consulta..."
+                  : "Reanalizar consulta"}
+              </Button>
+
+              <Button
+                variant="secondary"
+                onClick={() => {
+                  setAdditionalCustomerInfo("");
+                  setReanalysisMessage("");
+                  setReanalysisErrorMessage("");
+                }}
+                disabled={isReanalyzingInquiry}
+              >
+                Limpiar
+              </Button>
+            </div>
           </div>
 
           <AIBlock inquiry={inquiry} />
