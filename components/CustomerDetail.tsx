@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CalendarClock } from "lucide-react";
 
 import {
   formatFollowUpDueAt,
@@ -81,6 +82,18 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   };
 }
 
+function getDefaultFollowUpDateTimeLocal() {
+  const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hours = String(date.getHours()).padStart(2, "0");
+  const minutes = String(date.getMinutes()).padStart(2, "0");
+
+  return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
 function formatLanguage(language: string | null) {
   if (language === "es") {
     return "Español";
@@ -113,6 +126,10 @@ function formatCustomerStatus(status: string) {
   return "Activo";
 }
 
+function isActiveInquiry(inquiry: Inquiry) {
+  return inquiry.status === "new" || inquiry.status === "pending";
+}
+
 export function CustomerDetail({
   customerId,
   setActiveView,
@@ -132,9 +149,17 @@ export function CustomerDetail({
   const [editLanguage, setEditLanguage] = useState("es");
   const [editStatus, setEditStatus] = useState<CustomerStatus>("active");
 
+  const [showCreateFollowUpForm, setShowCreateFollowUpForm] = useState(false);
+  const [selectedInquiryId, setSelectedInquiryId] = useState("");
+  const [newFollowUpTitle, setNewFollowUpTitle] = useState("");
+  const [newFollowUpDueAt, setNewFollowUpDueAt] = useState(
+    getDefaultFollowUpDateTimeLocal()
+  );
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
     null
   );
@@ -144,6 +169,9 @@ export function CustomerDetail({
   const [customerErrorMessage, setCustomerErrorMessage] = useState("");
   const [noteMessage, setNoteMessage] = useState("");
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
+  const [createFollowUpMessage, setCreateFollowUpMessage] = useState("");
+  const [createFollowUpErrorMessage, setCreateFollowUpErrorMessage] =
+    useState("");
   const [followUpMessage, setFollowUpMessage] = useState("");
   const [followUpErrorMessage, setFollowUpErrorMessage] = useState("");
 
@@ -155,6 +183,8 @@ export function CustomerDetail({
       setCustomerErrorMessage("");
       setNoteMessage("");
       setNoteErrorMessage("");
+      setCreateFollowUpMessage("");
+      setCreateFollowUpErrorMessage("");
       setFollowUpMessage("");
       setFollowUpErrorMessage("");
       setCustomer(null);
@@ -162,6 +192,10 @@ export function CustomerDetail({
       setInquiries([]);
       setFollowUps([]);
       setNote("");
+      setShowCreateFollowUpForm(false);
+      setSelectedInquiryId("");
+      setNewFollowUpTitle("");
+      setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
       const { data: customerData, error: customerError } = await supabase
         .from("customers")
@@ -270,6 +304,12 @@ export function CustomerDetail({
         return;
       }
 
+      const mappedInquiries = (
+        (inquiriesData ?? []) as unknown as InquiryRow[]
+      ).map(mapInquiryRowToInquiry);
+
+      const activeInquiries = mappedInquiries.filter(isActiveInquiry);
+
       setCustomer(customerData);
       setEditName(customerData.name);
       setEditEmail(customerData.email ?? "");
@@ -277,21 +317,27 @@ export function CustomerDetail({
       setEditLanguage(customerData.language ?? "es");
       setEditStatus(normalizeCustomerStatus(customerData.status));
       setNotes((notesData ?? []) as InternalNoteRow[]);
-      setInquiries(
-        ((inquiriesData ?? []) as unknown as InquiryRow[]).map(
-          mapInquiryRowToInquiry
-        )
-      );
+      setInquiries(mappedInquiries);
       setFollowUps(
         ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
           mapFollowUpRowToFollowUp
         )
       );
+      setSelectedInquiryId(activeInquiries[0]?.id ?? "");
+      setNewFollowUpTitle(`Revisar consulta de ${customerData.name}`);
+      setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
       setIsLoading(false);
     }
 
     loadCustomerData();
   }, [customerId, supabase]);
+
+  const activeInquiries = inquiries.filter(isActiveInquiry);
+
+  const selectedInquiry =
+    activeInquiries.find((inquiry) => inquiry.id === selectedInquiryId) ??
+    activeInquiries[0] ??
+    null;
 
   const handleSaveCustomer = async () => {
     setCustomerMessage("");
@@ -448,6 +494,12 @@ export function CustomerDetail({
             customerName: cleanName,
           }))
         );
+        setFollowUps((currentFollowUps) =>
+          currentFollowUps.map((followUp) => ({
+            ...followUp,
+            customerName: cleanName,
+          }))
+        );
         setCustomerErrorMessage(
           `El cliente se guardó, pero no se pudo actualizar el nombre en sus consultas: ${
             updateInquiriesError.message || "sin detalle del error"
@@ -470,6 +522,13 @@ export function CustomerDetail({
         customerName: cleanName,
       }))
     );
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) => ({
+        ...followUp,
+        customerName: cleanName,
+      }))
+    );
+    setNewFollowUpTitle(`Revisar consulta de ${cleanName}`);
     setCustomerMessage("Datos del cliente guardados correctamente.");
   };
 
@@ -518,6 +577,116 @@ export function CustomerDetail({
     setNotes((currentNotes) => [data, ...currentNotes]);
     setNote("");
     setNoteMessage("Nota guardada correctamente.");
+  };
+
+  const handleOpenCreateFollowUpForm = () => {
+    setCreateFollowUpMessage("");
+    setCreateFollowUpErrorMessage("");
+
+    if (selectedInquiry) {
+      setSelectedInquiryId(selectedInquiry.id);
+    }
+
+    setNewFollowUpTitle(`Revisar consulta de ${customer?.name || "cliente"}`);
+    setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+    setShowCreateFollowUpForm(true);
+  };
+
+  const handleCancelCreateFollowUpForm = () => {
+    setShowCreateFollowUpForm(false);
+    setCreateFollowUpErrorMessage("");
+  };
+
+  const handleCreateFollowUp = async () => {
+    setCreateFollowUpMessage("");
+    setCreateFollowUpErrorMessage("");
+
+    if (!customer) {
+      setCreateFollowUpErrorMessage(
+        "No se puede crear el seguimiento porque no hay cliente cargado."
+      );
+      return;
+    }
+
+    if (!selectedInquiry) {
+      setCreateFollowUpErrorMessage(
+        "Selecciona una consulta activa antes de crear el seguimiento."
+      );
+      return;
+    }
+
+    const cleanTitle = newFollowUpTitle.trim();
+
+    if (!cleanTitle) {
+      setCreateFollowUpErrorMessage(
+        "El título del seguimiento es obligatorio."
+      );
+      return;
+    }
+
+    if (!newFollowUpDueAt) {
+      setCreateFollowUpErrorMessage(
+        "La fecha y hora del seguimiento son obligatorias."
+      );
+      return;
+    }
+
+    const dueDate = new Date(newFollowUpDueAt);
+
+    if (Number.isNaN(dueDate.getTime())) {
+      setCreateFollowUpErrorMessage("La fecha indicada no es válida.");
+      return;
+    }
+
+    const dueAt = dueDate.toISOString();
+
+    setIsCreatingFollowUp(true);
+
+    const { data, error } = await supabase
+      .from("follow_ups")
+      .insert({
+        company_id: customer.company_id,
+        customer_id: customer.id,
+        inquiry_id: selectedInquiry.id,
+        title: cleanTitle,
+        due_at: dueAt,
+        status: "pending",
+        urgency: resolveFollowUpUrgency(dueAt, "pending", null),
+      })
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .single<FollowUpRow>();
+
+    setIsCreatingFollowUp(false);
+
+    if (error || !data) {
+      setCreateFollowUpErrorMessage(
+        `No se pudo crear el seguimiento: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setFollowUps((currentFollowUps) => [
+      mapFollowUpRowToFollowUp(data),
+      ...currentFollowUps,
+    ]);
+
+    setShowCreateFollowUpForm(false);
+    setNewFollowUpTitle(`Revisar consulta de ${customer.name}`);
+    setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+    setCreateFollowUpMessage("Seguimiento creado correctamente.");
   };
 
   const handleUpdateFollowUpStatus = async (
@@ -797,6 +966,128 @@ export function CustomerDetail({
         </aside>
 
         <main className="space-y-5">
+          <section>
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">
+                    Crear seguimiento
+                  </h2>
+
+                  <p className="mt-1 text-sm leading-6 text-slate-600">
+                    Crea una tarea pendiente asociada a una consulta activa de este cliente.
+                  </p>
+                </div>
+
+                {!showCreateFollowUpForm && activeInquiries.length > 0 ? (
+                  <Button onClick={handleOpenCreateFollowUpForm}>
+                    <CalendarClock size={16} />
+                    Nuevo seguimiento
+                  </Button>
+                ) : null}
+              </div>
+
+              {createFollowUpErrorMessage ? (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {createFollowUpErrorMessage}
+                </div>
+              ) : null}
+
+              {createFollowUpMessage ? (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {createFollowUpMessage}
+                </div>
+              ) : null}
+
+              {activeInquiries.length === 0 ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+                  Este cliente no tiene consultas activas. Para crear un
+                  seguimiento desde el cliente, primero debe existir una consulta
+                  nueva o pendiente asociada a él.
+                </div>
+              ) : null}
+
+              {showCreateFollowUpForm && activeInquiries.length > 0 ? (
+                <div className="mt-5 space-y-4">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Consulta asociada
+                    <select
+                      value={selectedInquiry?.id ?? ""}
+                      onChange={(event) => {
+                        const nextInquiryId = event.target.value;
+                        const nextInquiry = activeInquiries.find(
+                          (inquiry) => inquiry.id === nextInquiryId
+                        );
+
+                        setSelectedInquiryId(nextInquiryId);
+
+                        if (nextInquiry) {
+                          setNewFollowUpTitle(
+                            `Revisar consulta de ${nextInquiry.customerName}`
+                          );
+                        }
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    >
+                      {activeInquiries.map((inquiry) => (
+                        <option key={inquiry.id} value={inquiry.id}>
+                          {inquiry.subject || "Sin asunto"} · {inquiry.status}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Título
+                      <input
+                        value={newFollowUpTitle}
+                        onChange={(event) =>
+                          setNewFollowUpTitle(event.target.value)
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      />
+                    </label>
+
+                    <label className="block text-sm font-medium text-slate-700">
+                      Fecha y hora
+                      <input
+                        type="datetime-local"
+                        value={newFollowUpDueAt}
+                        onChange={(event) =>
+                          setNewFollowUpDueAt(event.target.value)
+                        }
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      />
+                    </label>
+                  </div>
+
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <Button
+                      className="w-full"
+                      onClick={handleCreateFollowUp}
+                      disabled={isCreatingFollowUp}
+                    >
+                      <CalendarClock size={16} />
+                      {isCreatingFollowUp
+                        ? "Creando seguimiento..."
+                        : "Guardar seguimiento"}
+                    </Button>
+
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      onClick={handleCancelCreateFollowUpForm}
+                      disabled={isCreatingFollowUp}
+                    >
+                      Cancelar
+                    </Button>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          </section>
+
           <section>
             <h2 className="mb-3 text-lg font-bold text-slate-950">
               Seguimientos del cliente
