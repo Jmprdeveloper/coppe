@@ -1,6 +1,7 @@
 import { ChevronRight } from "lucide-react";
-import { PriorityBadge } from "./PriorityBadge";
+
 import { CategoryBadge } from "./CategoryBadge";
+import { PriorityBadge } from "./PriorityBadge";
 import { StatusBadge } from "./StatusBadge";
 import type { Inquiry } from "../types";
 
@@ -10,6 +11,10 @@ type InquiryCardProps = {
 };
 
 export function InquiryCard({ inquiry, onOpen }: InquiryCardProps) {
+  const subject = inquiry.subject || "Sin asunto";
+  const summary =
+    inquiry.aiSummary || inquiry.originalMessage || "Sin resumen disponible";
+
   return (
     <button
       onClick={() => onOpen(inquiry.id)}
@@ -27,8 +32,12 @@ export function InquiryCard({ inquiry, onOpen }: InquiryCardProps) {
             <StatusBadge status={inquiry.status} />
           </div>
 
-          <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-600">
-            {inquiry.aiSummary}
+          <div className="mt-2 font-medium text-slate-800">
+            {subject}
+          </div>
+
+          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
+            {summary}
           </p>
         </div>
 
