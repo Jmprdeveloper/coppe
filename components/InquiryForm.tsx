@@ -94,8 +94,6 @@ async function requestInquiryAnalysis(
   };
 }
 
-
-
 export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -346,9 +344,8 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       .select("id")
       .single<CreatedInquiryRow>();
 
-    setIsSubmitting(false);
-
     if (createInquiryError || !createdInquiry) {
+      setIsSubmitting(false);
       setErrorMessage(
         `No se pudo crear la consulta: ${
           createInquiryError?.message || "sin detalle del error"
@@ -357,7 +354,30 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       return;
     }
 
+    const { error: createInitialMessageError } = await supabase
+      .from("inquiry_messages")
+      .insert({
+        company_id: company.id,
+        inquiry_id: createdInquiry.id,
+        customer_id: customerId,
+        direction: "inbound",
+        author_type: "customer",
+        body: cleanMessage,
+        source_channel: cleanSourceChannel,
+      });
+
+    setIsSubmitting(false);
     setCreatedInquiryId(createdInquiry.id);
+
+    if (createInitialMessageError) {
+      setSuccessMessage(
+        `Consulta creada, pero no se pudo guardar el mensaje inicial en el historial del caso: ${
+          createInitialMessageError.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
     setSuccessMessage("Consulta creada correctamente.");
   };
 
