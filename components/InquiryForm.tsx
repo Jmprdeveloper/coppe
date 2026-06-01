@@ -10,7 +10,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
-import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
+import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";   
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import { createClient } from "../lib/supabase/client";
 
@@ -79,7 +79,7 @@ async function requestInquiryAnalysis(
   const analysisErrorMessage =
     typeof analysisPayload?.error === "string" && analysisPayload.error.trim()
       ? analysisPayload.error.trim()
-      : "No se pudo analizar la consulta antes de guardarla.";
+      : "No se pudo analizar el mensaje antes de guardarlo.";
 
   if (!analysisResponse.ok || !analysisPayload?.analysis) {
     return {
@@ -136,7 +136,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     }
 
     if (!cleanMessage) {
-      setErrorMessage("El mensaje de la consulta es obligatorio.");
+      setErrorMessage("El mensaje recibido es obligatorio.");
       return;
     }
 
@@ -236,7 +236,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       if (matchingCustomersByPhone.length > 1) {
         setIsSubmitting(false);
         setErrorMessage(
-          "Ya existen varios clientes con ese mismo teléfono. Revisa la ficha de clientes antes de crear una nueva consulta."
+          "Ya existen varios clientes con ese mismo teléfono. Revisa la ficha de clientes antes de registrar un nuevo caso."
         );
         return;
       }
@@ -251,7 +251,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     ) {
       setIsSubmitting(false);
       setErrorMessage(
-        "El email y el teléfono introducidos pertenecen a clientes distintos. Revisa los datos antes de crear la consulta."
+        "El email y el teléfono introducidos pertenecen a clientes distintos. Revisa los datos antes de registrar el caso."
       );
       return;
     }
@@ -347,7 +347,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     if (createInquiryError || !createdInquiry) {
       setIsSubmitting(false);
       setErrorMessage(
-        `No se pudo crear la consulta: ${
+        `No se pudo crear el caso: ${
           createInquiryError?.message || "sin detalle del error"
         }`
       );
@@ -371,21 +371,21 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
 
     if (createInitialMessageError) {
       setSuccessMessage(
-        `Consulta creada, pero no se pudo guardar el mensaje inicial en el historial del caso: ${
+        `Caso creado, pero no se pudo guardar el mensaje inicial en el historial del caso: ${
           createInitialMessageError.message || "sin detalle del error"
         }`
       );
       return;
     }
 
-    setSuccessMessage("Consulta creada correctamente.");
+    setSuccessMessage("Caso creado correctamente.");
   };
 
   return (
     <div className="mx-auto max-w-3xl">
       <PageHeader
-        title="Nueva consulta"
-        description="Registra una consulta recibida desde una web, formulario o canal externo."
+        title="Registrar mensaje"
+        description="Registra un mensaje recibido de un cliente para que COPPE lo convierta en un caso de atención."
       />
 
       <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
@@ -457,7 +457,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
             <div className="mt-5 flex flex-wrap gap-2">
               <Button onClick={handleSubmit} disabled={isSubmitting}>
                 <Sparkles size={16} />
-                {isSubmitting ? "Creando consulta..." : "Crear consulta"}
+                {isSubmitting ? "Registrando mensaje..." : "Registrar mensaje"}
               </Button>
 
               <Button
@@ -476,17 +476,17 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
             </div>
 
             <h2 className="mt-4 text-xl font-bold text-slate-950">
-              Consulta creada
+              Caso creado
             </h2>
 
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
               {successMessage ||
-                "COPPE ha registrado la consulta y ha generado una clasificación inicial."}
+                "COPPE ha registrado el mensaje, ha creado el caso y ha generado una clasificación inicial."}
             </p>
 
             <div className="mt-5 flex flex-wrap justify-center gap-2">
               <Button onClick={() => openInquiry(createdInquiryId)}>
-                Ver consulta analizada
+                Ver caso analizado
               </Button>
 
               <Button
@@ -497,7 +497,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
               </Button>
 
               <Button variant="ghost" onClick={resetForm}>
-                Crear otra consulta
+                Registrar otro mensaje
               </Button>
             </div>
           </div>

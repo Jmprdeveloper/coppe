@@ -30,7 +30,7 @@ import { Topbar } from "./Topbar";
 
 const navigation = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "inquiries", label: "Consultas", icon: Inbox },
+  { key: "inquiries", label: "Casos", icon: Inbox },
   { key: "customers", label: "Clientes", icon: UsersRound },
   { key: "followups", label: "Seguimientos", icon: CalendarClock },
   { key: "settings", label: "Configuración", icon: Settings },

@@ -116,7 +116,7 @@ async function requestInquiryAnalysis(
   const analysisErrorMessage =
     typeof analysisPayload?.error === "string" && analysisPayload.error.trim()
       ? analysisPayload.error.trim()
-      : "No se pudo reanalizar la consulta.";
+      : "No se pudo reanalizar el caso.";
 
   if (!analysisResponse.ok || !analysisPayload?.analysis) {
     return {
@@ -345,7 +345,7 @@ export function InquiryDetail({
 
       if (inquiryError) {
         setErrorMessage(
-          `No se pudo cargar la consulta: ${
+          `No se pudo cargar el caso: ${
             inquiryError.message || "sin detalle del error"
           }`
         );
@@ -355,7 +355,7 @@ export function InquiryDetail({
 
       if (!inquiryData) {
         setErrorMessage(
-          "No se encontró esta consulta o no pertenece a tu empresa."
+          "No se encontró este caso o no pertenece a tu empresa."
         );
         setIsLoading(false);
         return;
@@ -363,7 +363,7 @@ export function InquiryDetail({
 
       setInquiry(mapInquiryRowToInquiry(inquiryData));
       setRawInquiry(inquiryData);
-      setFollowUpTitle(`Revisar consulta de ${inquiryData.customer_name}`);
+      setFollowUpTitle(`Revisar caso de ${inquiryData.customer_name}`);
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
       if (inquiryData.customer_id) {
@@ -387,7 +387,7 @@ export function InquiryDetail({
 
       if (inquiryMessagesError) {
         setErrorMessage(
-          `Se cargó la consulta, pero no se pudieron cargar sus mensajes: ${
+          `Se cargó el caso, pero no se pudieron cargar sus mensajes: ${
             inquiryMessagesError.message || "sin detalle del error"
           }`
         );
@@ -415,7 +415,7 @@ export function InquiryDetail({
 
       if (followUpsError) {
         setErrorMessage(
-          `Se cargó la consulta, pero no se pudieron cargar sus seguimientos: ${
+          `Se cargó el caso, pero no se pudieron cargar sus seguimientos: ${
             followUpsError.message || "sin detalle del error"
           }`
         );
@@ -431,7 +431,7 @@ export function InquiryDetail({
 
       if (notesError) {
         setErrorMessage(
-          `Se cargó la consulta, pero no se pudieron cargar sus notas: ${
+          `Se cargó el caso, pero no se pudieron cargar sus notas: ${
             notesError.message || "sin detalle del error"
           }`
         );
@@ -465,7 +465,7 @@ export function InquiryDetail({
     if (
       newStatus === "discarded" &&
       !window.confirm(
-        "¿Seguro que quieres descartar esta consulta? No se eliminará del historial, pero dejará de tratarse como pendiente."
+        "¿Seguro que quieres descartar este caso? No se eliminará del historial, pero dejará de tratarse como pendiente."
       )
     ) {
       return false;
@@ -477,7 +477,7 @@ export function InquiryDetail({
         inquiry.status === "closed" ||
         inquiry.status === "discarded") &&
       !window.confirm(
-        "¿Seguro que quieres reabrir esta consulta? Volverá a tratarse como pendiente."
+        "¿Seguro que quieres reabrir este caso? Volverá a tratarse como pendiente."
       )
     ) {
       return false;
@@ -509,22 +509,22 @@ export function InquiryDetail({
     });
 
     if (newStatus === "pending") {
-      setStatusMessage("Consulta reabierta correctamente.");
+      setStatusMessage("Caso reabierto correctamente.");
       return true;
     }
 
     if (newStatus === "replied") {
-      setStatusMessage("Consulta marcada como respondida.");
+      setStatusMessage("Caso marcado como respondido.");
       return true;
     }
 
     if (newStatus === "closed") {
-      setStatusMessage("Consulta cerrada correctamente.");
+      setStatusMessage("Caso cerrado correctamente.");
       return true;
     }
 
     if (newStatus === "discarded") {
-      setStatusMessage("Consulta descartada correctamente.");
+      setStatusMessage("Caso descartado correctamente.");
       return true;
     }
 
@@ -540,7 +540,7 @@ export function InquiryDetail({
 
     if (!rawInquiry || !inquiry) {
       setStatusErrorMessage(
-        "No se puede registrar la respuesta porque no hay consulta cargada."
+        "No se puede registrar la respuesta porque no hay caso cargado."
       );
       return false;
     }
@@ -607,7 +607,7 @@ export function InquiryDetail({
 
     if (!rawInquiry) {
       setNoteErrorMessage(
-        "No se puede guardar la nota porque no hay consulta cargada."
+        "No se puede guardar la nota porque no hay caso cargado."
       );
       return;
     }
@@ -654,7 +654,7 @@ export function InquiryDetail({
 
     if (!rawInquiry || !inquiry) {
       setReanalysisErrorMessage(
-        "No se puede reanalizar porque no hay consulta cargada."
+        "No se puede reanalizar porque no hay caso cargado."
       );
       return;
     }
@@ -663,7 +663,7 @@ export function InquiryDetail({
 
     if (!cleanAdditionalInfo) {
       setReanalysisErrorMessage(
-        "Pega la nueva información recibida del cliente antes de reanalizar."
+        "Pega el nuevo mensaje recibido del cliente antes de reanalizar."
       );
       return;
     }
@@ -782,7 +782,7 @@ export function InquiryDetail({
     ]);
     setAdditionalCustomerInfo("");
     setReanalysisMessage(
-      "Consulta reanalizada correctamente con la información adicional del cliente."
+      "Caso reanalizado correctamente con el nuevo mensaje del cliente."
     );
   };
 
@@ -792,14 +792,14 @@ export function InquiryDetail({
 
     if (!rawInquiry || !inquiry) {
       setFollowUpCreateErrorMessage(
-        "No se puede crear el seguimiento porque no hay consulta cargada."
+        "No se puede crear el seguimiento porque no hay caso cargado."
       );
       return;
     }
 
     if (inquiry.status !== "new" && inquiry.status !== "pending") {
       setFollowUpCreateErrorMessage(
-        "No se puede crear un seguimiento sobre una consulta finalizada. Reabre la consulta primero."
+        "No se puede crear un seguimiento sobre un caso finalizado. Reabre el caso primero."
       );
       return;
     }
@@ -835,8 +835,8 @@ export function InquiryDetail({
       currentPendingFollowUps.length > 0 &&
       !window.confirm(
         currentPendingFollowUps.length === 1
-          ? "Esta consulta ya tiene un seguimiento pendiente. ¿Quieres crear otro seguimiento de todos modos?"
-          : `Esta consulta ya tiene ${currentPendingFollowUps.length} seguimientos pendientes. ¿Quieres crear otro seguimiento de todos modos?`
+          ? "Este caso ya tiene un seguimiento pendiente. ¿Quieres crear otro seguimiento de todos modos?"
+          : `Este caso ya tiene ${currentPendingFollowUps.length} seguimientos pendientes. ¿Quieres crear otro seguimiento de todos modos?`
       )
     ) {
       return;
@@ -1066,11 +1066,11 @@ export function InquiryDetail({
           onClick={() => setActiveView("inquiries")}
           className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
         >
-          ← Volver a consultas
+          ← Volver a casos
         </button>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando consulta desde Supabase...
+          Cargando caso desde Supabase...
         </div>
       </div>
     );
@@ -1082,15 +1082,15 @@ export function InquiryDetail({
         <XCircle className="mx-auto text-slate-400" />
 
         <h2 className="mt-3 font-bold text-slate-950">
-          Consulta no encontrada
+          Caso no encontrado
         </h2>
 
         <p className="mt-2 text-sm text-slate-500">
-          {errorMessage || "No se pudo cargar esta consulta."}
+          {errorMessage || "No se pudo cargar este caso."}
         </p>
 
         <Button className="mt-4" onClick={() => setActiveView("inquiries")}>
-          Volver a consultas
+          Volver a casos
         </Button>
       </div>
     );
@@ -1131,11 +1131,11 @@ export function InquiryDetail({
             onClick={() => setActiveView("inquiries")}
             className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
           >
-            ← Volver a consultas
+            ← Volver a casos
           </button>
 
           <h1 className="text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
-            Consulta de {inquiry.customerName}
+            Caso de {inquiry.customerName}
           </h1>
 
           <div className="mt-2 text-sm font-medium text-slate-600">
@@ -1172,7 +1172,7 @@ export function InquiryDetail({
               onClick={() => handleUpdateStatus("pending")}
               disabled={isUpdatingStatus}
             >
-              Reabrir consulta
+              Reabrir caso
             </Button>
           ) : null}
 
@@ -1184,7 +1184,7 @@ export function InquiryDetail({
                 disabled={isUpdatingStatus}
               >
                 <CheckCircle2 size={16} />
-                {isUpdatingStatus ? "Actualizando..." : "Marcar respondida"}
+                {isUpdatingStatus ? "Actualizando..." : "Marcar respondido"}
               </Button>
 
               <Button
@@ -1200,7 +1200,7 @@ export function InquiryDetail({
                 onClick={() => handleUpdateStatus("discarded")}
                 disabled={isUpdatingStatus}
               >
-                Descartar consulta
+                Descartar caso
               </Button>
             </>
           ) : null}
@@ -1215,7 +1215,7 @@ export function InquiryDetail({
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Historial de mensajes recibidos o registrados dentro de esta consulta.
+              Historial de mensajes recibidos o registrados dentro de este caso.
             </p>
 
             <div className="mt-4 space-y-3">
@@ -1263,13 +1263,13 @@ export function InquiryDetail({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-slate-950">
-              Información adicional del cliente
+              Nuevo mensaje del cliente
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-600">
-              Usa este bloque cuando el cliente aporte datos nuevos sobre esta
-              misma consulta. COPPE guardará el nuevo mensaje en el caso y
-              reanalizará el contexto completo sin crear una consulta nueva.
+              Usa este bloque cuando el cliente aporte datos nuevos sobre este
+              mismo caso. COPPE guardará el nuevo mensaje y reanalizará el
+              contexto completo sin crear un caso nuevo.
             </p>
 
             <textarea
@@ -1307,8 +1307,8 @@ export function InquiryDetail({
               >
                 <Sparkles size={16} />
                 {isReanalyzingInquiry
-                  ? "Reanalizando consulta..."
-                  : "Añadir y reanalizar"}
+                  ? "Reanalizando caso..."
+                  : "Guardar mensaje y reanalizar"}
               </Button>
 
               <Button
@@ -1363,12 +1363,12 @@ export function InquiryDetail({
               shouldShowCreateFollowUpForm ? (
                 <>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Crea una nueva tarea para volver a revisar esta consulta en una fecha concreta.
+                    Crea una nueva tarea para volver a revisar este caso en una fecha concreta.
                   </p>
 
                   {pendingFollowUps.length > 0 ? (
                     <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Ya existe un seguimiento pendiente para esta consulta.
+                      Ya existe un seguimiento pendiente para este caso.
                       Crea otro solo si necesitas un recordatorio adicional.
                     </div>
                   ) : null}
@@ -1445,7 +1445,7 @@ export function InquiryDetail({
               ) : (
                 <>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Esta consulta ya tiene un seguimiento pendiente. Si necesitas
+                    Este caso ya tiene un seguimiento pendiente. Si necesitas
                     programar otro recordatorio distinto, puedes crear uno adicional.
                   </p>
 
@@ -1461,8 +1461,8 @@ export function InquiryDetail({
             ) : (
               <>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Esta consulta está finalizada. Para crear un seguimiento,
-                  primero reabre la consulta.
+                  Este caso está finalizado. Para crear un seguimiento,
+                  primero reabre el caso.
                 </p>
 
                 {followUpCreateErrorMessage ? (
@@ -1482,7 +1482,7 @@ export function InquiryDetail({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">
-              Seguimientos de la consulta
+              Seguimientos del caso
             </h3>
 
             {followUpActionErrorMessage ? (
@@ -1551,7 +1551,7 @@ export function InquiryDetail({
 
             {followUps.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Todavía no hay seguimientos asociados a esta consulta.
+                Todavía no hay seguimientos asociados a este caso.
               </p>
             ) : (
               <div className="mt-4 space-y-4">
@@ -1646,11 +1646,11 @@ export function InquiryDetail({
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Notas de la consulta</h3>
+            <h3 className="font-bold text-slate-950">Notas del caso</h3>
 
             {notes.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-600">
-                Todavía no hay notas internas para esta consulta.
+                Todavía no hay notas internas para este caso.
               </p>
             ) : (
               <div className="mt-4 space-y-3">

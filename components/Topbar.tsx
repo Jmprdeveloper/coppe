@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";   
 import type { ElementType } from "react";
 import { Building2, LogOut, Plus, Search, UserRound, X } from "lucide-react";
 
@@ -81,9 +81,9 @@ function getCurrentViewLabel(
   }
 
   const detailLabels: Record<string, string> = {
-    inquiryDetail: "Detalle de consulta",
+    inquiryDetail: "Detalle de caso",
     customerDetail: "Detalle de cliente",
-    InquiryForm: "Nueva consulta",
+    InquiryForm: "Registrar mensaje",
   };
 
   return detailLabels[activeView] ?? "COPPE";
@@ -95,7 +95,7 @@ function resultTypeLabel(type: SearchResult["type"]) {
   }
 
   if (type === "inquiry") {
-    return "Consulta";
+    return "Caso";
   }
 
   return "Seguimiento";
@@ -123,7 +123,7 @@ function customerStatusLabel(status: string) {
 
 function inquiryStatusLabel(status: string) {
   if (status === "new") {
-    return "Nueva";
+    return "Nuevo";
   }
 
   if (status === "pending") {
@@ -245,7 +245,7 @@ export function Topbar({
 
         if (inquiriesResponse.error) {
           setSearchErrorMessage(
-            `No se pudieron buscar consultas: ${
+            `No se pudieron buscar casos: ${
               inquiriesResponse.error.message || "sin detalle del error"
             }`
           );
@@ -312,8 +312,8 @@ export function Topbar({
           .map((inquiry) => ({
             id: inquiry.id,
             type: "inquiry",
-            title: inquiry.subject || `Consulta de ${inquiry.customer_name}`,
-            description: `Consulta · ${
+            title: inquiry.subject || `Caso de ${inquiry.customer_name}`,
+            description: `Caso · ${
               inquiry.customer_name
             } · ${inquiryStatusLabel(inquiry.status)}`,
           }));
@@ -398,7 +398,7 @@ export function Topbar({
       return;
     }
 
-    setSearchErrorMessage("Este seguimiento no tiene una consulta asociada.");
+    setSearchErrorMessage("Este seguimiento no tiene un caso asociado.");
   };
 
   const showSearchPanel =
@@ -442,7 +442,7 @@ export function Topbar({
               }
             }}
             className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            placeholder="Buscar consultas, clientes o seguimientos..."
+            placeholder="Buscar casos, clientes o seguimientos..."
           />
 
           {searchTerm ? (
@@ -529,7 +529,7 @@ export function Topbar({
           onClick={() => setActiveView("InquiryForm")}
           className="hidden md:inline-flex"
         >
-          <Plus size={16} /> Nueva consulta
+          <Plus size={16} /> Registrar mensaje
         </Button>
 
         {userEmail ? (

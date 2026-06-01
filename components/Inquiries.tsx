@@ -65,7 +65,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
 
       if (error) {
         setErrorMessage(
-          `No se pudieron cargar las consultas: ${
+          `No se pudieron cargar los casos: ${
             error.message || "sin detalle del error"
           }`
         );
@@ -127,11 +127,11 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   return (
     <div>
       <PageHeader
-        title="Consultas"
-        description="Todas las consultas recibidas, clasificadas por estado, prioridad y categoría."
+        title="Casos"
+        description="Todos los casos de atención registrados, clasificados por estado, prioridad y categoría."
         action={
           <Button onClick={() => setActiveView("InquiryForm")}>
-            <Plus size={16} /> Nueva consulta
+            <Plus size={16} /> Registrar mensaje
           </Button>
         }
       />
@@ -177,7 +177,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]" 
             >
               <option value="all">Todos</option>
               <option value="new">Nuevo</option>
@@ -193,7 +193,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             <select
               value={priorityFilter}
               onChange={(event) => setPriorityFilter(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]" 
             >
               <option value="all">Todas</option>
               <option value="low">Baja</option>
@@ -207,7 +207,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             <select
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]" 
             >
               <option value="all">Todas</option>
 
@@ -239,13 +239,13 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
 
       {isLoading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando consultas desde Supabase...
+          Cargando casos desde Supabase...
         </div>
       ) : null}
 
       {!isLoading && !errorMessage && filteredInquiries.length === 0 ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          No hay consultas que coincidan con los filtros actuales.
+          No hay casos que coincidan con los filtros actuales.
         </div>
       ) : null}
 

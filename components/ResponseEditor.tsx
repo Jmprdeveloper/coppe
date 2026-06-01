@@ -94,10 +94,10 @@ export function ResponseEditor({
 
     try {
       await copyResponseText(cleanText);
-      setSuccessMessage("Respuesta copiada al portapapeles.");
+      setSuccessMessage("Borrador copiado al portapapeles.");
     } catch {
       setErrorMessage(
-        "No se pudo copiar la respuesta. Selecciona el texto y cópialo manualmente."
+        "No se pudo copiar el borrador. Selecciona el texto y cópialo manualmente."
       );
     } finally {
       setIsCopying(false);
@@ -111,7 +111,7 @@ export function ResponseEditor({
     const cleanText = text.trim();
 
     if (!cleanText) {
-      setErrorMessage("La respuesta sugerida no puede quedar vacía.");
+      setErrorMessage("El borrador de respuesta no puede quedar vacío.");
       return;
     }
 
@@ -119,7 +119,7 @@ export function ResponseEditor({
 
     try {
       await saveResponseText(cleanText);
-      setSuccessMessage("Respuesta guardada correctamente.");
+      setSuccessMessage("Borrador guardado correctamente.");
     } catch (error) {
       setErrorMessage(
         error instanceof Error
@@ -138,12 +138,12 @@ export function ResponseEditor({
     const cleanText = text.trim();
 
     if (!cleanText) {
-      setErrorMessage("La respuesta sugerida no puede quedar vacía.");
+      setErrorMessage("El borrador de respuesta no puede quedar vacío.");
       return;
     }
 
     if (!onMarkAsReplied) {
-      setErrorMessage("No se pudo marcar la consulta como respondida.");
+      setErrorMessage("No se pudo marcar el caso como respondido.");
       return;
     }
 
@@ -157,13 +157,13 @@ export function ResponseEditor({
 
       if (!wasMarkedAsReplied) {
         setErrorMessage(
-          "La respuesta se guardó y se copió, pero no se pudo marcar la consulta como respondida."
+          "El borrador se guardó y se copió, pero no se pudo marcar el caso como respondido."
         );
         return;
       }
 
       setSuccessMessage(
-        "Respuesta guardada, copiada y consulta marcada como respondida."
+        "Borrador guardado, copiado y caso marcado como respondido."
       );
     } catch (error) {
       setErrorMessage(
@@ -180,10 +180,10 @@ export function ResponseEditor({
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
         <div>
-          <h3 className="font-bold text-slate-950">Respuesta sugerida</h3>
+          <h3 className="font-bold text-slate-950">Borrador de respuesta</h3>
 
           <p className="text-xs text-slate-500">
-            Edita o copia el texto antes de enviarlo al cliente.
+            Edita el borrador antes de enviarlo al cliente.
           </p>
         </div>
 
@@ -220,7 +220,7 @@ export function ResponseEditor({
           disabled={isCopying || isFinishingResponse}
         >
           <Copy size={16} />
-          {isCopying ? "Copiando..." : "Copiar respuesta"}
+          {isCopying ? "Copiando..." : "Copiar borrador"}
         </Button>
 
         <Button
@@ -245,7 +245,7 @@ export function ResponseEditor({
             <CheckCircle2 size={16} />
             {isFinishingResponse || isMarkingAsReplied
               ? "Finalizando..."
-              : "Guardar, copiar y marcar respondida"}
+              : "Guardar, copiar y marcar respondido"}
           </Button>
         ) : null}
       </div>
