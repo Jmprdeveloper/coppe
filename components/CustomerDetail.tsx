@@ -19,6 +19,7 @@ import { normalizeCustomerStatus } from "../lib/customerUtils";
 import {
   formatDateTime,
   mapInquiryRowToInquiry,
+  normalizeInquiryStatus,
   type InquiryRow,
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
@@ -126,8 +127,44 @@ function formatCustomerStatus(status: string) {
   return "Activo";
 }
 
+function formatInquiryStatus(status: string) {
+  const normalizedStatus = normalizeInquiryStatus(status);
+
+  if (normalizedStatus === "new") {
+    return "Nuevo";
+  }
+
+  if (normalizedStatus === "pending") {
+    return "En seguimiento";
+  }
+
+  if (normalizedStatus === "waiting_customer") {
+    return "Esperando al cliente";
+  }
+
+  if (normalizedStatus === "replied") {
+    return "Respondido";
+  }
+
+  if (normalizedStatus === "closed") {
+    return "Cerrado";
+  }
+
+  if (normalizedStatus === "discarded") {
+    return "Descartado";
+  }
+
+  return "Estado no indicado";
+}
+
 function isActiveInquiry(inquiry: Inquiry) {
-  return inquiry.status === "new" || inquiry.status === "pending";
+  const status = normalizeInquiryStatus(inquiry.status);
+
+  return (
+    status === "new" ||
+    status === "pending" ||
+    status === "waiting_customer"
+  );
 }
 
 export function CustomerDetail({
@@ -757,7 +794,7 @@ export function CustomerDetail({
         </button>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando cliente desde Supabase...
+          Cargando cliente...
         </div>
       </div>
     );
@@ -1003,7 +1040,7 @@ export function CustomerDetail({
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
                   Este cliente no tiene casos activos. Para crear un
                   seguimiento desde el cliente, primero debe existir un caso
-                  nueva o pendiente asociada a él.
+                  nuevo, en seguimiento o esperando al cliente asociado a él.
                 </div>
               ) : null}
 
@@ -1031,7 +1068,8 @@ export function CustomerDetail({
                     >
                       {activeInquiries.map((inquiry) => (
                         <option key={inquiry.id} value={inquiry.id}>
-                          {inquiry.subject || "Sin asunto"} · {inquiry.status}
+                          {inquiry.subject || "Sin asunto"} ·{" "}
+                          {formatInquiryStatus(inquiry.status)}
                         </option>
                       ))}
                     </select>
