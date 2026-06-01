@@ -46,6 +46,15 @@ type FollowUpRow = {
   } | null;
 };
 
+type InquiryMessageActivityRow = {
+  inquiry_id: string | null;
+  created_at: string;
+};
+
+type DashboardInquiry = Inquiry & {
+  latestActivityAt: string;
+};
+
 type DashboardFollowUp = FollowUp & {
   dueAtValue: string | null;
 };
@@ -86,7 +95,7 @@ function needsCompanyAttention(inquiry: Inquiry) {
 export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [inquiries, setInquiries] = useState<Inquiry[]>([]);
+  const [inquiries, setInquiries] = useState<DashboardInquiry[]>([]);
   const [followUps, setFollowUps] = useState<DashboardFollowUp[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
@@ -136,6 +145,54 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         return;
       }
 
+      const inquiryRows = (inquiriesData ?? []) as unknown as InquiryRow[];
+      const inquiryIds = inquiryRows.map((inquiry) => inquiry.id);
+      const latestActivityByInquiryId = new Map<string, string>();
+
+      if (inquiryIds.length > 0) {
+        const {
+          data: inquiryMessagesActivityData,
+          error: inquiryMessagesActivityError,
+        } = await supabase
+          .from("inquiry_messages")
+          .select("inquiry_id, created_at")
+          .in("inquiry_id", inquiryIds)
+          .order("created_at", { ascending: false });
+
+        if (inquiryMessagesActivityError) {
+          setErrorMessage(
+            `No se pudo cargar la actividad reciente de los casos: ${
+              inquiryMessagesActivityError.message || "sin detalle del error"
+            }`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        (
+          (inquiryMessagesActivityData ??
+            []) as unknown as InquiryMessageActivityRow[]
+        ).forEach((messageActivity) => {
+          if (!messageActivity.inquiry_id) {
+            return;
+          }
+
+          const currentLatestActivity = latestActivityByInquiryId.get(
+            messageActivity.inquiry_id
+          );
+
+          if (
+            !currentLatestActivity ||
+            messageActivity.created_at.localeCompare(currentLatestActivity) > 0
+          ) {
+            latestActivityByInquiryId.set(
+              messageActivity.inquiry_id,
+              messageActivity.created_at
+            );
+          }
+        });
+      }
+
       const { data: followUpsData, error: followUpsError } = await supabase
         .from("follow_ups")
         .select(
@@ -164,9 +221,15 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       }
 
       setInquiries(
-        ((inquiriesData ?? []) as unknown as InquiryRow[]).map(
-          mapInquiryRowToInquiry
-        )
+        inquiryRows.map((inquiryRow) => {
+          const inquiry = mapInquiryRowToInquiry(inquiryRow);
+
+          return {
+            ...inquiry,
+            latestActivityAt:
+              latestActivityByInquiryId.get(inquiry.id) ?? inquiry.createdAt,
+          };
+        })
       );
 
       setFollowUps(
@@ -263,7 +326,15 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         return priorityDifference;
       }
 
-      return a.createdAt.localeCompare(b.createdAt);
+      const activityDifference = b.latestActivityAt.localeCompare(
+        a.latestActivityAt
+      );
+
+      if (activityDifference !== 0) {
+        return activityDifference;
+      }
+
+      return b.createdAt.localeCompare(a.createdAt);
     })
     .slice(0, 3);
 
@@ -309,7 +380,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
 
       {isLoading ? (
         <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando dashboard desde Supabase...
+          Cargando dashboard...
         </div>
       ) : null}
 
