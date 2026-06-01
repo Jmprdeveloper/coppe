@@ -18,7 +18,7 @@ type Feature = {
   const features: Feature[] = [
     {
       icon: Inbox,
-      title: "Centraliza consultas",
+      title: "Centraliza mensajes de clientes",
       text: "Reúne mensajes y solicitudes en un panel claro.",
     },
     {
@@ -68,11 +68,11 @@ export function Landing({ setActiveView }: LandingProps) {
             </div>
 
             <h1 className="mt-6 max-w-3xl text-4xl font-bold tracking-tight text-slate-950 md:text-6xl">
-              Organiza consultas, responde más rápido y no pierdas clientes.
+              Organiza mensajes de clientes, prepara respuestas con IA y no pierdas oportunidades.
             </h1>
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              COPPE centraliza consultas, resume mensajes con IA y ayuda a
+              COPPE convierte mensajes de clientes en casos organizados, resume el contexto con IA y ayuda a
               pequeñas empresas a gestionar seguimientos sin complicaciones.
             </p>
 
@@ -95,7 +95,7 @@ export function Landing({ setActiveView }: LandingProps) {
               <div className="mb-4 flex items-center justify-between">
                 <div>
                   <div className="font-bold text-slate-950">
-                    Consulta nueva
+                    Caso nuevo
                   </div>
                   <div className="text-xs text-slate-500">
                     Analizada por COPPE

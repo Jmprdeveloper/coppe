@@ -199,7 +199,7 @@ export function CompanyOnboarding({
                     setErrorMessage("");
                   }}
                   className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Describe brevemente qué hace la empresa y qué tipo de consultas recibe."
+                  placeholder="Describe brevemente qué hace la empresa y qué tipo de mensajes o casos recibe de sus clientes."
                 />
               </label>
 

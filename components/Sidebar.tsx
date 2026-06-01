@@ -69,7 +69,7 @@ export function Sidebar({
           Espacio activo
         </div>
         <p className="mt-1 text-xs leading-5 text-emerald-700">
-          Clientes, casos, mensajes, notas y seguimientos conectados a Supabase.
+          Clientes, casos, mensajes, notas y seguimientos centralizados en tu espacio de trabajo.
         </p>
       </div>
     </aside>

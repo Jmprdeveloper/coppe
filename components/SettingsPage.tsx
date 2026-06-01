@@ -176,7 +176,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Estos datos ayudan a COPPE a contextualizar las consultas y a
+              Estos datos ayudan a COPPE a contextualizar los mensajes, casos y respuestas de la empresa, y a
               preparar respuestas más adecuadas para tu actividad.
             </p>
 
@@ -229,7 +229,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                     setErrorMessage("");
                   }}
                   className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Describe brevemente qué hace la empresa y qué tipo de consultas recibe."
+                  placeholder="Describe brevemente qué hace la empresa y qué tipo de mensajes o casos recibe de sus clientes."
                 />
               </label>
             </div>
@@ -314,7 +314,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
               <p className="mt-2">
                 La información de empresa se usa para contextualizar nuevas
-                consultas, recomendaciones internas y respuestas sugeridas.
+                casos, recomendaciones internas y borradores de respuesta.
               </p>
 
               <p className="mt-3">
