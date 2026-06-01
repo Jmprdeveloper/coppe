@@ -48,6 +48,15 @@ type InternalNoteRow = {
   created_at: string;
 };
 
+type InquiryMessageRow = {
+  id: string;
+  direction: string;
+  author_type: string;
+  body: string;
+  source_channel: string | null;
+  created_at: string;
+};
+
 type FollowUpRow = {
   id: string;
   title: string;
@@ -122,11 +131,59 @@ async function requestInquiryAnalysis(
   };
 }
 
-function buildInquiryContextWithAdditionalInfo(
-  currentMessage: string,
+function getMessageAuthorLabel(authorType: string) {
+  if (authorType === "customer") {
+    return "Cliente";
+  }
+
+  if (authorType === "company") {
+    return "Empresa";
+  }
+
+  if (authorType === "ai") {
+    return "COPPE";
+  }
+
+  return "Mensaje";
+}
+
+function getMessageDirectionLabel(direction: string) {
+  if (direction === "inbound") {
+    return "Recibido";
+  }
+
+  if (direction === "outbound") {
+    return "Salida";
+  }
+
+  return "Mensaje";
+}
+
+function buildInquiryContextFromMessages(
+  messages: InquiryMessageRow[],
+  fallbackMessage: string,
   additionalInfo: string
 ) {
-  return `${currentMessage.trim()}\n\nInformación adicional recibida del cliente:\n${additionalInfo.trim()}`;
+  const contextMessages =
+    messages.length > 0
+      ? messages
+      : [
+          {
+            id: "fallback-original-message",
+            direction: "inbound",
+            author_type: "customer",
+            body: fallbackMessage,
+            source_channel: null,
+            created_at: new Date().toISOString(),
+          },
+        ];
+
+  return [
+    ...contextMessages.map((message) => {
+      return `${getMessageAuthorLabel(message.author_type)}:\n${message.body.trim()}`;
+    }),
+    `Cliente:\n${additionalInfo.trim()}`,
+  ].join("\n\n");
 }
 
 function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
@@ -187,6 +244,9 @@ export function InquiryDetail({
   const [rawInquiry, setRawInquiry] = useState<InquiryDetailRow | null>(null);
   const [customer, setCustomer] = useState<CustomerRow | null>(null);
   const [notes, setNotes] = useState<InternalNoteRow[]>([]);
+  const [inquiryMessages, setInquiryMessages] = useState<InquiryMessageRow[]>(
+    []
+  );
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [note, setNote] = useState("");
   const [additionalCustomerInfo, setAdditionalCustomerInfo] = useState("");
@@ -245,6 +305,7 @@ export function InquiryDetail({
       setRawInquiry(null);
       setCustomer(null);
       setNotes([]);
+      setInquiryMessages([]);
       setFollowUps([]);
       setNote("");
       setAdditionalCustomerInfo("");
@@ -317,6 +378,23 @@ export function InquiryDetail({
         }
       }
 
+      const { data: inquiryMessagesData, error: inquiryMessagesError } =
+        await supabase
+          .from("inquiry_messages")
+          .select("id, direction, author_type, body, source_channel, created_at")
+          .eq("inquiry_id", inquiryData.id)
+          .order("created_at", { ascending: true });
+
+      if (inquiryMessagesError) {
+        setErrorMessage(
+          `Se cargó la consulta, pero no se pudieron cargar sus mensajes: ${
+            inquiryMessagesError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const { data: followUpsData, error: followUpsError } = await supabase
         .from("follow_ups")
         .select(
@@ -361,6 +439,7 @@ export function InquiryDetail({
         return;
       }
 
+      setInquiryMessages((inquiryMessagesData ?? []) as InquiryMessageRow[]);
       setFollowUps(
         ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
           mapFollowUpRowToFollowUp
@@ -520,14 +599,15 @@ export function InquiryDetail({
       return;
     }
 
-    const updatedOriginalMessage = buildInquiryContextWithAdditionalInfo(
+    const updatedCaseContext = buildInquiryContextFromMessages(
+      inquiryMessages,
       inquiry.originalMessage,
       cleanAdditionalInfo
     );
 
-    if (updatedOriginalMessage.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
+    if (updatedCaseContext.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
       setReanalysisErrorMessage(
-        `La consulta completa no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres. Resume la información adicional antes de reanalizar.`
+        `El contexto completo del caso no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres. Resume la información adicional antes de reanalizar.`
       );
       return;
     }
@@ -537,11 +617,35 @@ export function InquiryDetail({
     const {
       analysis,
       errorMessage: analysisErrorMessage,
-    } = await requestInquiryAnalysis(inquiry.customerName, updatedOriginalMessage);
+    } = await requestInquiryAnalysis(inquiry.customerName, updatedCaseContext);
 
     if (!analysis) {
       setIsReanalyzingInquiry(false);
       setReanalysisErrorMessage(analysisErrorMessage);
+      return;
+    }
+
+    const { data: createdMessage, error: createMessageError } = await supabase
+      .from("inquiry_messages")
+      .insert({
+        company_id: rawInquiry.company_id,
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        direction: "inbound",
+        author_type: "customer",
+        body: cleanAdditionalInfo,
+        source_channel: rawInquiry.source_channel,
+      })
+      .select("id, direction, author_type, body, source_channel, created_at")
+      .single<InquiryMessageRow>();
+
+    if (createMessageError || !createdMessage) {
+      setIsReanalyzingInquiry(false);
+      setReanalysisErrorMessage(
+        `No se pudo guardar el nuevo mensaje del cliente: ${
+          createMessageError?.message || "sin detalle del error"
+        }`
+      );
       return;
     }
 
@@ -554,7 +658,6 @@ export function InquiryDetail({
       .from("inquiries")
       .update({
         subject: analysis.subject,
-        original_message: updatedOriginalMessage,
         ai_summary: analysis.summary,
         ai_intent: analysis.intent,
         ai_category: analysis.category,
@@ -604,6 +707,10 @@ export function InquiryDetail({
 
     setRawInquiry(updatedInquiry);
     setInquiry(mapInquiryRowToInquiry(updatedInquiry));
+    setInquiryMessages((currentMessages) => [
+      ...currentMessages,
+      createdMessage,
+    ]);
     setAdditionalCustomerInfo("");
     setReanalysisMessage(
       "Consulta reanalizada correctamente con la información adicional del cliente."
@@ -1034,13 +1141,55 @@ export function InquiryDetail({
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <main className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
-              Mensaje original y contexto acumulado
-            </div>
+            <h2 className="text-lg font-bold text-slate-950">
+              Mensajes del caso
+            </h2>
 
-            <p className="whitespace-pre-wrap text-base leading-7 text-slate-900">
-              {inquiry.originalMessage}
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Historial de mensajes recibidos o registrados dentro de esta consulta.
             </p>
+
+            <div className="mt-4 space-y-3">
+              {inquiryMessages.length > 0 ? (
+                inquiryMessages.map((message) => (
+                  <article
+                    key={message.id}
+                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                  >
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        {getMessageAuthorLabel(message.author_type)} ·{" "}
+                        {getMessageDirectionLabel(message.direction)}
+                      </div>
+
+                      <div className="text-xs text-slate-500">
+                        {formatDateTime(message.created_at)}
+                      </div>
+                    </div>
+
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                      {message.body}
+                    </p>
+
+                    {message.source_channel ? (
+                      <div className="mt-3 text-xs text-slate-500">
+                        Canal: {message.source_channel}
+                      </div>
+                    ) : null}
+                  </article>
+                ))
+              ) : (
+                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Cliente · Recibido
+                  </div>
+
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                    {inquiry.originalMessage}
+                  </p>
+                </article>
+              )}
+            </div>
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1050,8 +1199,8 @@ export function InquiryDetail({
 
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Usa este bloque cuando el cliente aporte datos nuevos sobre esta
-              misma consulta. COPPE reanalizará la consulta completa sin crear
-              una consulta nueva.
+              misma consulta. COPPE guardará el nuevo mensaje en el caso y
+              reanalizará el contexto completo sin crear una consulta nueva.
             </p>
 
             <textarea
@@ -1090,7 +1239,7 @@ export function InquiryDetail({
                 <Sparkles size={16} />
                 {isReanalyzingInquiry
                   ? "Reanalizando consulta..."
-                  : "Reanalizar consulta"}
+                  : "Añadir y reanalizar"}
               </Button>
 
               <Button
