@@ -95,6 +95,8 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   const normalizedSearch = normalizeSearchText(appliedSearchTerm);
 
   const filteredInquiries = inquiries.filter((inquiry) => {
+    const normalizedStatus = normalizeInquiryStatus(inquiry.status);
+
     const matchesSearch =
       !normalizedSearch ||
       normalizeSearchText(inquiry.customer_name).includes(normalizedSearch) ||
@@ -106,7 +108,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
       normalizeSearchText(inquiry.ai_category).includes(normalizedSearch);
 
     const matchesStatus =
-      statusFilter === "all" || inquiry.status === statusFilter;
+      statusFilter === "all" || normalizedStatus === statusFilter;
 
     const matchesPriority =
       priorityFilter === "all" || inquiry.ai_priority === priorityFilter;
@@ -177,11 +179,12 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             <select
               value={statusFilter}
               onChange={(event) => setStatusFilter(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]" 
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
             >
               <option value="all">Todos</option>
               <option value="new">Nuevo</option>
               <option value="pending">En seguimiento</option>
+              <option value="waiting_customer">Esperando al cliente</option>
               <option value="replied">Respondido</option>
               <option value="closed">Cerrado</option>
               <option value="discarded">Descartado</option>
@@ -193,7 +196,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             <select
               value={priorityFilter}
               onChange={(event) => setPriorityFilter(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]" 
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
             >
               <option value="all">Todas</option>
               <option value="low">Baja</option>
@@ -207,7 +210,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             <select
               value={categoryFilter}
               onChange={(event) => setCategoryFilter(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]" 
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
             >
               <option value="all">Todas</option>
 
