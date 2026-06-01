@@ -13,6 +13,8 @@ type ResponseEditorProps = {
   canMarkAsReplied?: boolean;
   isMarkingAsReplied?: boolean;
   onMarkAsReplied?: (responseText: string) => Promise<boolean>;
+  canMarkAsWaitingCustomer?: boolean;
+  onMarkAsWaitingCustomer?: (responseText: string) => Promise<boolean>;
 };
 
 export function ResponseEditor({
@@ -20,6 +22,8 @@ export function ResponseEditor({
   canMarkAsReplied = false,
   isMarkingAsReplied = false,
   onMarkAsReplied,
+  canMarkAsWaitingCustomer = false,
+  onMarkAsWaitingCustomer,
 }: ResponseEditorProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -27,6 +31,8 @@ export function ResponseEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isCopying, setIsCopying] = useState(false);
   const [isFinishingResponse, setIsFinishingResponse] = useState(false);
+  const [isFinishingWaitingCustomer, setIsFinishingWaitingCustomer] =
+    useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -176,6 +182,52 @@ export function ResponseEditor({
     }
   };
 
+  const handleWaitForCustomer = async () => {
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    const cleanText = text.trim();
+
+    if (!cleanText) {
+      setErrorMessage("El borrador de respuesta no puede quedar vacío.");
+      return;
+    }
+
+    if (!onMarkAsWaitingCustomer) {
+      setErrorMessage("No se pudo marcar el caso como esperando al cliente.");
+      return;
+    }
+
+    setIsFinishingWaitingCustomer(true);
+
+    try {
+      await saveResponseText(cleanText);
+      await copyResponseText(cleanText);
+
+      const wasMarkedAsWaitingCustomer = await onMarkAsWaitingCustomer(
+        cleanText
+      );
+
+      if (!wasMarkedAsWaitingCustomer) {
+        setErrorMessage(
+          "El borrador se guardó y se copió, pero no se pudo marcar el caso como esperando al cliente."
+        );
+        return;
+      }
+
+      setSuccessMessage(
+        "Borrador guardado, copiado y caso marcado como esperando al cliente."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo completar la acción."
+      );
+    } finally {
+      setIsFinishingWaitingCustomer(false);
+    }
+  };
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -217,7 +269,7 @@ export function ResponseEditor({
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           onClick={handleCopy}
-          disabled={isCopying || isFinishingResponse}
+          disabled={isCopying || isFinishingResponse || isFinishingWaitingCustomer}
         >
           <Copy size={16} />
           {isCopying ? "Copiando..." : "Copiar borrador"}
@@ -226,11 +278,28 @@ export function ResponseEditor({
         <Button
           variant="secondary"
           onClick={handleSave}
-          disabled={isSaving || isFinishingResponse}
+          disabled={isSaving || isFinishingResponse || isFinishingWaitingCustomer}
         >
           {isSaving ? "Guardando..." : "Guardar cambios"}
         </Button>
 
+        {canMarkAsWaitingCustomer ? (
+          <Button
+            variant="secondary"
+            onClick={handleWaitForCustomer}
+            disabled={
+              isSaving ||
+              isCopying ||
+              isFinishingResponse ||
+              isFinishingWaitingCustomer ||
+              isMarkingAsReplied
+            }
+          >
+            {isFinishingWaitingCustomer || isMarkingAsReplied
+              ? "Actualizando..."
+              : "Guardar, copiar y esperar respuesta"}
+          </Button>
+        ) : null}
         {canMarkAsReplied ? (
           <Button
             variant="secondary"
@@ -239,6 +308,7 @@ export function ResponseEditor({
               isSaving ||
               isCopying ||
               isFinishingResponse ||
+              isFinishingWaitingCustomer ||
               isMarkingAsReplied
             }
           >

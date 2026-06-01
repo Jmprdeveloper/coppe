@@ -513,6 +513,11 @@ export function InquiryDetail({
       return true;
     }
 
+    if (newStatus === "waiting_customer") {
+      setStatusMessage("Caso marcado como esperando al cliente.");
+      return true;
+    }
+
     if (newStatus === "replied") {
       setStatusMessage("Caso marcado como respondido.");
       return true;
@@ -599,6 +604,77 @@ export function InquiryDetail({
     }
 
     return wasMarkedAsReplied;
+  };
+
+  const handleMarkAsWaitingCustomerWithResponse = async (
+    responseText: string
+  ): Promise<boolean> => {
+    setStatusMessage("");
+    setStatusErrorMessage("");
+
+    if (!rawInquiry || !inquiry) {
+      setStatusErrorMessage(
+        "No se puede registrar la respuesta porque no hay caso cargado."
+      );
+      return false;
+    }
+
+    const cleanResponseText = responseText.trim();
+
+    if (!cleanResponseText) {
+      setStatusErrorMessage("La respuesta no puede quedar vacía.");
+      return false;
+    }
+
+    const existingResponseMessage = inquiryMessages.find((message) => {
+      return (
+        message.direction === "outbound" &&
+        message.author_type === "company" &&
+        message.body.trim() === cleanResponseText
+      );
+    });
+
+    let createdResponseMessage: InquiryMessageRow | null = null;
+
+    if (!existingResponseMessage) {
+      const { data, error } = await supabase
+        .from("inquiry_messages")
+        .insert({
+          company_id: rawInquiry.company_id,
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          direction: "outbound",
+          author_type: "company",
+          body: cleanResponseText,
+          source_channel: rawInquiry.source_channel,
+        })
+        .select("id, direction, author_type, body, source_channel, created_at")
+        .single<InquiryMessageRow>();
+
+      if (error || !data) {
+        setStatusErrorMessage(
+          `No se pudo guardar la respuesta en el historial del caso: ${
+            error?.message || "sin detalle del error"
+          }`
+        );
+        return false;
+      }
+
+      createdResponseMessage = data;
+    }
+
+    const wasMarkedAsWaitingCustomer = await handleUpdateStatus(
+      "waiting_customer"
+    );
+
+    if (createdResponseMessage) {
+      setInquiryMessages((currentMessages) => [
+        ...currentMessages,
+        createdResponseMessage,
+      ]);
+    }
+
+    return wasMarkedAsWaitingCustomer;
   };
 
   const handleSaveNote = async () => {
@@ -797,7 +873,9 @@ export function InquiryDetail({
       return;
     }
 
-    if (inquiry.status !== "new" && inquiry.status !== "pending") {
+    if (inquiry.status !== "new" &&
+      inquiry.status !== "pending" &&
+      inquiry.status !== "waiting_customer") {
       setFollowUpCreateErrorMessage(
         "No se puede crear un seguimiento sobre un caso finalizado. Reabre el caso primero."
       );
@@ -1102,10 +1180,14 @@ export function InquiryDetail({
     inquiry.status === "discarded";
 
   const canUseFinalActions =
-    inquiry.status === "new" || inquiry.status === "pending";
+    inquiry.status === "new" ||
+    inquiry.status === "pending" ||
+    inquiry.status === "waiting_customer";
 
   const canCreateFollowUp =
-    inquiry.status === "new" || inquiry.status === "pending";
+    inquiry.status === "new" ||
+    inquiry.status === "pending" ||
+    inquiry.status === "waiting_customer";
 
   const pendingFollowUps = followUps.filter(
     (followUp) => followUp.status === "pending"
@@ -1323,6 +1405,8 @@ export function InquiryDetail({
             canMarkAsReplied={canUseFinalActions}
             isMarkingAsReplied={isUpdatingStatus}
             onMarkAsReplied={handleMarkAsRepliedWithResponse}
+            canMarkAsWaitingCustomer={canUseFinalActions}
+            onMarkAsWaitingCustomer={handleMarkAsWaitingCustomerWithResponse}
           />
         </main>
 

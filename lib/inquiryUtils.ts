@@ -31,6 +31,7 @@ export function normalizeInquiryStatus(status: string): InquiryStatus {
   if (
     status === "new" ||
     status === "pending" ||
+    status === "waiting_customer" ||
     status === "replied" ||
     status === "closed" ||
     status === "discarded"

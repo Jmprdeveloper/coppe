@@ -14,6 +14,7 @@ export type View =
 export type InquiryStatus =
   | "new"
   | "pending"
+  | "waiting_customer"
   | "replied"
   | "closed"
   | "discarded";
