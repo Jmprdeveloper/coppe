@@ -7,7 +7,7 @@ export function classNames(...classes: Array<string | false | null | undefined>)
 export function getStatusLabel(status: string) {
   const labels: Record<string, string> = {
     new: "Nuevo",
-    pending: "Pendiente",
+    pending: "En seguimiento",
     replied: "Respondido",
     closed: "Cerrado",
     discarded: "Descartado",

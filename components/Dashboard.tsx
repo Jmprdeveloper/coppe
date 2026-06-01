@@ -321,10 +321,10 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         />
 
         <StatCard
-          title="Pendientes"
+          title="En seguimiento"
           value={pendingCount}
           icon={ClipboardList}
-          caption="Requieren seguimiento"
+          caption="Necesitan respuesta o revisión"
         />
 
         <StatCard
@@ -359,7 +359,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
 
           {priorityItems.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              No hay casos pendientes que necesiten atención.
+              No hay casos abiertos que necesiten atención.
             </div>
           ) : (
             <div className="space-y-3">

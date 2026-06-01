@@ -10,19 +10,19 @@ function getBadgeStatusLabel(status: string) {
   }
 
   if (status === "pending") {
-    return "Pendiente";
+    return "En seguimiento";
   }
 
   if (status === "replied") {
-    return "Respondida";
+    return "Respondido";
   }
 
   if (status === "closed") {
-    return "Cerrada";
+    return "Cerrado";
   }
 
   if (status === "discarded") {
-    return "Descartada";
+    return "Descartado";
   }
 
   if (status === "active") {

@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
@@ -181,10 +181,10 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             >
               <option value="all">Todos</option>
               <option value="new">Nuevo</option>
-              <option value="pending">Pendiente</option>
-              <option value="replied">Respondida</option>
-              <option value="closed">Cerrada</option>
-              <option value="discarded">Descartada</option>
+              <option value="pending">En seguimiento</option>
+              <option value="replied">Respondido</option>
+              <option value="closed">Cerrado</option>
+              <option value="discarded">Descartado</option>
             </select>
           </label>
 
