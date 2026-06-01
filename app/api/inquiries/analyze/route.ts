@@ -47,7 +47,7 @@ export async function POST(request: Request) {
 
   if (!message) {
     return NextResponse.json(
-      { error: "El mensaje de la consulta es obligatorio." },
+      { error: "El mensaje del caso es obligatorio." },
       { status: 400 }
     );
   }
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
   if (message.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
     return NextResponse.json(
       {
-        error: `El mensaje de la consulta no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres.`,
+        error: `El mensaje del caso no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres.`,
       },
       { status: 400 }
     );
@@ -97,7 +97,7 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          "No se pudo preparar el análisis de la consulta. Inténtalo de nuevo en unos segundos.",
+          "No se pudo preparar el análisis del caso. Inténtalo de nuevo en unos segundos.",
       },
       { status: 500 }
     );

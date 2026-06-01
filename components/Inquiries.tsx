@@ -242,7 +242,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
 
       {isLoading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando casos desde Supabase...
+          Cargando casos...
         </div>
       ) : null}
 

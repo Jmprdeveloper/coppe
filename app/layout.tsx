@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "COPPE",
-  description: "Organiza consultas, clientes y seguimientos sin complicaciones.",
+  description: "Organiza casos, clientes y seguimientos sin complicaciones.",
 };
 
 export default function RootLayout({
