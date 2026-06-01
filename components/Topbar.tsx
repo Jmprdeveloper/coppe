@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";   
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ElementType } from "react";
 import { Building2, LogOut, Search, UserRound, X } from "lucide-react";
 
+import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
-
 
 type NavigationItem = {
   key: string;
@@ -121,23 +121,29 @@ function customerStatusLabel(status: string) {
 }
 
 function inquiryStatusLabel(status: string) {
-  if (status === "new") {
+  const normalizedStatus = normalizeInquiryStatus(status);
+
+  if (normalizedStatus === "new") {
     return "Nuevo";
   }
 
-  if (status === "pending") {
+  if (normalizedStatus === "pending") {
     return "En seguimiento";
   }
 
-  if (status === "replied") {
+  if (normalizedStatus === "waiting_customer") {
+    return "Esperando al cliente";
+  }
+
+  if (normalizedStatus === "replied") {
     return "Respondido";
   }
 
-  if (status === "closed") {
+  if (normalizedStatus === "closed") {
     return "Cerrado";
   }
 
-  if (status === "discarded") {
+  if (normalizedStatus === "discarded") {
     return "Descartado";
   }
 
@@ -523,7 +529,8 @@ export function Topbar({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">{userEmail ? (
+      <div className="flex items-center gap-2">
+        {userEmail ? (
           <div className="hidden max-w-[190px] truncate text-right text-xs text-slate-500 xl:block">
             {userEmail}
           </div>
