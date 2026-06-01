@@ -1,13 +1,12 @@
-﻿"use client";
+"use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";   
 import type { ElementType } from "react";
-import { Building2, LogOut, Plus, Search, UserRound, X } from "lucide-react";
+import { Building2, LogOut, Search, UserRound, X } from "lucide-react";
 
 import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 
-import { Button } from "./Button";
 
 type NavigationItem = {
   key: string;
@@ -524,15 +523,7 @@ export function Topbar({
         ) : null}
       </div>
 
-      <div className="flex items-center gap-2">
-        <Button
-          onClick={() => setActiveView("InquiryForm")}
-          className="hidden md:inline-flex"
-        >
-          <Plus size={16} /> Registrar mensaje
-        </Button>
-
-        {userEmail ? (
+      <div className="flex items-center gap-2">{userEmail ? (
           <div className="hidden max-w-[190px] truncate text-right text-xs text-slate-500 xl:block">
             {userEmail}
           </div>

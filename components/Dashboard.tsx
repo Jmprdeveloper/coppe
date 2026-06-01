@@ -6,8 +6,7 @@ import {
   ClipboardList,
   Inbox,
   MessageSquareText,
-  Plus,
-} from "lucide-react";
+  Plus,} from "lucide-react";
 
 import {
   followUpUrgencyWeight,
@@ -128,7 +127,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
 
       if (inquiriesError) {
         setErrorMessage(
-          `No se pudieron cargar las consultas del dashboard: ${
+          `No se pudieron cargar los casos del dashboard: ${
             inquiriesError.message || "sin detalle del error"
           }`
         );
@@ -287,10 +286,10 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     <div>
       <PageHeader
         title="Dashboard"
-        description="Consulta de un vistazo qué clientes necesitan atención ahora."
+        description="Vista rápida de los casos, clientes y seguimientos que necesitan atención ahora."
         action={
           <Button onClick={() => setActiveView("InquiryForm")}>
-            <Plus size={16} /> Nueva consulta
+            <Plus size={16} /> Registrar mensaje
           </Button>
         }
       />
@@ -315,7 +314,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard
-          title="Nuevas consultas"
+          title="Nuevos casos"
           value={newCount}
           icon={Inbox}
           caption="Recibidas sin revisar"
@@ -347,7 +346,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         <section>
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-lg font-bold text-slate-950">
-              Consultas que necesitan atención
+              Casos que necesitan atención
             </h2>
 
             <button
@@ -360,7 +359,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
 
           {priorityItems.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              No hay consultas pendientes que necesiten atención.
+              No hay casos pendientes que necesiten atención.
             </div>
           ) : (
             <div className="space-y-3">

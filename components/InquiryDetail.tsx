@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, CheckCircle2, Sparkles, XCircle } from "lucide-react";
+import { CalendarClock, Sparkles, XCircle } from "lucide-react";
 
 import {
   formatFollowUpDueAt,
@@ -1178,15 +1178,6 @@ export function InquiryDetail({
 
           {canUseFinalActions ? (
             <>
-              <Button
-                variant="secondary"
-                onClick={() => handleUpdateStatus("replied")}
-                disabled={isUpdatingStatus}
-              >
-                <CheckCircle2 size={16} />
-                {isUpdatingStatus ? "Actualizando..." : "Marcar respondido"}
-              </Button>
-
               <Button
                 variant="secondary"
                 onClick={() => handleUpdateStatus("closed")}
