@@ -6,7 +6,8 @@ import {
   ClipboardList,
   Inbox,
   MessageSquareText,
-  Plus,} from "lucide-react";
+  Plus,
+} from "lucide-react";
 
 import {
   followUpUrgencyWeight,
@@ -78,7 +79,7 @@ function priorityWeight(priority: Priority) {
   return 1;
 }
 
-function isOpenInquiry(inquiry: Inquiry) {
+function needsCompanyAttention(inquiry: Inquiry) {
   return inquiry.status === "new" || inquiry.status === "pending";
 }
 
@@ -239,8 +240,8 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     (inquiry) => inquiry.status === "pending"
   ).length;
 
-  const highPriority = inquiries.filter(
-    (inquiry) => isOpenInquiry(inquiry) && inquiry.aiPriority === "high"
+  const waitingCustomerCount = inquiries.filter(
+    (inquiry) => inquiry.status === "waiting_customer"
   ).length;
 
   const pendingFollowUps = followUps.filter(
@@ -253,7 +254,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   ).length;
 
   const priorityItems = [...inquiries]
-    .filter((inquiry) => isOpenInquiry(inquiry))
+    .filter((inquiry) => needsCompanyAttention(inquiry))
     .sort((a, b) => {
       const priorityDifference =
         priorityWeight(b.aiPriority) - priorityWeight(a.aiPriority);
@@ -317,7 +318,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           title="Nuevos casos"
           value={newCount}
           icon={Inbox}
-          caption="Recibidas sin revisar"
+          caption="Recibidos sin revisar"
         />
 
         <StatCard
@@ -328,10 +329,10 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         />
 
         <StatCard
-          title="Alta prioridad"
-          value={highPriority}
+          title="Esperando al cliente"
+          value={waitingCustomerCount}
           icon={MessageSquareText}
-          caption="Atención recomendable"
+          caption="La empresa ya respondió"
         />
 
         <StatCard
@@ -353,13 +354,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
               onClick={() => setActiveView("inquiries")}
               className="text-sm font-semibold text-[#0F4C5C] hover:underline"
             >
-              Ver todas
+              Ver todos
             </button>
           </div>
 
           {priorityItems.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              No hay casos abiertos que necesiten atención.
+              No hay casos que necesiten acción de la empresa.
             </div>
           ) : (
             <div className="space-y-3">
