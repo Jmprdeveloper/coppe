@@ -11,6 +11,7 @@ import {
 import {
   formatDateTime,
   mapInquiryRowToInquiry,
+  normalizeInquiryStatus,
   type InquiryRow,
 } from "../lib/inquiryUtils";
 import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
@@ -153,7 +154,7 @@ function getMessageDirectionLabel(direction: string) {
   }
 
   if (direction === "outbound") {
-    return "Salida";
+    return "Enviado";
   }
 
   return "Mensaje";
@@ -794,9 +795,11 @@ export function InquiryDetail({
       return;
     }
 
+    const currentStatus = normalizeInquiryStatus(inquiry.status);
+
     const nextStatus =
-      inquiry.status === "new" || inquiry.status === "pending"
-        ? inquiry.status
+      currentStatus === "new" || currentStatus === "pending"
+        ? currentStatus
         : "pending";
 
     const { data: updatedInquiry, error } = await supabase
@@ -873,9 +876,13 @@ export function InquiryDetail({
       return;
     }
 
-    if (inquiry.status !== "new" &&
-      inquiry.status !== "pending" &&
-      inquiry.status !== "waiting_customer") {
+    const currentStatus = normalizeInquiryStatus(inquiry.status);
+
+    if (
+      currentStatus !== "new" &&
+      currentStatus !== "pending" &&
+      currentStatus !== "waiting_customer"
+    ) {
       setFollowUpCreateErrorMessage(
         "No se puede crear un seguimiento sobre un caso finalizado. Reabre el caso primero."
       );
@@ -1148,7 +1155,7 @@ export function InquiryDetail({
         </button>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando caso desde Supabase...
+          Cargando caso...
         </div>
       </div>
     );
@@ -1174,20 +1181,22 @@ export function InquiryDetail({
     );
   }
 
+  const inquiryStatus = normalizeInquiryStatus(inquiry.status);
+
   const canReopenInquiry =
-    inquiry.status === "replied" ||
-    inquiry.status === "closed" ||
-    inquiry.status === "discarded";
+    inquiryStatus === "replied" ||
+    inquiryStatus === "closed" ||
+    inquiryStatus === "discarded";
 
   const canUseFinalActions =
-    inquiry.status === "new" ||
-    inquiry.status === "pending" ||
-    inquiry.status === "waiting_customer";
+    inquiryStatus === "new" ||
+    inquiryStatus === "pending" ||
+    inquiryStatus === "waiting_customer";
 
   const canCreateFollowUp =
-    inquiry.status === "new" ||
-    inquiry.status === "pending" ||
-    inquiry.status === "waiting_customer";
+    inquiryStatus === "new" ||
+    inquiryStatus === "pending" ||
+    inquiryStatus === "waiting_customer";
 
   const pendingFollowUps = followUps.filter(
     (followUp) => followUp.status === "pending"
@@ -1227,7 +1236,7 @@ export function InquiryDetail({
           <div className="mt-3 flex flex-wrap gap-2">
             <PriorityBadge priority={inquiry.aiPriority} />
             <CategoryBadge category={inquiry.aiCategory} />
-            <StatusBadge status={inquiry.status} />
+            <StatusBadge status={inquiryStatus} />
 
             <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
               {inquiry.createdAt}
@@ -1670,15 +1679,10 @@ export function InquiryDetail({
                         <FollowUpCard
                           key={followUp.id}
                           followUp={followUp}
-                          onEdit={handleOpenEditFollowUpForm}
                           onReopen={(id) =>
                             handleUpdateFollowUpStatus(id, "pending")
                           }
-                          isUpdating={
-                            updatingFollowUpId === followUp.id ||
-                            (isSavingFollowUpEdit &&
-                              editingFollowUpId === followUp.id)
-                          }
+                          isUpdating={updatingFollowUpId === followUp.id}
                         />
                       ))}
                     </div>
