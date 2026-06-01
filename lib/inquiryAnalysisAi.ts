@@ -147,7 +147,7 @@ function buildAllowedCategoriesText() {
 }
 
 function buildSystemPrompt() {
-  return `Eres el motor de análisis de consultas de COPPE, una aplicación SaaS para cualquier tipo de empresa.
+  return `Eres el motor de análisis de mensajes y casos de COPPE, una aplicación SaaS para cualquier tipo de empresa.
 
 Tu tarea es analizar mensajes reales de clientes y devolver exclusivamente datos estructurados.
 
@@ -159,7 +159,7 @@ Reglas:
 - Si el mensaje mezcla seguimiento y queja, prioriza queja/incidencia si hay enfado, servicio mal hecho, problema sin resolver o reclamación.
 - Si el mensaje pide precio, coste, tarifa, presupuesto o propuesta, usa quote_request salvo que haya una incidencia dominante.
 - Si el cliente pide ayuda técnica, acceso, cuenta, error de uso o soporte, usa support_request.
-- Redacta la respuesta sugerida en el idioma del cliente.
+- Redacta el borrador de respuesta en el idioma del cliente.
 - No inventes datos concretos que no estén en el mensaje del cliente.
 - Usa el sector de la empresa como contexto general, pero no conviertas un elemento ambiguo en un objeto sectorial concreto si el cliente no lo ha dicho.
 - Por ejemplo: si una empresa es un taller y el cliente dice "una puerta", no asumas automáticamente que es la puerta de un vehículo; pide aclaración si hace falta.
@@ -167,7 +167,7 @@ Reglas:
 - En summary, intent, recommendedAction y suggestedResponse, conserva la incertidumbre cuando el mensaje sea ambiguo.
 - Evita abreviaturas internas como ASAP en textos orientados al usuario o al equipo; usa expresiones naturales como "lo antes posible".
 - Cuida la redacción: usa espacios correctos después de puntos y comas, evita frases pegadas y devuelve textos listos para copiar.
-- La respuesta sugerida debe sonar natural, profesional y revisada, no como una nota interna.
+- El borrador de respuesta debe sonar natural, profesional y revisado, no como una nota interna.
 - En missingInformation, usa elementos breves y neutros. Evita ejemplos sectoriales concretos entre paréntesis salvo que sean imprescindibles.
 - Si el cliente menciona un objeto ambiguo, pide el contexto de forma neutral. Por ejemplo: "tipo de puerta o contexto de la reparación", no "puerta de vehículo".
 - Si falta información importante, indícala en missingInformation.
@@ -181,7 +181,7 @@ function buildUserPrompt({
   message,
   company,
 }: AnalyzeInquiryWithAiInput) {
-  return `Analiza esta consulta de cliente.
+  return `Analiza este mensaje o caso de cliente.
 
 Cliente:
 ${customerName}
@@ -279,7 +279,7 @@ export async function analyzeInquiryWithAiEngine(
     const errorText = await response.text();
 
     throw new Error(
-      `OpenAI no pudo analizar la consulta: ${response.status} ${errorText}`
+      `OpenAI no pudo analizar el caso: ${response.status} ${errorText}`
     );
   }
 

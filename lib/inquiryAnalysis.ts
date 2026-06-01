@@ -412,7 +412,7 @@ export function buildSummary(
   }
 
   if (category === "order_or_reservation") {
-    return `${customerName} realiza una consulta relacionada con pedido, reserva, contratación, inscripción o disponibilidad${sectorContext}.`;
+    return `${customerName} plantea un caso relacionado con pedido, reserva, contratación, inscripción o disponibilidad${sectorContext}.`;
   }
 
   if (category === "complaint_or_incident") {
@@ -436,7 +436,7 @@ export function buildSummary(
   }
 
   if (category === "billing_or_payment") {
-    return `${customerName} realiza una consulta relacionada con facturación, pagos, cobros o recibos.`;
+    return `${customerName} plantea un caso relacionado con facturación, pagos, cobros o recibos.`;
   }
 
   if (category === "follow_up") {
@@ -444,7 +444,7 @@ export function buildSummary(
   }
 
   if (companyContext.description) {
-    return `${customerName} realiza una consulta para ${companyContext.name}, empresa de ${companyContext.sector}. Mensaje: ${
+    return `${customerName} envía un mensaje para ${companyContext.name}, empresa de ${companyContext.sector}. Mensaje: ${
       cleanMessage.length <= 140
         ? cleanMessage
         : `${cleanMessage.slice(0, 137)}...`
@@ -461,14 +461,14 @@ export function buildSummary(
 export function buildIntent(category: string) {
   const intents: Record<string, string> = {
     general_info: "Solicitar información general",
-    product_service_inquiry: "Consultar información sobre producto o servicio",
+    product_service_inquiry: "Solicitar información sobre producto o servicio",
     quote_request: "Solicitar precio, tarifa o presupuesto",
     appointment_request: "Solicitar cita, reunión o llamada",
     order_or_reservation: "Solicitar pedido, reserva, contratación o disponibilidad",
     change_or_cancellation: "Solicitar cambio o cancelación",
     complaint_or_incident: "Comunicar queja o incidencia",
     support_request: "Solicitar soporte o ayuda",
-    billing_or_payment: "Consultar facturación o pagos",
+    billing_or_payment: "Solicitar información sobre facturación o pagos",
     follow_up: "Solicitar seguimiento de una gestión previa",
   };
 
@@ -666,7 +666,7 @@ export function buildRecommendedAction(
     return `Responder con información coherente con la actividad de ${companyContext.name} o pedir aclaración si falta contexto.`;
   }
 
-  return "Revisar la consulta y responder al cliente.";
+  return "Revisar el caso y responder al cliente.";
 }
 
 function formatList(items: string[], language: MessageLanguage) {
@@ -767,7 +767,7 @@ function buildSpanishResponse(
   }
 
   if (category === "product_service_inquiry") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta sobre nuestros productos o servicios y la revisaremos para darte una respuesta clara.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu mensaje sobre nuestros productos o servicios y lo revisaremos para darte una respuesta clara.`;
   }
 
   if (category === "support_request") {
@@ -775,7 +775,7 @@ function buildSpanishResponse(
   }
 
   if (category === "billing_or_payment") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta sobre facturación o pagos y la revisaremos para darte una respuesta clara.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu mensaje sobre facturación o pagos y lo revisaremos para darte una respuesta clara.`;
   }
 
   if (category === "follow_up") {
@@ -783,14 +783,14 @@ function buildSpanishResponse(
   }
 
   if (companyContext.tone === "amable y detallado") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta y la revisaremos con detalle para darte una respuesta clara y adaptada a lo que necesitas.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu mensaje y lo revisaremos con detalle para darte una respuesta clara y adaptada a lo que necesitas.`;
   }
 
   if (companyContext.tone === "directo") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta y la revisaremos para responderte cuanto antes.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu mensaje y lo revisaremos para responderte cuanto antes.`;
   }
 
-  return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu consulta y la revisaremos para darte una respuesta clara lo antes posible.`;
+  return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu mensaje y lo revisaremos para darte una respuesta clara lo antes posible.`;
 }
 
 function buildEnglishResponse(
@@ -905,19 +905,19 @@ export function buildSubject(message: string, fallbackCategory: string) {
   }
 
   const subjects: Record<string, string> = {
-    general_info: "Consulta general",
-    product_service_inquiry: "Consulta sobre producto o servicio",
+    general_info: "Caso general",
+    product_service_inquiry: "Caso sobre producto o servicio",
     quote_request: "Solicitud de presupuesto",
     appointment_request: "Solicitud de cita",
     order_or_reservation: "Solicitud de pedido o reserva",
     change_or_cancellation: "Solicitud de cambio o cancelación",
     complaint_or_incident: "Queja o incidencia de cliente",
     support_request: "Solicitud de soporte",
-    billing_or_payment: "Consulta de facturación o pago",
+    billing_or_payment: "Caso de facturación o pago",
     follow_up: "Solicitud de seguimiento",
   };
 
-  return subjects[fallbackCategory] ?? "Nueva consulta";
+  return subjects[fallbackCategory] ?? "Nuevo caso";
 }
 
 type AnalyzeInquiryInput = {

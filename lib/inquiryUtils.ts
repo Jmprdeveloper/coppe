@@ -90,7 +90,7 @@ export function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
     recommendedAction:
       row.recommended_action ?? "No hay acción recomendada disponible.",
     suggestedResponse:
-      row.suggested_response ?? "No hay respuesta sugerida disponible.",
+      row.suggested_response ?? "No hay borrador de respuesta disponible.",
     status: normalizeInquiryStatus(row.status),
     createdAt: formatDateTime(row.created_at),
   };

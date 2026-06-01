@@ -313,7 +313,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               </h3>
 
               <p className="mt-2">
-                La información de empresa se usa para contextualizar nuevas
+                La información de empresa se usa para contextualizar nuevos
                 casos, recomendaciones internas y borradores de respuesta.
               </p>
 
