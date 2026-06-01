@@ -154,7 +154,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
       if (inquiriesError) {
         setErrorMessage(
-          `No se pudieron cargar las consultas para crear seguimientos: ${
+          `No se pudieron cargar los casos para crear seguimientos: ${
             inquiriesError.message || "sin detalle del error"
           }`
         );
@@ -210,7 +210,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     setFormErrorMessage("");
 
     if (selectedInquiry) {
-      setTitle(`Revisar consulta de ${selectedInquiry.customer_name}`);
+      setTitle(`Revisar caso de ${selectedInquiry.customer_name}`);
     } else {
       setTitle("");
     }
@@ -316,7 +316,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     }
 
     if (!selectedInquiry) {
-      setFormErrorMessage("Selecciona una consulta antes de crear el seguimiento.");
+      setFormErrorMessage("Selecciona un caso antes de crear el seguimiento.");
       return;
     }
 
@@ -363,7 +363,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       ...currentFollowUps,
     ]);
 
-    setTitle(`Revisar consulta de ${selectedInquiry.customer_name}`);
+    setTitle(`Revisar caso de ${selectedInquiry.customer_name}`);
     setDueAt(getDefaultDateTimeLocal());
     setShowCreateForm(false);
     setSuccessMessage("Seguimiento creado correctamente.");
@@ -452,7 +452,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     <div>
       <PageHeader
         title="Seguimientos"
-        description="Tareas pendientes para no olvidar consultas importantes."
+        description="Tareas pendientes para no olvidar casos importantes."
         action={
           <Button onClick={handleOpenCreateForm}>
             <Plus size={16} /> Crear seguimiento
@@ -471,7 +471,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
               <p className="mt-1 text-sm text-slate-500">
                 {isEditing
                   ? "Actualiza el título o la fecha de este seguimiento."
-                  : "Asocia una tarea pendiente a una consulta existente."}
+                  : "Asocia una tarea pendiente a un caso existente."}
               </p>
             </div>
 
@@ -488,14 +488,14 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
           <div className="grid gap-4 md:grid-cols-2">
             {isEditing ? (
               <div className="text-sm font-medium text-slate-700 md:col-span-2">
-                Consulta asociada
+                Caso asociado
                 <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
                   {editingFollowUp?.customerName || "Cliente no indicado"}
                 </div>
               </div>
             ) : (
               <label className="text-sm font-medium text-slate-700 md:col-span-2">
-                Consulta asociada
+                Caso asociado
                 <select
                   value={selectedInquiryId}
                   onChange={(event) => {
@@ -507,13 +507,13 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     setSelectedInquiryId(nextInquiryId);
 
                     if (nextInquiry) {
-                      setTitle(`Revisar consulta de ${nextInquiry.customer_name}`);
+                      setTitle(`Revisar caso de ${nextInquiry.customer_name}`);
                     }
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                 >
                   {inquiryOptions.length === 0 ? (
-                    <option value="">No hay consultas activas disponibles</option>
+                    <option value="">No hay casos activos disponibles</option>
                   ) : (
                     inquiryOptions.map((inquiry) => (
                       <option key={inquiry.id} value={inquiry.id}>

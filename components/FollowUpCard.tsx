@@ -72,7 +72,7 @@ export function FollowUpCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-1">
-          {onEdit ? (
+          {followUp.status === "pending" && onEdit ? (
             <button
               type="button"
               disabled={isUpdating}
@@ -89,7 +89,7 @@ export function FollowUpCard({
               type="button"
               onClick={() => onOpen(followUp.inquiryId)}
               className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              title="Abrir consulta"
+              title="Abrir caso"
             >
               <ChevronRight size={16} />
             </button>

@@ -268,7 +268,7 @@ export function CustomerDetail({
 
       if (inquiriesError) {
         setErrorMessage(
-          `Se cargó el cliente, pero no se pudieron cargar sus consultas: ${
+          `Se cargó el cliente, pero no se pudieron cargar sus casos: ${
             inquiriesError.message || "sin detalle del error"
           }`
         );
@@ -324,7 +324,7 @@ export function CustomerDetail({
         )
       );
       setSelectedInquiryId(activeInquiries[0]?.id ?? "");
-      setNewFollowUpTitle(`Revisar consulta de ${customerData.name}`);
+      setNewFollowUpTitle(`Revisar caso de ${customerData.name}`);
       setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
       setIsLoading(false);
     }
@@ -501,7 +501,7 @@ export function CustomerDetail({
           }))
         );
         setCustomerErrorMessage(
-          `El cliente se guardó, pero no se pudo actualizar el nombre en sus consultas: ${
+          `El cliente se guardó, pero no se pudo actualizar el nombre en sus casos: ${
             updateInquiriesError.message || "sin detalle del error"
           }`
         );
@@ -528,7 +528,7 @@ export function CustomerDetail({
         customerName: cleanName,
       }))
     );
-    setNewFollowUpTitle(`Revisar consulta de ${cleanName}`);
+    setNewFollowUpTitle(`Revisar caso de ${cleanName}`);
     setCustomerMessage("Datos del cliente guardados correctamente.");
   };
 
@@ -587,7 +587,7 @@ export function CustomerDetail({
       setSelectedInquiryId(selectedInquiry.id);
     }
 
-    setNewFollowUpTitle(`Revisar consulta de ${customer?.name || "cliente"}`);
+    setNewFollowUpTitle(`Revisar caso de ${customer?.name || "cliente"}`);
     setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
     setShowCreateFollowUpForm(true);
   };
@@ -610,7 +610,7 @@ export function CustomerDetail({
 
     if (!selectedInquiry) {
       setCreateFollowUpErrorMessage(
-        "Selecciona una consulta activa antes de crear el seguimiento."
+        "Selecciona un caso activo antes de crear el seguimiento."
       );
       return;
     }
@@ -684,7 +684,7 @@ export function CustomerDetail({
     ]);
 
     setShowCreateFollowUpForm(false);
-    setNewFollowUpTitle(`Revisar consulta de ${customer.name}`);
+    setNewFollowUpTitle(`Revisar caso de ${customer.name}`);
     setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
     setCreateFollowUpMessage("Seguimiento creado correctamente.");
   };
@@ -975,7 +975,7 @@ export function CustomerDetail({
                   </h2>
 
                   <p className="mt-1 text-sm leading-6 text-slate-600">
-                    Crea una tarea pendiente asociada a una consulta activa de este cliente.
+                    Crea una tarea pendiente asociada a un caso activo de este cliente.
                   </p>
                 </div>
 
@@ -1001,8 +1001,8 @@ export function CustomerDetail({
 
               {activeInquiries.length === 0 ? (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
-                  Este cliente no tiene consultas activas. Para crear un
-                  seguimiento desde el cliente, primero debe existir una consulta
+                  Este cliente no tiene casos activos. Para crear un
+                  seguimiento desde el cliente, primero debe existir un caso
                   nueva o pendiente asociada a él.
                 </div>
               ) : null}
@@ -1010,7 +1010,7 @@ export function CustomerDetail({
               {showCreateFollowUpForm && activeInquiries.length > 0 ? (
                 <div className="mt-5 space-y-4">
                   <label className="block text-sm font-medium text-slate-700">
-                    Consulta asociada
+                    Caso asociado
                     <select
                       value={selectedInquiry?.id ?? ""}
                       onChange={(event) => {
@@ -1023,7 +1023,7 @@ export function CustomerDetail({
 
                         if (nextInquiry) {
                           setNewFollowUpTitle(
-                            `Revisar consulta de ${nextInquiry.customerName}`
+                            `Revisar caso de ${nextInquiry.customerName}`
                           );
                         }
                       }}
@@ -1192,12 +1192,12 @@ export function CustomerDetail({
 
           <section>
             <h2 className="mb-3 text-lg font-bold text-slate-950">
-              Consultas del cliente
+              Casos del cliente
             </h2>
 
             {inquiries.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                Todavía no hay consultas asociadas a este cliente.
+                Todavía no hay casos asociados a este cliente.
               </div>
             ) : (
               <div className="space-y-3">

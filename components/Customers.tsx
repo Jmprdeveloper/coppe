@@ -341,7 +341,7 @@ export function Customers({ openCustomer }: CustomersProps) {
     <div>
       <PageHeader
         title="Clientes"
-        description="Lista simple de clientes con su última interacción."
+        description="Gestiona los clientes registrados, sus datos de contacto y los casos asociados."
         action={
           <Button onClick={handleOpenCreateForm}>
             <Plus size={16} /> Nuevo cliente
@@ -358,7 +358,7 @@ export function Customers({ openCustomer }: CustomersProps) {
               </h2>
 
               <p className="mt-1 text-sm text-slate-500">
-                Crea un cliente para asociarle consultas, notas y seguimientos.
+                Crea un cliente para asociarle casos, notas y seguimientos.
               </p>
             </div>
 
