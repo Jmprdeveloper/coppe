@@ -12,7 +12,7 @@ type ResponseEditorProps = {
   inquiry: Inquiry;
   canMarkAsReplied?: boolean;
   isMarkingAsReplied?: boolean;
-  onMarkAsReplied?: () => Promise<boolean>;
+  onMarkAsReplied?: (responseText: string) => Promise<boolean>;
 };
 
 export function ResponseEditor({
@@ -153,7 +153,7 @@ export function ResponseEditor({
       await saveResponseText(cleanText);
       await copyResponseText(cleanText);
 
-      const wasMarkedAsReplied = await onMarkAsReplied();
+      const wasMarkedAsReplied = await onMarkAsReplied(cleanText);
 
       if (!wasMarkedAsReplied) {
         setErrorMessage(

@@ -532,6 +532,75 @@ export function InquiryDetail({
     return true;
   };
 
+  const handleMarkAsRepliedWithResponse = async (
+    responseText: string
+  ): Promise<boolean> => {
+    setStatusMessage("");
+    setStatusErrorMessage("");
+
+    if (!rawInquiry || !inquiry) {
+      setStatusErrorMessage(
+        "No se puede registrar la respuesta porque no hay consulta cargada."
+      );
+      return false;
+    }
+
+    const cleanResponseText = responseText.trim();
+
+    if (!cleanResponseText) {
+      setStatusErrorMessage("La respuesta no puede quedar vacía.");
+      return false;
+    }
+
+    const existingResponseMessage = inquiryMessages.find((message) => {
+      return (
+        message.direction === "outbound" &&
+        message.author_type === "company" &&
+        message.body.trim() === cleanResponseText
+      );
+    });
+
+    let createdResponseMessage: InquiryMessageRow | null = null;
+
+    if (!existingResponseMessage) {
+      const { data, error } = await supabase
+        .from("inquiry_messages")
+        .insert({
+          company_id: rawInquiry.company_id,
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          direction: "outbound",
+          author_type: "company",
+          body: cleanResponseText,
+          source_channel: rawInquiry.source_channel,
+        })
+        .select("id, direction, author_type, body, source_channel, created_at")
+        .single<InquiryMessageRow>();
+
+      if (error || !data) {
+        setStatusErrorMessage(
+          `No se pudo guardar la respuesta en el historial del caso: ${
+            error?.message || "sin detalle del error"
+          }`
+        );
+        return false;
+      }
+
+      createdResponseMessage = data;
+    }
+
+    const wasMarkedAsReplied = await handleUpdateStatus("replied");
+
+    if (createdResponseMessage) {
+      setInquiryMessages((currentMessages) => [
+        ...currentMessages,
+        createdResponseMessage,
+      ]);
+    }
+
+    return wasMarkedAsReplied;
+  };
+
   const handleSaveNote = async () => {
     setNoteMessage("");
     setNoteErrorMessage("");
@@ -1212,7 +1281,7 @@ export function InquiryDetail({
               }}
               maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
               className="mt-4 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
-              placeholder="Ej. Es un Ford Focus del año 2005..."
+              placeholder="Ej. El cliente ha enviado nuevos datos, una aclaración o una respuesta relacionada con este caso..."
             />
 
             <p className="mt-1 text-right text-xs text-slate-500">
@@ -1262,7 +1331,7 @@ export function InquiryDetail({
             inquiry={inquiry}
             canMarkAsReplied={canUseFinalActions}
             isMarkingAsReplied={isUpdatingStatus}
-            onMarkAsReplied={() => handleUpdateStatus("replied")}
+            onMarkAsReplied={handleMarkAsRepliedWithResponse}
           />
         </main>
 
