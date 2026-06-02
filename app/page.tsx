@@ -10,12 +10,12 @@ import { createClient } from "../lib/supabase/client";
 
 const publicViews = ["landing", "login", "register"];
 
-export default function COPPEPrototype() {
+export default function COPPEApp() {
   const supabase = useMemo(() => createClient(), []);
 
   const [activeView, setActiveView] = useState("landing");
-  const [selectedInquiryId, setSelectedInquiryId] = useState("i1");
-  const [selectedCustomerId, setSelectedCustomerId] = useState("c1");
+  const [selectedInquiryId, setSelectedInquiryId] = useState("");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
 
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -70,8 +70,8 @@ export default function COPPEPrototype() {
 
     setUser(null);
     setActiveView("landing");
-    setSelectedInquiryId("i1");
-    setSelectedCustomerId("c1");
+    setSelectedInquiryId("");
+    setSelectedCustomerId("");
   };
 
   if (isAuthLoading) {
