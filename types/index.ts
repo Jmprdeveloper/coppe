@@ -83,3 +83,22 @@ export type FollowUp = {
   status: "pending" | "completed" | "cancelled";
   urgency: "today" | "overdue" | "upcoming";
 };
+export type AppointmentStatus =
+  | "proposed"
+  | "confirmed"
+  | "completed"
+  | "cancelled";
+
+export type Appointment = {
+  id: string;
+  inquiryId: string;
+  customerId: string;
+  title: string;
+  scheduledAt: string;
+  scheduledAtIso: string;
+  durationMinutes: number;
+  status: AppointmentStatus;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+};
