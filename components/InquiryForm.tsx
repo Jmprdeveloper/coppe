@@ -10,7 +10,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
-import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";   
+import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import { createClient } from "../lib/supabase/client";
 
@@ -33,6 +33,11 @@ type CreatedInquiryRow = {
   id: string;
 };
 
+type SourceChannelOption = {
+  value: string;
+  label: string;
+};
+
 type InquiryAnalysisRequestResult =
   | {
       analysis: NonNullable<AnalyzeInquiryResponse["analysis"]>;
@@ -42,6 +47,21 @@ type InquiryAnalysisRequestResult =
       analysis: null;
       errorMessage: string;
     };
+
+const sourceChannelOptions: SourceChannelOption[] = [
+  { value: "Email", label: "Email" },
+  { value: "Teléfono", label: "Teléfono" },
+  { value: "WhatsApp", label: "WhatsApp" },
+  { value: "SMS", label: "SMS" },
+  { value: "Formulario web", label: "Formulario web" },
+  { value: "Chat web", label: "Chat web" },
+  { value: "Instagram", label: "Instagram" },
+  { value: "Facebook", label: "Facebook" },
+  { value: "Perfil de Empresa de Google", label: "Perfil de Empresa de Google" },
+  { value: "Presencial", label: "Presencial" },
+  { value: "Portal externo", label: "Portal externo" },
+  { value: "Otro", label: "Otro" },
+];
 
 async function requestInquiryAnalysis(
   customerName: string,
@@ -100,7 +120,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   const [customerName, setCustomerName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
-  const [sourceChannel, setSourceChannel] = useState("");
+  const [sourceChannel, setSourceChannel] = useState("Email");
   const [message, setMessage] = useState("");
 
   const [createdInquiryId, setCreatedInquiryId] = useState<string | null>(null);
@@ -115,7 +135,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     setCustomerName("");
     setEmail("");
     setPhone("");
-    setSourceChannel("");
+    setSourceChannel("Email");
     setMessage("");
   };
 
@@ -127,7 +147,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
     const cleanEmail = email.trim().toLowerCase();
     const cleanPhone = phone.trim();
     const normalizedPhone = normalizePhoneForComparison(cleanPhone);
-    const cleanSourceChannel = sourceChannel.trim() || "form";
+    const cleanSourceChannel = sourceChannel.trim() || "Email";
     const cleanMessage = message.trim();
 
     if (!cleanName) {
@@ -424,12 +444,17 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
 
               <label className="text-sm font-medium text-slate-700">
                 Canal
-                <input
+                <select
                   value={sourceChannel}
                   onChange={(event) => setSourceChannel(event.target.value)}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Formulario web, email, WhatsApp..."
-                />
+                >
+                  {sourceChannelOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
 
               <label className="text-sm font-medium text-slate-700 md:col-span-2">
