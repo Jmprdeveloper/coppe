@@ -95,3 +95,15 @@ export function formatSourceChannel(value: string | null | undefined) {
 
   return sourceChannelLabelsByKey[normalizedKey] ?? cleanValue;
 }
+export function normalizeSourceChannelValue(
+  value: string | null | undefined,
+  fallback = "Email"
+) {
+  const formattedChannel = formatSourceChannel(value);
+
+  const matchingOption = sourceChannelOptions.find(
+    (option) => option.value === formattedChannel
+  );
+
+  return matchingOption?.value ?? fallback;
+}

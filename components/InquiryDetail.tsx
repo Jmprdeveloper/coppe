@@ -1,6 +1,10 @@
 "use client";
 
-import { formatSourceChannel } from "../lib/sourceChannels";
+import {
+  formatSourceChannel,
+  normalizeSourceChannelValue,
+  sourceChannelOptions,
+} from "../lib/sourceChannels";
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Sparkles, XCircle } from "lucide-react";
@@ -253,6 +257,10 @@ export function InquiryDetail({
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [note, setNote] = useState("");
   const [additionalCustomerInfo, setAdditionalCustomerInfo] = useState("");
+  const [
+    additionalCustomerSourceChannel,
+    setAdditionalCustomerSourceChannel,
+  ] = useState("");
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDueAt, setFollowUpDueAt] = useState(
     getDefaultFollowUpDateTimeLocal()
@@ -312,6 +320,7 @@ export function InquiryDetail({
       setFollowUps([]);
       setNote("");
       setAdditionalCustomerInfo("");
+    setAdditionalCustomerSourceChannel("");
       setFollowUpTitle("");
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
       setShowCreateFollowUpForm(false);
@@ -747,6 +756,10 @@ export function InquiryDetail({
       return;
     }
 
+    const cleanAdditionalSourceChannel = normalizeSourceChannelValue(
+      additionalCustomerSourceChannel || rawInquiry.source_channel
+    );
+
     const updatedCaseContext = buildInquiryContextFromMessages(
       inquiryMessages,
       inquiry.originalMessage,
@@ -782,7 +795,7 @@ export function InquiryDetail({
         direction: "inbound",
         author_type: "customer",
         body: cleanAdditionalInfo,
-        source_channel: rawInquiry.source_channel,
+        source_channel: cleanAdditionalSourceChannel,
       })
       .select("id, direction, author_type, body, source_channel, created_at")
       .single<InquiryMessageRow>();
@@ -862,6 +875,7 @@ export function InquiryDetail({
       createdMessage,
     ]);
     setAdditionalCustomerInfo("");
+    setAdditionalCustomerSourceChannel("");
     setReanalysisMessage(
       "Caso reanalizado correctamente con el nuevo mensaje del cliente."
     );
@@ -1356,6 +1370,26 @@ export function InquiryDetail({
               contexto completo sin crear un caso nuevo.
             </p>
 
+                        <label className="mt-5 block text-sm font-medium text-slate-700">
+              Canal del nuevo mensaje
+              <select
+                value={normalizeSourceChannelValue(
+                  additionalCustomerSourceChannel || rawInquiry?.source_channel
+                )}
+                onChange={(event) => {
+                  setAdditionalCustomerSourceChannel(event.target.value);
+                  setReanalysisMessage("");
+                  setReanalysisErrorMessage("");
+                }}
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              >
+                {sourceChannelOptions.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <textarea
               value={additionalCustomerInfo}
               onChange={(event) => {
@@ -1399,6 +1433,7 @@ export function InquiryDetail({
                 variant="secondary"
                 onClick={() => {
                   setAdditionalCustomerInfo("");
+    setAdditionalCustomerSourceChannel("");
                   setReanalysisMessage("");
                   setReanalysisErrorMessage("");
                 }}
