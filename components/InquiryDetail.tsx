@@ -1,5 +1,7 @@
 "use client";
 
+import { formatSourceChannel } from "../lib/sourceChannels";
+
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Sparkles, XCircle } from "lucide-react";
 
@@ -1324,7 +1326,7 @@ export function InquiryDetail({
 
                     {message.source_channel ? (
                       <div className="mt-3 text-xs text-slate-500">
-                        Canal: {message.source_channel}
+                        Canal: {formatSourceChannel(message.source_channel)}
                       </div>
                     ) : null}
                   </article>

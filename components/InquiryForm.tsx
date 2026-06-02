@@ -13,6 +13,7 @@ import {
 import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import { createClient } from "../lib/supabase/client";
+import { sourceChannelOptions } from "../lib/sourceChannels";
 
 import { Button } from "./Button";
 import { PageHeader } from "./PageHeader";
@@ -33,11 +34,6 @@ type CreatedInquiryRow = {
   id: string;
 };
 
-type SourceChannelOption = {
-  value: string;
-  label: string;
-};
-
 type InquiryAnalysisRequestResult =
   | {
       analysis: NonNullable<AnalyzeInquiryResponse["analysis"]>;
@@ -47,21 +43,6 @@ type InquiryAnalysisRequestResult =
       analysis: null;
       errorMessage: string;
     };
-
-const sourceChannelOptions: SourceChannelOption[] = [
-  { value: "Email", label: "Email" },
-  { value: "Teléfono", label: "Teléfono" },
-  { value: "WhatsApp", label: "WhatsApp" },
-  { value: "SMS", label: "SMS" },
-  { value: "Formulario web", label: "Formulario web" },
-  { value: "Chat web", label: "Chat web" },
-  { value: "Instagram", label: "Instagram" },
-  { value: "Facebook", label: "Facebook" },
-  { value: "Perfil de Empresa de Google", label: "Perfil de Empresa de Google" },
-  { value: "Presencial", label: "Presencial" },
-  { value: "Portal externo", label: "Portal externo" },
-  { value: "Otro", label: "Otro" },
-];
 
 async function requestInquiryAnalysis(
   customerName: string,
