@@ -38,7 +38,7 @@ const inquiryAnalysisJsonSchema = {
     subject: {
       type: "string",
       description:
-        "Short subject for the inquiry. Maximum 70 characters if possible.",
+        "Short subject for the case. Do not start with Consulta de, Consulta sobre or Consulta. Maximum 70 characters if possible.",
     },
     summary: {
       type: "string",
@@ -160,6 +160,8 @@ Reglas:
 - Si el mensaje pide precio, coste, tarifa, presupuesto o propuesta, usa quote_request salvo que haya una incidencia dominante.
 - Si el cliente pide ayuda técnica, acceso, cuenta, error de uso o soporte, usa support_request.
 - Redacta el borrador de respuesta en el idioma del cliente.
+- En subject, no empieces nunca con "Consulta de", "Consulta sobre" ni "Consulta". Usa alternativas como "Caso de", "Caso sobre", "Solicitud de", "Problema con", "Coste de" o una descripción directa del motivo.
+- El subject debe ser breve, claro y útil para un listado de casos, idealmente menos de 70 caracteres.
 - No inventes datos concretos que no estén en el mensaje del cliente.
 - Usa el sector de la empresa como contexto general, pero no conviertas un elemento ambiguo en un objeto sectorial concreto si el cliente no lo ha dicho.
 - Por ejemplo: si una empresa es un taller y el cliente dice "una puerta", no asumas automáticamente que es la puerta de un vehículo; pide aclaración si hace falta.
@@ -224,6 +226,18 @@ function extractOutputText(result: OpenAiResponsesApiResult) {
   return "";
 }
 
+function normalizeAiGeneratedSubject(subject: string) {
+  const cleanSubject = subject.trim();
+
+  if (!cleanSubject) {
+    return "Nuevo caso";
+  }
+
+  return cleanSubject
+    .replace(/^consulta\s+sobre\b/i, "Caso sobre")
+    .replace(/^consulta\s+de\b/i, "Caso de")
+    .replace(/^consulta\b/i, "Caso");
+}
 export async function analyzeInquiryWithAiEngine(
   input: AnalyzeInquiryWithAiInput
 ): Promise<InquiryAnalysisResult> {
@@ -304,5 +318,8 @@ export async function analyzeInquiryWithAiEngine(
     throw new Error("OpenAI devolvió un análisis incompleto o no válido.");
   }
 
-  return normalizedAnalysis;
+  return {
+    ...normalizedAnalysis,
+    subject: normalizeAiGeneratedSubject(normalizedAnalysis.subject),
+  };
 }
