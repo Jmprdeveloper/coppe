@@ -8,6 +8,7 @@ import {
   normalizeFollowUpStatus,
   resolveFollowUpUrgency,
 } from "../lib/followUpUtils";
+import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
 import type { FollowUp } from "../types";
 
@@ -87,6 +88,45 @@ function formatDateTimeLocalFromIso(value: string | null) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function isActiveInquiryOption(inquiry: InquiryOptionRow) {
+  const status = normalizeInquiryStatus(inquiry.status);
+
+  return (
+    status === "new" ||
+    status === "pending" ||
+    status === "waiting_customer"
+  );
+}
+function formatInquiryStatus(status: string) {
+  const normalizedStatus = normalizeInquiryStatus(status);
+
+  if (normalizedStatus === "new") {
+    return "Nuevo";
+  }
+
+  if (normalizedStatus === "pending") {
+    return "En seguimiento";
+  }
+
+  if (normalizedStatus === "waiting_customer") {
+    return "Esperando al cliente";
+  }
+
+  if (normalizedStatus === "replied") {
+    return "Respondido";
+  }
+
+  if (normalizedStatus === "closed") {
+    return "Cerrado";
+  }
+
+  if (normalizedStatus === "discarded") {
+    return "Descartado";
+  }
+
+  return "Estado no indicado";
 }
 
 export function FollowUps({ openInquiry }: FollowUpsProps) {
@@ -169,9 +209,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       const mappedInquiries = (inquiriesData ??
         []) as unknown as InquiryOptionRow[];
 
-      const activeInquiryOptions = mappedInquiries.filter(
-        (inquiry) => inquiry.status === "new" || inquiry.status === "pending"
-      );
+      const activeInquiryOptions = mappedInquiries.filter(isActiveInquiryOption);
 
       setFollowUps(mappedFollowUps);
       setInquiryOptions(activeInquiryOptions);
@@ -517,7 +555,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                   ) : (
                     inquiryOptions.map((inquiry) => (
                       <option key={inquiry.id} value={inquiry.id}>
-                        {inquiry.customer_name} · {inquiry.subject || "Sin asunto"}
+                        {inquiry.customer_name} ·{" "}
+                        {inquiry.subject || "Sin asunto"} ·{" "}
+                        {formatInquiryStatus(inquiry.status)}
                       </option>
                     ))
                   )}
@@ -554,7 +594,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
           <div className="mt-5 flex flex-wrap gap-2">
             <Button
               onClick={handleSaveFollowUp}
-              disabled={isCreating || (!isEditing && inquiryOptions.length === 0)}
+              disabled={
+                isCreating || (!isEditing && inquiryOptions.length === 0)
+              }
             >
               {isCreating
                 ? isEditing
@@ -693,7 +735,6 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                   key={followUp.id}
                   followUp={followUp}
                   onOpen={openInquiry}
-                  onEdit={handleOpenEditForm}
                   onReopen={(id) => handleUpdateFollowUpStatus(id, "pending")}
                   isUpdating={updatingFollowUpId === followUp.id}
                 />
