@@ -1,37 +1,39 @@
 "use client";
 
 import {
-    Building2,
-    CalendarClock,
-    Inbox,
-    Sparkles,
-    type LucideIcon,
-  } from "lucide-react";
+  Building2,
+  CalendarClock,
+  Inbox,
+  Sparkles,
+  type LucideIcon,
+} from "lucide-react";
+
 import { Button } from "./Button";
 import { PriorityBadge } from "./PriorityBadge";
+
 type Feature = {
-    icon: LucideIcon;
-    title: string;
-    text: string;
-  };
-  
-  const features: Feature[] = [
-    {
-      icon: Inbox,
-      title: "Centraliza mensajes de clientes",
-      text: "Reúne mensajes y solicitudes en un panel claro.",
-    },
-    {
-      icon: Sparkles,
-      title: "IA útil",
-      text: "Resume, clasifica y sugiere respuestas sin quitar control.",
-    },
-    {
-      icon: CalendarClock,
-      title: "Seguimiento",
-      text: "Evita olvidar clientes, solicitudes o seguimientos pendientes.",
-    },
-  ];
+  icon: LucideIcon;
+  title: string;
+  text: string;
+};
+
+const features: Feature[] = [
+  {
+    icon: Inbox,
+    title: "Centraliza mensajes de clientes",
+    text: "Convierte mensajes recibidos en casos claros para que nada quede perdido.",
+  },
+  {
+    icon: Sparkles,
+    title: "IA útil",
+    text: "Resume, clasifica y prepara borradores de respuesta sin quitarte el control.",
+  },
+  {
+    icon: CalendarClock,
+    title: "Seguimientos claros",
+    text: "Crea recordatorios para no olvidar casos, clientes o tareas pendientes.",
+  },
+];
 
 type LandingProps = {
   setActiveView: (view: string) => void;
@@ -53,10 +55,10 @@ export function Landing({ setActiveView }: LandingProps) {
 
         <div className="flex items-center gap-2">
           <Button variant="ghost" onClick={() => setActiveView("login")}>
-            Login
+            Iniciar sesión
           </Button>
 
-          <Button onClick={() => setActiveView("register")}>Empezar</Button>
+          <Button onClick={() => setActiveView("register")}>Crear cuenta</Button>
         </div>
       </header>
 
@@ -68,24 +70,23 @@ export function Landing({ setActiveView }: LandingProps) {
             </div>
 
             <h1 className="mt-6 max-w-3xl text-4xl font-bold tracking-tight text-slate-950 md:text-6xl">
-              Organiza mensajes de clientes, prepara respuestas con IA y no pierdas oportunidades.
+              Organiza mensajes de clientes, prepara respuestas con IA y no
+              pierdas oportunidades.
             </h1>
 
             <p className="mt-5 max-w-2xl text-lg leading-8 text-slate-600">
-              COPPE convierte mensajes de clientes en casos organizados, resume el contexto con IA y ayuda a
-              pequeñas empresas a gestionar seguimientos sin complicaciones.
+              COPPE convierte mensajes de clientes en casos organizados, resume
+              el contexto con IA y ayuda a pequeñas empresas a gestionar
+              seguimientos sin complicaciones.
             </p>
 
             <div className="mt-8 flex flex-wrap gap-3">
-              <Button onClick={() => setActiveView("InquiryForm")}>
-                <Sparkles size={16} /> Probar COPPE
+              <Button onClick={() => setActiveView("register")}>
+                <Sparkles size={16} /> Empezar con COPPE
               </Button>
 
-              <Button
-                variant="secondary"
-                onClick={() => setActiveView("register")}
-              >
-                Crear cuenta
+              <Button variant="secondary" onClick={() => setActiveView("login")}>
+                Ya tengo cuenta
               </Button>
             </div>
           </section>
@@ -94,11 +95,10 @@ export function Landing({ setActiveView }: LandingProps) {
             <div className="rounded-2xl bg-slate-50 p-4">
               <div className="mb-4 flex items-center justify-between">
                 <div>
-                  <div className="font-bold text-slate-950">
-                    Caso nuevo
-                  </div>
+                  <div className="font-bold text-slate-950">Caso nuevo</div>
+
                   <div className="text-xs text-slate-500">
-                    Analizada por COPPE
+                    Analizado por COPPE
                   </div>
                 </div>
 
@@ -111,8 +111,8 @@ export function Landing({ setActiveView }: LandingProps) {
                 </div>
 
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Necesito cambiar la cita que tenía prevista para mañana por un problema
-                  familiar...
+                  Necesito cambiar la cita que tenía prevista para mañana por un
+                  problema familiar...
                 </p>
               </div>
 
@@ -131,26 +131,26 @@ export function Landing({ setActiveView }: LandingProps) {
         </div>
 
         <div className="mt-16 grid gap-4 md:grid-cols-3">
-        {features.map((feature) => {
-  const Icon = feature.icon;
+          {features.map((feature) => {
+            const Icon = feature.icon;
 
-  return (
-    <div
-      key={feature.title}
-      className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
-    >
-      <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E6F3F6] text-[#0F4C5C]">
-        <Icon size={19} />
-      </div>
+            return (
+              <div
+                key={feature.title}
+                className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm"
+              >
+                <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-2xl bg-[#E6F3F6] text-[#0F4C5C]">
+                  <Icon size={19} />
+                </div>
 
-      <h3 className="font-bold text-slate-950">{feature.title}</h3>
+                <h3 className="font-bold text-slate-950">{feature.title}</h3>
 
-      <p className="mt-2 text-sm leading-6 text-slate-600">
-        {feature.text}
-      </p>
-    </div>
-  );
-})}
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  {feature.text}
+                </p>
+              </div>
+            );
+          })}
         </div>
       </main>
     </div>
