@@ -1,29 +1,39 @@
 "use client";
 
-import {
-  formatSourceChannel,
-  normalizeSourceChannelValue,
-  sourceChannelOptions,
-} from "../lib/sourceChannels";
-
 import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Sparkles, XCircle } from "lucide-react";
 
+import {
+  getAppointmentStatusLabel,
+  mapAppointmentRowToAppointment,
+  type AppointmentRow,
+} from "../lib/appointmentUtils";
 import {
   formatFollowUpDueAt,
   normalizeFollowUpStatus,
   resolveFollowUpUrgency,
 } from "../lib/followUpUtils";
+import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
+import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import {
   formatDateTime,
   mapInquiryRowToInquiry,
   normalizeInquiryStatus,
   type InquiryRow,
 } from "../lib/inquiryUtils";
-import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
-import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
+import {
+  formatSourceChannel,
+  normalizeSourceChannelValue,
+  sourceChannelOptions,
+} from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
-import type { FollowUp, Inquiry, InquiryStatus } from "../types";
+import type {
+  Appointment,
+  AppointmentStatus,
+  FollowUp,
+  Inquiry,
+  InquiryStatus,
+} from "../types";
 
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
@@ -255,12 +265,19 @@ export function InquiryDetail({
     []
   );
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+
   const [note, setNote] = useState("");
   const [additionalCustomerInfo, setAdditionalCustomerInfo] = useState("");
   const [
     additionalCustomerSourceChannel,
     setAdditionalCustomerSourceChannel,
   ] = useState("");
+
+  const [appointmentTitle, setAppointmentTitle] = useState("");
+  const [appointmentScheduledAt, setAppointmentScheduledAt] = useState("");
+  const [appointmentNotes, setAppointmentNotes] = useState("");
+
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDueAt, setFollowUpDueAt] = useState(
     getDefaultFollowUpDateTimeLocal()
@@ -278,11 +295,15 @@ export function InquiryDetail({
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isReanalyzingInquiry, setIsReanalyzingInquiry] = useState(false);
+  const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
   const [isSavingFollowUpEdit, setIsSavingFollowUpEdit] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
     null
   );
+  const [updatingAppointmentId, setUpdatingAppointmentId] = useState<
+    string | null
+  >(null);
 
   const [errorMessage, setErrorMessage] = useState("");
   const [statusMessage, setStatusMessage] = useState("");
@@ -291,6 +312,8 @@ export function InquiryDetail({
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
   const [reanalysisMessage, setReanalysisMessage] = useState("");
   const [reanalysisErrorMessage, setReanalysisErrorMessage] = useState("");
+  const [appointmentMessage, setAppointmentMessage] = useState("");
+  const [appointmentErrorMessage, setAppointmentErrorMessage] = useState("");
   const [followUpCreateMessage, setFollowUpCreateMessage] = useState("");
   const [followUpCreateErrorMessage, setFollowUpCreateErrorMessage] =
     useState("");
@@ -308,6 +331,8 @@ export function InquiryDetail({
       setNoteErrorMessage("");
       setReanalysisMessage("");
       setReanalysisErrorMessage("");
+      setAppointmentMessage("");
+      setAppointmentErrorMessage("");
       setFollowUpCreateMessage("");
       setFollowUpCreateErrorMessage("");
       setFollowUpActionMessage("");
@@ -318,9 +343,13 @@ export function InquiryDetail({
       setNotes([]);
       setInquiryMessages([]);
       setFollowUps([]);
+      setAppointments([]);
       setNote("");
       setAdditionalCustomerInfo("");
-    setAdditionalCustomerSourceChannel("");
+      setAdditionalCustomerSourceChannel("");
+      setAppointmentTitle("");
+      setAppointmentScheduledAt("");
+      setAppointmentNotes("");
       setFollowUpTitle("");
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
       setShowCreateFollowUpForm(false);
@@ -375,6 +404,9 @@ export function InquiryDetail({
 
       setInquiry(mapInquiryRowToInquiry(inquiryData));
       setRawInquiry(inquiryData);
+      setAppointmentTitle("");
+      setAppointmentScheduledAt("");
+      setAppointmentNotes("");
       setFollowUpTitle(`Revisar caso de ${inquiryData.customer_name}`);
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
@@ -435,6 +467,36 @@ export function InquiryDetail({
         return;
       }
 
+      const { data: appointmentsData, error: appointmentsError } =
+        await supabase
+          .from("appointments")
+          .select(
+            [
+              "id",
+              "inquiry_id",
+              "customer_id",
+              "title",
+              "scheduled_at",
+              "duration_minutes",
+              "status",
+              "notes",
+              "created_at",
+              "updated_at",
+            ].join(", ")
+          )
+          .eq("inquiry_id", inquiryData.id)
+          .order("scheduled_at", { ascending: true });
+
+      if (appointmentsError) {
+        setErrorMessage(
+          `Se cargó el caso, pero no se pudieron cargar sus citas: ${
+            appointmentsError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const { data: notesData, error: notesError } = await supabase
         .from("internal_notes")
         .select("id, body, created_at")
@@ -455,6 +517,11 @@ export function InquiryDetail({
       setFollowUps(
         ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
           mapFollowUpRowToFollowUp
+        )
+      );
+      setAppointments(
+        ((appointmentsData ?? []) as unknown as AppointmentRow[]).map(
+          mapAppointmentRowToAppointment
         )
       );
       setNotes((notesData ?? []) as InternalNoteRow[]);
@@ -881,6 +948,149 @@ export function InquiryDetail({
     );
   };
 
+  const handleCreateAppointment = async () => {
+    setAppointmentMessage("");
+    setAppointmentErrorMessage("");
+
+    if (!rawInquiry || !inquiry) {
+      setAppointmentErrorMessage(
+        "No se puede crear la cita porque no hay caso cargado."
+      );
+      return;
+    }
+
+    const cleanAppointmentTitle = appointmentTitle.trim();
+
+    if (!cleanAppointmentTitle) {
+      setAppointmentErrorMessage("El título de la cita es obligatorio.");
+      return;
+    }
+
+    if (!appointmentScheduledAt) {
+      setAppointmentErrorMessage("La fecha y hora de la cita son obligatorias.");
+      return;
+    }
+
+    const scheduledDate = new Date(appointmentScheduledAt);
+
+    if (Number.isNaN(scheduledDate.getTime())) {
+      setAppointmentErrorMessage("La fecha indicada no es válida.");
+      return;
+    }
+
+    if (scheduledDate.getTime() < Date.now() - 60 * 1000) {
+      setAppointmentErrorMessage(
+        "No puedes crear una cita en una fecha pasada."
+      );
+      return;
+    }
+
+    setIsCreatingAppointment(true);
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .insert({
+        company_id: rawInquiry.company_id,
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        title: cleanAppointmentTitle,
+        scheduled_at: scheduledDate.toISOString(),
+        status: "proposed",
+        notes: appointmentNotes.trim() || null,
+      })
+      .select(
+        [
+          "id",
+          "inquiry_id",
+          "customer_id",
+          "title",
+          "scheduled_at",
+          "duration_minutes",
+          "status",
+          "notes",
+          "created_at",
+          "updated_at",
+        ].join(", ")
+      )
+      .single<AppointmentRow>();
+
+    setIsCreatingAppointment(false);
+
+    if (error || !data) {
+      setAppointmentErrorMessage(
+        `No se pudo crear la cita: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const mappedAppointment = mapAppointmentRowToAppointment(data);
+
+    setAppointments((currentAppointments) =>
+      [...currentAppointments, mappedAppointment].sort(
+        (firstAppointment, secondAppointment) =>
+          new Date(firstAppointment.scheduledAtIso).getTime() -
+          new Date(secondAppointment.scheduledAtIso).getTime()
+      )
+    );
+
+    setAppointmentTitle("");
+    setAppointmentScheduledAt("");
+    setAppointmentNotes("");
+    setAppointmentMessage("Cita creada correctamente como propuesta.");
+  };
+
+  const handleUpdateAppointmentStatus = async (
+    appointmentId: string,
+    status: AppointmentStatus
+  ) => {
+    setAppointmentMessage("");
+    setAppointmentErrorMessage("");
+    setUpdatingAppointmentId(appointmentId);
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .update({ status })
+      .eq("id", appointmentId)
+      .select(
+        [
+          "id",
+          "inquiry_id",
+          "customer_id",
+          "title",
+          "scheduled_at",
+          "duration_minutes",
+          "status",
+          "notes",
+          "created_at",
+          "updated_at",
+        ].join(", ")
+      )
+      .single<AppointmentRow>();
+
+    setUpdatingAppointmentId(null);
+
+    if (error || !data) {
+      setAppointmentErrorMessage(
+        `No se pudo actualizar la cita: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const mappedAppointment = mapAppointmentRowToAppointment(data);
+
+    setAppointments((currentAppointments) =>
+      currentAppointments.map((appointment) =>
+        appointment.id === appointmentId ? mappedAppointment : appointment
+      )
+    );
+
+    setAppointmentMessage("Cita actualizada correctamente.");
+  };
+
   const handleCreateFollowUp = async () => {
     setFollowUpCreateMessage("");
     setFollowUpCreateErrorMessage("");
@@ -1182,9 +1392,7 @@ export function InquiryDetail({
       <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
         <XCircle className="mx-auto text-slate-400" />
 
-        <h2 className="mt-3 font-bold text-slate-950">
-          Caso no encontrado
-        </h2>
+        <h2 className="mt-3 font-bold text-slate-950">Caso no encontrado</h2>
 
         <p className="mt-2 text-sm text-slate-500">
           {errorMessage || "No se pudo cargar este caso."}
@@ -1213,6 +1421,18 @@ export function InquiryDetail({
     inquiryStatus === "new" ||
     inquiryStatus === "pending" ||
     inquiryStatus === "waiting_customer";
+
+  const canCreateAppointment = canCreateFollowUp;
+
+  const activeAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "proposed" || appointment.status === "confirmed"
+  );
+
+  const historyAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "completed" || appointment.status === "cancelled"
+  );
 
   const pendingFollowUps = followUps.filter(
     (followUp) => followUp.status === "pending"
@@ -1370,7 +1590,7 @@ export function InquiryDetail({
               contexto completo sin crear un caso nuevo.
             </p>
 
-                        <label className="mt-5 block text-sm font-medium text-slate-700">
+            <label className="mt-5 block text-sm font-medium text-slate-700">
               Canal del nuevo mensaje
               <select
                 value={normalizeSourceChannelValue(
@@ -1390,6 +1610,7 @@ export function InquiryDetail({
                 ))}
               </select>
             </label>
+
             <textarea
               value={additionalCustomerInfo}
               onChange={(event) => {
@@ -1433,7 +1654,7 @@ export function InquiryDetail({
                 variant="secondary"
                 onClick={() => {
                   setAdditionalCustomerInfo("");
-    setAdditionalCustomerSourceChannel("");
+                  setAdditionalCustomerSourceChannel("");
                   setReanalysisMessage("");
                   setReanalysisErrorMessage("");
                 }}
@@ -1474,6 +1695,243 @@ export function InquiryDetail({
           </div>
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-bold text-slate-950">Cita interna</h3>
+
+            {canCreateAppointment ? (
+              <>
+                <p className="mt-2 text-sm leading-6 text-slate-600">
+                  Asigna una fecha y hora interna para este caso. COPPE no
+                  confirma la cita automáticamente al cliente.
+                </p>
+
+                <div className="mt-4 space-y-3">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Título
+                    <input
+                      value={appointmentTitle}
+                      onChange={(event) =>
+                        setAppointmentTitle(event.target.value)
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      placeholder="Ej. Cita con cliente"
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Fecha y hora
+                    <input
+                      type="datetime-local"
+                      value={appointmentScheduledAt}
+                      onChange={(event) =>
+                        setAppointmentScheduledAt(event.target.value)
+                      }
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    />
+                  </label>
+
+                  <label className="block text-sm font-medium text-slate-700">
+                    Notas
+                    <textarea
+                      value={appointmentNotes}
+                      onChange={(event) =>
+                        setAppointmentNotes(event.target.value)
+                      }
+                      className="mt-1 min-h-[90px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      placeholder="Ej. Detalles relevantes para preparar la cita..."
+                    />
+                  </label>
+                </div>
+
+                {appointmentErrorMessage ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {appointmentErrorMessage}
+                  </div>
+                ) : null}
+
+                {appointmentMessage ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {appointmentMessage}
+                  </div>
+                ) : null}
+
+                <Button
+                  className="mt-4 w-full"
+                  onClick={handleCreateAppointment}
+                  disabled={isCreatingAppointment}
+                >
+                  <CalendarClock size={16} />
+                  {isCreatingAppointment ? "Creando cita..." : "Crear cita"}
+                </Button>
+              </>
+            ) : (
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                Este caso está finalizado. Para crear una cita, primero reabre
+                el caso.
+              </p>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h3 className="font-bold text-slate-950">Citas del caso</h3>
+
+            {appointments.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-slate-600">
+                Todavía no hay citas asociadas a este caso.
+              </p>
+            ) : (
+              <div className="mt-4 space-y-4">
+                {activeAppointments.length > 0 ? (
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Activas
+                    </h4>
+
+                    <div className="space-y-3">
+                      {activeAppointments.map((appointment) => (
+                        <article
+                          key={appointment.id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                        >
+                          <div className="text-sm font-semibold text-slate-950">
+                            {appointment.title}
+                          </div>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {appointment.scheduledAt} ·{" "}
+                            {getAppointmentStatusLabel(appointment.status)}
+                          </p>
+
+                          {appointment.notes ? (
+                            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                              {appointment.notes}
+                            </p>
+                          ) : null}
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {appointment.status === "proposed" ? (
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  onClick={() =>
+                                    handleUpdateAppointmentStatus(
+                                      appointment.id,
+                                      "confirmed"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingAppointmentId === appointment.id
+                                  }
+                                >
+                                  Confirmar
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  onClick={() =>
+                                    handleUpdateAppointmentStatus(
+                                      appointment.id,
+                                      "cancelled"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingAppointmentId === appointment.id
+                                  }
+                                >
+                                  Cancelar
+                                </Button>
+                              </>
+                            ) : null}
+
+                            {appointment.status === "confirmed" ? (
+                              <>
+                                <Button
+                                  variant="secondary"
+                                  onClick={() =>
+                                    handleUpdateAppointmentStatus(
+                                      appointment.id,
+                                      "completed"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingAppointmentId === appointment.id
+                                  }
+                                >
+                                  Completar
+                                </Button>
+
+                                <Button
+                                  variant="ghost"
+                                  onClick={() =>
+                                    handleUpdateAppointmentStatus(
+                                      appointment.id,
+                                      "cancelled"
+                                    )
+                                  }
+                                  disabled={
+                                    updatingAppointmentId === appointment.id
+                                  }
+                                >
+                                  Cancelar
+                                </Button>
+                              </>
+                            ) : null}
+                          </div>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+
+                {historyAppointments.length > 0 ? (
+                  <section>
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Historial
+                    </h4>
+
+                    <div className="space-y-3">
+                      {historyAppointments.map((appointment) => (
+                        <article
+                          key={appointment.id}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                        >
+                          <div className="text-sm font-semibold text-slate-950">
+                            {appointment.title}
+                          </div>
+
+                          <p className="mt-1 text-xs text-slate-500">
+                            {appointment.scheduledAt} ·{" "}
+                            {getAppointmentStatusLabel(appointment.status)}
+                          </p>
+
+                          {appointment.notes ? (
+                            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                              {appointment.notes}
+                            </p>
+                          ) : null}
+
+                          <Button
+                            variant="secondary"
+                            className="mt-3"
+                            onClick={() =>
+                              handleUpdateAppointmentStatus(
+                                appointment.id,
+                                "proposed"
+                              )
+                            }
+                            disabled={updatingAppointmentId === appointment.id}
+                          >
+                            Reabrir como propuesta
+                          </Button>
+                        </article>
+                      ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">
               {pendingFollowUps.length > 0
                 ? "Crear otro seguimiento"
@@ -1484,13 +1942,14 @@ export function InquiryDetail({
               shouldShowCreateFollowUpForm ? (
                 <>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
-                    Crea una nueva tarea para volver a revisar este caso en una fecha concreta.
+                    Crea una nueva tarea para volver a revisar este caso en una
+                    fecha concreta.
                   </p>
 
                   {pendingFollowUps.length > 0 ? (
                     <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                      Ya existe un seguimiento pendiente para este caso.
-                      Crea otro solo si necesitas un recordatorio adicional.
+                      Ya existe un seguimiento pendiente para este caso. Crea
+                      otro solo si necesitas un recordatorio adicional.
                     </div>
                   ) : null}
 
@@ -1567,7 +2026,8 @@ export function InquiryDetail({
                 <>
                   <p className="mt-2 text-sm leading-6 text-slate-600">
                     Este caso ya tiene un seguimiento pendiente. Si necesitas
-                    programar otro recordatorio distinto, puedes crear uno adicional.
+                    programar otro recordatorio distinto, puedes crear uno
+                    adicional.
                   </p>
 
                   <Button
@@ -1582,8 +2042,8 @@ export function InquiryDetail({
             ) : (
               <>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Este caso está finalizado. Para crear un seguimiento,
-                  primero reabre el caso.
+                  Este caso está finalizado. Para crear un seguimiento, primero
+                  reabre el caso.
                 </p>
 
                 {followUpCreateErrorMessage ? (
@@ -1792,3 +2252,6 @@ export function InquiryDetail({
     </div>
   );
 }
+
+
+
