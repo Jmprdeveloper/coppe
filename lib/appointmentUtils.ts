@@ -14,6 +14,8 @@ export type AppointmentRow = {
   updated_at: string;
 };
 
+type AppointmentTiming = Pick<Appointment, "scheduledAtIso" | "status">;
+
 export function normalizeAppointmentStatus(
   status: string | null | undefined
 ): AppointmentStatus {
@@ -49,6 +51,57 @@ export function getAppointmentStatusLabel(status: string | null | undefined) {
   }
 
   return "Sin estado";
+}
+
+export function isActiveAppointmentStatus(
+  status: string | null | undefined
+) {
+  const normalizedStatus = normalizeAppointmentStatus(status);
+
+  return normalizedStatus === "proposed" || normalizedStatus === "confirmed";
+}
+
+export function getAppointmentTimestamp(value: string | null | undefined) {
+  if (!value) {
+    return null;
+  }
+
+  const timestamp = new Date(value).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return null;
+  }
+
+  return timestamp;
+}
+
+export function isAppointmentPendingClosure(
+  appointment: AppointmentTiming,
+  currentTimeMs = Date.now()
+) {
+  if (!isActiveAppointmentStatus(appointment.status)) {
+    return false;
+  }
+
+  const appointmentTimeMs = getAppointmentTimestamp(
+    appointment.scheduledAtIso
+  );
+
+  if (appointmentTimeMs === null) {
+    return false;
+  }
+
+  return appointmentTimeMs < currentTimeMs;
+}
+
+export function compareAppointmentsByScheduledAt(
+  first: Pick<Appointment, "scheduledAtIso">,
+  second: Pick<Appointment, "scheduledAtIso">
+) {
+  const firstTimeMs = getAppointmentTimestamp(first.scheduledAtIso) ?? 0;
+  const secondTimeMs = getAppointmentTimestamp(second.scheduledAtIso) ?? 0;
+
+  return firstTimeMs - secondTimeMs;
 }
 
 export function mapAppointmentRowToAppointment(
