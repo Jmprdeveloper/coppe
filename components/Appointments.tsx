@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { Plus, X } from "lucide-react";
 
 import {
+  compareAppointmentsByScheduledAt,
   getAppointmentStatusLabel,
+  isAppointmentPendingClosure,
   mapAppointmentRowToAppointment,
   type AppointmentRow,
 } from "../lib/appointmentUtils";
@@ -148,36 +150,6 @@ function mapAppointmentRowToInternalAppointment(
   };
 }
 
-function sortAppointmentsByDate(
-  first: InternalAppointment,
-  second: InternalAppointment
-) {
-  return (
-    new Date(first.scheduledAtValue).getTime() -
-    new Date(second.scheduledAtValue).getTime()
-  );
-}
-
-function isAppointmentPendingClosure(
-  appointment: InternalAppointment,
-  currentTimeMs: number
-) {
-  if (
-    appointment.status !== "proposed" &&
-    appointment.status !== "confirmed"
-  ) {
-    return false;
-  }
-
-  const appointmentTime = new Date(appointment.scheduledAtValue).getTime();
-
-  if (Number.isNaN(appointmentTime)) {
-    return false;
-  }
-
-  return appointmentTime < currentTimeMs;
-}
-
 function matchesAppointmentSearch(
   appointment: InternalAppointment,
   searchTerm: string
@@ -297,7 +269,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         .map((appointmentRow) =>
           mapAppointmentRowToInternalAppointment(appointmentRow, inquiryById)
         )
-        .sort(sortAppointmentsByDate);
+        .sort(compareAppointmentsByScheduledAt);
 
       setAppointments(mappedAppointments);
       setInquiryOptions(activeInquiryOptions);
@@ -485,7 +457,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               ? mappedAppointment
               : appointment
           )
-          .sort(sortAppointmentsByDate)
+          .sort(compareAppointmentsByScheduledAt)
       );
 
       setShowForm(false);
@@ -548,7 +520,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     );
 
     setAppointments((currentAppointments) =>
-      [...currentAppointments, mappedAppointment].sort(sortAppointmentsByDate)
+      [...currentAppointments, mappedAppointment].sort(compareAppointmentsByScheduledAt)
     );
 
     setShowForm(false);
@@ -609,7 +581,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         .map((appointment) =>
           appointment.id === appointmentId ? mappedAppointment : appointment
         )
-        .sort(sortAppointmentsByDate)
+        .sort(compareAppointmentsByScheduledAt)
     );
 
     if (status === "proposed") {
