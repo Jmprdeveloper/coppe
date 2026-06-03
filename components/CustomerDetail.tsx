@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 
 import {
+  getAppointmentStatusLabel,
+  mapAppointmentRowToAppointment,
+  type AppointmentRow,
+} from "../lib/appointmentUtils";
+import {
   formatFollowUpDueAt,
   normalizeFollowUpStatus,
   resolveFollowUpUrgency,
@@ -23,7 +28,7 @@ import {
   type InquiryRow,
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type { CustomerStatus, FollowUp, Inquiry } from "../types";
+import type { Appointment, CustomerStatus, FollowUp, Inquiry } from "../types";
 
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
@@ -67,6 +72,10 @@ type FollowUpRow = {
   } | null;
 };
 
+type CustomerAppointment = Appointment & {
+  scheduledAtValue: string;
+};
+
 function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   const status = normalizeFollowUpStatus(row.status);
   const urgency = resolveFollowUpUrgency(row.due_at, status, row.urgency);
@@ -80,6 +89,17 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
     dueAtIso: row.due_at,
     status,
     urgency,
+  };
+}
+
+function mapAppointmentRowToCustomerAppointment(
+  row: AppointmentRow
+): CustomerAppointment {
+  const appointment = mapAppointmentRowToAppointment(row);
+
+  return {
+    ...appointment,
+    scheduledAtValue: row.scheduled_at,
   };
 }
 
@@ -167,6 +187,26 @@ function isActiveInquiry(inquiry: Inquiry) {
   );
 }
 
+function isAppointmentPendingClosure(
+  appointment: CustomerAppointment,
+  currentTimeMs: number
+) {
+  if (
+    appointment.status !== "proposed" &&
+    appointment.status !== "confirmed"
+  ) {
+    return false;
+  }
+
+  const appointmentTime = new Date(appointment.scheduledAtValue).getTime();
+
+  if (Number.isNaN(appointmentTime)) {
+    return false;
+  }
+
+  return appointmentTime < currentTimeMs;
+}
+
 export function CustomerDetail({
   customerId,
   setActiveView,
@@ -178,6 +218,7 @@ export function CustomerDetail({
   const [notes, setNotes] = useState<InternalNoteRow[]>([]);
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
+  const [appointments, setAppointments] = useState<CustomerAppointment[]>([]);
   const [note, setNote] = useState("");
 
   const [editName, setEditName] = useState("");
@@ -228,6 +269,7 @@ export function CustomerDetail({
       setNotes([]);
       setInquiries([]);
       setFollowUps([]);
+      setAppointments([]);
       setNote("");
       setShowCreateFollowUpForm(false);
       setSelectedInquiryId("");
@@ -341,6 +383,36 @@ export function CustomerDetail({
         return;
       }
 
+      const { data: appointmentsData, error: appointmentsError } =
+        await supabase
+          .from("appointments")
+          .select(
+            [
+              "id",
+              "inquiry_id",
+              "customer_id",
+              "title",
+              "scheduled_at",
+              "duration_minutes",
+              "status",
+              "notes",
+              "created_at",
+              "updated_at",
+            ].join(", ")
+          )
+          .eq("customer_id", customerData.id)
+          .order("scheduled_at", { ascending: true });
+
+      if (appointmentsError) {
+        setErrorMessage(
+          `Se cargó el cliente, pero no se pudieron cargar sus citas internas: ${
+            appointmentsError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const mappedInquiries = (
         (inquiriesData ?? []) as unknown as InquiryRow[]
       ).map(mapInquiryRowToInquiry);
@@ -358,6 +430,11 @@ export function CustomerDetail({
       setFollowUps(
         ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
           mapFollowUpRowToFollowUp
+        )
+      );
+      setAppointments(
+        ((appointmentsData ?? []) as unknown as AppointmentRow[]).map(
+          mapAppointmentRowToCustomerAppointment
         )
       );
       setSelectedInquiryId(activeInquiries[0]?.id ?? "");
@@ -826,6 +903,77 @@ export function CustomerDetail({
       followUp.status === "completed" || followUp.status === "cancelled"
   );
 
+  const currentTimeMs = Date.now();
+
+  const pendingClosureAppointments = appointments.filter((appointment) =>
+    isAppointmentPendingClosure(appointment, currentTimeMs)
+  );
+
+  const pendingConfirmationAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "proposed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs)
+  );
+
+  const confirmedAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "confirmed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs)
+  );
+
+  const historyAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "completed" || appointment.status === "cancelled"
+  );
+
+  const renderAppointmentCard = (
+    appointment: CustomerAppointment,
+    isPendingClosure = false
+  ) => {
+    return (
+      <article
+        key={appointment.id}
+        className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+      >
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 className="text-sm font-semibold text-slate-950">
+              {appointment.title}
+            </h3>
+
+            <p className="mt-1 text-xs text-slate-500">
+              {appointment.scheduledAt} ·{" "}
+              {getAppointmentStatusLabel(appointment.status)}
+            </p>
+          </div>
+
+          {appointment.inquiryId ? (
+            <button
+              type="button"
+              onClick={() => openInquiry(appointment.inquiryId)}
+              className="text-left text-xs font-semibold text-[#0F4C5C] hover:underline sm:text-right"
+            >
+              Abrir caso
+            </button>
+          ) : null}
+        </div>
+
+        {isPendingClosure ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+            Esta cita interna ya ha pasado y sigue activa. Revísala desde la
+            agenda interna o desde el caso asociado.
+          </div>
+        ) : null}
+
+        {appointment.notes ? (
+          <p className="mt-3 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+            {appointment.notes}
+          </p>
+        ) : null}
+      </article>
+    );
+  };
+
   return (
     <div>
       <button
@@ -1192,6 +1340,76 @@ export function CustomerDetail({
                           isUpdating={updatingFollowUpId === followUp.id}
                         />
                       ))}
+                    </div>
+                  </section>
+                ) : null}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <h2 className="mb-3 text-lg font-bold text-slate-950">
+              Citas internas del cliente
+            </h2>
+
+            {appointments.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                Todavía no hay citas internas asociadas a este cliente.
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {pendingClosureAppointments.length > 0 ? (
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                      Pendientes de cerrar
+                    </h3>
+
+                    <div className="space-y-3">
+                      {pendingClosureAppointments.map((appointment) =>
+                        renderAppointmentCard(appointment, true)
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {pendingConfirmationAppointments.length > 0 ? (
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                      Pendientes de confirmar
+                    </h3>
+
+                    <div className="space-y-3">
+                      {pendingConfirmationAppointments.map((appointment) =>
+                        renderAppointmentCard(appointment)
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {confirmedAppointments.length > 0 ? (
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                      Confirmadas internamente
+                    </h3>
+
+                    <div className="space-y-3">
+                      {confirmedAppointments.map((appointment) =>
+                        renderAppointmentCard(appointment)
+                      )}
+                    </div>
+                  </section>
+                ) : null}
+
+                {historyAppointments.length > 0 ? (
+                  <section>
+                    <h3 className="mb-3 text-sm font-bold uppercase tracking-wide text-slate-500">
+                      Historial
+                    </h3>
+
+                    <div className="space-y-3">
+                      {historyAppointments.map((appointment) =>
+                        renderAppointmentCard(appointment)
+                      )}
                     </div>
                   </section>
                 ) : null}
