@@ -1038,7 +1038,7 @@ export function InquiryDetail({
     setAppointmentTitle("");
     setAppointmentScheduledAt("");
     setAppointmentNotes("");
-    setAppointmentMessage("Cita creada correctamente como propuesta.");
+    setAppointmentMessage("Cita creada como pendiente de confirmar.");
   };
 
   const handleUpdateAppointmentStatus = async (
@@ -1088,7 +1088,7 @@ export function InquiryDetail({
       )
     );
 
-    setAppointmentMessage("Cita actualizada correctamente.");
+    setAppointmentMessage("Estado de la cita actualizado.");
   };
 
   const handleCreateFollowUp = async () => {
@@ -1700,7 +1700,7 @@ export function InquiryDetail({
             {canCreateAppointment ? (
               <>
                 <p className="mt-2 text-sm leading-6 text-slate-600">
-                  Asigna una fecha y hora interna para este caso. COPPE no
+                  Registra una fecha y hora interna para este caso. COPPE no
                   confirma la cita automáticamente al cliente.
                 </p>
 
@@ -1822,7 +1822,7 @@ export function InquiryDetail({
                                     updatingAppointmentId === appointment.id
                                   }
                                 >
-                                  Confirmar
+                                  Marcar como confirmada
                                 </Button>
 
                                 <Button
@@ -1920,7 +1920,7 @@ export function InquiryDetail({
                             }
                             disabled={updatingAppointmentId === appointment.id}
                           >
-                            Reabrir como propuesta
+                            Reabrir como pendiente
                           </Button>
                         </article>
                       ))}

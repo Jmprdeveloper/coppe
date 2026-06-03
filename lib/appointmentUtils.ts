@@ -33,15 +33,15 @@ export function getAppointmentStatusLabel(status: string | null | undefined) {
   const normalizedStatus = normalizeAppointmentStatus(status);
 
   if (normalizedStatus === "proposed") {
-    return "Propuesta";
+    return "Pendiente de confirmar";
   }
 
   if (normalizedStatus === "confirmed") {
-    return "Confirmada";
+    return "Confirmada internamente";
   }
 
   if (normalizedStatus === "completed") {
-    return "Completada";
+    return "Realizada";
   }
 
   if (normalizedStatus === "cancelled") {
