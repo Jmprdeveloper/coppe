@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock, Sparkles, XCircle } from "lucide-react";
 
 import {
+  compareAppointmentsByScheduledAt,
   getAppointmentStatusLabel,
   mapAppointmentRowToAppointment,
   type AppointmentRow,
@@ -536,9 +537,9 @@ export function InquiryDetail({
         )
       );
       setAppointments(
-        ((appointmentsData ?? []) as unknown as AppointmentRow[]).map(
-          mapAppointmentRowToAppointment
-        )
+        ((appointmentsData ?? []) as unknown as AppointmentRow[])
+          .map(mapAppointmentRowToAppointment)
+          .sort(compareAppointmentsByScheduledAt)
       );
       setNotes((notesData ?? []) as InternalNoteRow[]);
       setIsLoading(false);
@@ -1045,9 +1046,7 @@ export function InquiryDetail({
 
     setAppointments((currentAppointments) =>
       [...currentAppointments, mappedAppointment].sort(
-        (firstAppointment, secondAppointment) =>
-          new Date(firstAppointment.scheduledAtIso).getTime() -
-          new Date(secondAppointment.scheduledAtIso).getTime()
+        compareAppointmentsByScheduledAt
       )
     );
 
@@ -1099,9 +1098,11 @@ export function InquiryDetail({
     const mappedAppointment = mapAppointmentRowToAppointment(data);
 
     setAppointments((currentAppointments) =>
-      currentAppointments.map((appointment) =>
-        appointment.id === appointmentId ? mappedAppointment : appointment
-      )
+      currentAppointments
+        .map((appointment) =>
+          appointment.id === appointmentId ? mappedAppointment : appointment
+        )
+        .sort(compareAppointmentsByScheduledAt)
     );
 
     setAppointmentMessage("Estado de la cita actualizado.");
@@ -1215,11 +1216,7 @@ export function InquiryDetail({
             ? mappedAppointment
             : appointment
         )
-        .sort(
-          (firstAppointment, secondAppointment) =>
-            new Date(firstAppointment.scheduledAtIso).getTime() -
-            new Date(secondAppointment.scheduledAtIso).getTime()
-        )
+        .sort(compareAppointmentsByScheduledAt)
     );
 
     setEditingAppointmentId(null);
