@@ -10,6 +10,11 @@ import {
 } from "lucide-react";
 
 import {
+  getAppointmentStatusLabel,
+  mapAppointmentRowToAppointment,
+  type AppointmentRow,
+} from "../lib/appointmentUtils";
+import {
   followUpUrgencyWeight,
   formatFollowUpDueAt,
   normalizeFollowUpStatus,
@@ -20,7 +25,7 @@ import {
   type InquiryRow,
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type { FollowUp, Inquiry, Priority } from "../types";
+import type { Appointment, FollowUp, Inquiry, Priority } from "../types";
 
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
@@ -59,6 +64,10 @@ type DashboardFollowUp = FollowUp & {
   dueAtValue: string | null;
 };
 
+type DashboardAppointment = Appointment & {
+  scheduledAtValue: string;
+};
+
 function mapFollowUpRowToFollowUp(row: FollowUpRow): DashboardFollowUp {
   const status = normalizeFollowUpStatus(row.status);
   const urgency = resolveFollowUpUrgency(row.due_at, status, row.urgency);
@@ -76,6 +85,17 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): DashboardFollowUp {
   };
 }
 
+function mapAppointmentRowToDashboardAppointment(
+  row: AppointmentRow
+): DashboardAppointment {
+  const appointment = mapAppointmentRowToAppointment(row);
+
+  return {
+    ...appointment,
+    scheduledAtValue: row.scheduled_at,
+  };
+}
+
 function priorityWeight(priority: Priority) {
   if (priority === "high") {
     return 3;
@@ -88,6 +108,18 @@ function priorityWeight(priority: Priority) {
   return 1;
 }
 
+function appointmentStatusWeight(status: string) {
+  if (status === "proposed") {
+    return 2;
+  }
+
+  if (status === "confirmed") {
+    return 1;
+  }
+
+  return 0;
+}
+
 function needsCompanyAttention(inquiry: Inquiry) {
   return inquiry.status === "new" || inquiry.status === "pending";
 }
@@ -97,6 +129,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
 
   const [inquiries, setInquiries] = useState<DashboardInquiry[]>([]);
   const [followUps, setFollowUps] = useState<DashboardFollowUp[]>([]);
+  const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
     null
@@ -220,6 +253,36 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         return;
       }
 
+      const { data: appointmentsData, error: appointmentsError } =
+        await supabase
+          .from("appointments")
+          .select(
+            [
+              "id",
+              "inquiry_id",
+              "customer_id",
+              "title",
+              "scheduled_at",
+              "duration_minutes",
+              "status",
+              "notes",
+              "created_at",
+              "updated_at",
+            ].join(", ")
+          )
+          .in("status", ["proposed", "confirmed"])
+          .order("scheduled_at", { ascending: true });
+
+      if (appointmentsError) {
+        setErrorMessage(
+          `No se pudieron cargar las citas internas del dashboard: ${
+            appointmentsError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       setInquiries(
         inquiryRows.map((inquiryRow) => {
           const inquiry = mapInquiryRowToInquiry(inquiryRow);
@@ -235,6 +298,12 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       setFollowUps(
         ((followUpsData ?? []) as unknown as FollowUpRow[]).map(
           mapFollowUpRowToFollowUp
+        )
+      );
+
+      setAppointments(
+        ((appointmentsData ?? []) as unknown as AppointmentRow[]).map(
+          mapAppointmentRowToDashboardAppointment
         )
       );
 
@@ -316,6 +385,10 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       followUp.urgency === "overdue" || followUp.urgency === "today"
   ).length;
 
+  const appointmentsPendingConfirmation = appointments.filter(
+    (appointment) => appointment.status === "proposed"
+  ).length;
+
   const priorityItems = [...inquiries]
     .filter((inquiry) => needsCompanyAttention(inquiry))
     .sort((a, b) => {
@@ -354,11 +427,27 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     })
     .slice(0, 3);
 
+  const nextAppointments = [...appointments]
+    .sort((a, b) => {
+      const statusDifference =
+        appointmentStatusWeight(b.status) - appointmentStatusWeight(a.status);
+
+      if (statusDifference !== 0) {
+        return statusDifference;
+      }
+
+      return (
+        new Date(a.scheduledAtValue).getTime() -
+        new Date(b.scheduledAtValue).getTime()
+      );
+    })
+    .slice(0, 4);
+
   return (
     <div>
       <PageHeader
         title="Dashboard"
-        description="Vista rápida de los casos, clientes y seguimientos que necesitan atención ahora."
+        description="Vista rápida de los casos, citas internas y seguimientos que necesitan atención ahora."
         action={
           <Button onClick={() => setActiveView("InquiryForm")}>
             <Plus size={16} /> Registrar mensaje
@@ -384,7 +473,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <StatCard
           title="Nuevos casos"
           value={newCount}
@@ -404,6 +493,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           value={waitingCustomerCount}
           icon={MessageSquareText}
           caption="La empresa ya respondió"
+        />
+
+        <StatCard
+          title="Citas por confirmar"
+          value={appointmentsPendingConfirmation}
+          icon={CalendarClock}
+          caption="Pendientes de validación interna"
         />
 
         <StatCard
@@ -446,43 +542,93 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           )}
         </section>
 
-        <section>
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-950">
-              Seguimientos que atender
-            </h2>
-
-            <button
-              onClick={() => setActiveView("followups")}
-              className="text-sm font-semibold text-[#0F4C5C] hover:underline"
-            >
-              Ver agenda
-            </button>
-          </div>
-
-          {nextFollowUps.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              No hay seguimientos pendientes.
+        <div className="space-y-6">
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-950">
+                Citas internas
+              </h2>
             </div>
-          ) : (
-            <div className="space-y-3">
-              {nextFollowUps.map((followUp) => (
-                <FollowUpCard
-                  key={followUp.id}
-                  followUp={followUp}
-                  onOpen={openInquiry}
-                  onComplete={(id) =>
-                    handleUpdateFollowUpStatus(id, "completed")
-                  }
-                  onCancel={(id) =>
-                    handleUpdateFollowUpStatus(id, "cancelled")
-                  }
-                  isUpdating={updatingFollowUpId === followUp.id}
-                />
-              ))}
+
+            {nextAppointments.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                No hay citas internas pendientes.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {nextAppointments.map((appointment) => (
+                  <article
+                    key={appointment.id}
+                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                  >
+                    <div className="text-sm font-semibold text-slate-950">
+                      {appointment.title}
+                    </div>
+
+                    <p className="mt-1 text-xs text-slate-500">
+                      {appointment.scheduledAt} ·{" "}
+                      {getAppointmentStatusLabel(appointment.status)}
+                    </p>
+
+                    {appointment.notes ? (
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">
+                        {appointment.notes}
+                      </p>
+                    ) : null}
+
+                    {appointment.inquiryId ? (
+                      <button
+                        type="button"
+                        onClick={() => openInquiry(appointment.inquiryId)}
+                        className="mt-3 text-xs font-semibold text-[#0F4C5C] hover:underline"
+                      >
+                        Abrir caso
+                      </button>
+                    ) : null}
+                  </article>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-950">
+                Seguimientos que atender
+              </h2>
+
+              <button
+                onClick={() => setActiveView("followups")}
+                className="text-sm font-semibold text-[#0F4C5C] hover:underline"
+              >
+                Ver agenda
+              </button>
             </div>
-          )}
-        </section>
+
+            {nextFollowUps.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                No hay seguimientos pendientes.
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {nextFollowUps.map((followUp) => (
+                  <FollowUpCard
+                    key={followUp.id}
+                    followUp={followUp}
+                    onOpen={openInquiry}
+                    onComplete={(id) =>
+                      handleUpdateFollowUpStatus(id, "completed")
+                    }
+                    onCancel={(id) =>
+                      handleUpdateFollowUpStatus(id, "cancelled")
+                    }
+                    isUpdating={updatingFollowUpId === followUp.id}
+                  />
+                ))}
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
