@@ -588,7 +588,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     }
 
     if (status === "confirmed") {
-      setSuccessMessage("Cita interna marcada como confirmada.");
+      setSuccessMessage("Cita interna marcada como confirmada internamente.");
       return;
     }
 

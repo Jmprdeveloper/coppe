@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ElementType } from "react";
 import { Building2, LogOut, Search, UserRound, X } from "lucide-react";
 
+import { getAppointmentStatusLabel } from "../lib/appointmentUtils";
 import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
@@ -55,9 +56,17 @@ type FollowUpSearchRow = {
   } | null;
 };
 
+type AppointmentSearchRow = {
+  id: string;
+  title: string;
+  inquiry_id: string | null;
+  status: string;
+  notes: string | null;
+};
+
 type SearchResult = {
   id: string;
-  type: "customer" | "inquiry" | "follow_up";
+  type: "customer" | "inquiry" | "follow_up" | "appointment";
   title: string;
   description: string;
   inquiryId?: string | null;
@@ -97,7 +106,11 @@ function resultTypeLabel(type: SearchResult["type"]) {
     return "Caso";
   }
 
-  return "Seguimiento";
+  if (type === "follow_up") {
+    return "Seguimiento";
+  }
+
+  return "Cita interna";
 }
 
 function customerStatusLabel(status: string) {
@@ -212,26 +225,35 @@ export function Topbar({
       setIsSearching(true);
 
       try {
-        const [customersResponse, inquiriesResponse, followUpsResponse] =
-          await Promise.all([
-            supabase
-              .from("customers")
-              .select("id, name, email, phone, status")
-              .limit(SEARCH_FETCH_LIMIT),
+        const [
+          customersResponse,
+          inquiriesResponse,
+          followUpsResponse,
+          appointmentsResponse,
+        ] = await Promise.all([
+          supabase
+            .from("customers")
+            .select("id, name, email, phone, status")
+            .limit(SEARCH_FETCH_LIMIT),
 
-            supabase
-              .from("inquiries")
-              .select(
-                "id, customer_name, subject, ai_summary, original_message, status"
-              )
-              .limit(SEARCH_FETCH_LIMIT),
+          supabase
+            .from("inquiries")
+            .select(
+              "id, customer_name, subject, ai_summary, original_message, status"
+            )
+            .limit(SEARCH_FETCH_LIMIT),
 
-            supabase
-              .from("follow_ups")
-              .select("id, title, inquiry_id, customer:customers(name)")
-              .eq("status", "pending")
-              .limit(SEARCH_FETCH_LIMIT),
-          ]);
+          supabase
+            .from("follow_ups")
+            .select("id, title, inquiry_id, customer:customers(name)")
+            .eq("status", "pending")
+            .limit(SEARCH_FETCH_LIMIT),
+
+          supabase
+            .from("appointments")
+            .select("id, title, inquiry_id, status, notes")
+            .limit(SEARCH_FETCH_LIMIT),
+        ]);
 
         if (searchRequestId.current !== currentRequestId) {
           return;
@@ -266,6 +288,15 @@ export function Topbar({
           return;
         }
 
+        if (appointmentsResponse.error) {
+          setSearchErrorMessage(
+            `No se pudieron buscar citas internas: ${
+              appointmentsResponse.error.message || "sin detalle del error"
+            }`
+          );
+          return;
+        }
+
         const customers = (customersResponse.data ??
           []) as unknown as CustomerSearchRow[];
 
@@ -274,6 +305,9 @@ export function Topbar({
 
         const followUps = (followUpsResponse.data ??
           []) as unknown as FollowUpSearchRow[];
+
+        const appointments = (appointmentsResponse.data ??
+          []) as unknown as AppointmentSearchRow[];
 
         const customerResults: SearchResult[] = customers
           .filter((customer) => {
@@ -343,7 +377,32 @@ export function Topbar({
             inquiryId: followUp.inquiry_id,
           }));
 
-        setResults([...customerResults, ...inquiryResults, ...followUpResults]);
+        const appointmentResults: SearchResult[] = appointments
+          .filter((appointment) => {
+            return (
+              normalizeSearchText(appointment.title).includes(
+                normalizedSearch
+              ) ||
+              normalizeSearchText(appointment.notes).includes(normalizedSearch)
+            );
+          })
+          .slice(0, SEARCH_RESULTS_PER_TYPE)
+          .map((appointment) => ({
+            id: appointment.id,
+            type: "appointment",
+            title: appointment.title,
+            description: `Cita interna · ${getAppointmentStatusLabel(
+              appointment.status
+            )}`,
+            inquiryId: appointment.inquiry_id,
+          }));
+
+        setResults([
+          ...customerResults,
+          ...inquiryResults,
+          ...followUpResults,
+          ...appointmentResults,
+        ]);
       } catch (error) {
         if (searchRequestId.current !== currentRequestId) {
           return;
@@ -403,7 +462,19 @@ export function Topbar({
       return;
     }
 
-    setSearchErrorMessage("Este seguimiento no tiene un caso asociado.");
+    if (result.type === "appointment" && result.inquiryId) {
+      openInquiry(result.inquiryId);
+      return;
+    }
+
+    if (result.type === "follow_up") {
+      setSearchErrorMessage("Este seguimiento no tiene un caso asociado.");
+      return;
+    }
+
+    if (result.type === "appointment") {
+      setSearchErrorMessage("Esta cita interna no tiene un caso asociado.");
+    }
   };
 
   const showSearchPanel =
@@ -412,14 +483,14 @@ export function Topbar({
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center justify-between border-b border-slate-200 bg-white/90 px-4 backdrop-blur md:px-6">
       <div className="flex items-center gap-3">
-      <button
-        type="button"
-        onClick={() => setActiveView("dashboard")}
-        title="Ir al dashboard"
-        className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white lg:hidden"
+        <button
+          type="button"
+          onClick={() => setActiveView("dashboard")}
+          title="Ir al dashboard"
+          className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white lg:hidden"
         >
-        <Building2 size={18} />
-      </button>
+          <Building2 size={18} />
+        </button>
 
         <div>
           <div className="text-sm font-semibold text-slate-950">
@@ -447,7 +518,7 @@ export function Topbar({
               }
             }}
             className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            placeholder="Buscar casos, clientes o seguimientos..."
+            placeholder="Buscar casos, clientes, seguimientos o citas..."
           />
 
           {searchTerm ? (
