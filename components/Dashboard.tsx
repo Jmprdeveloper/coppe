@@ -108,12 +108,39 @@ function priorityWeight(priority: Priority) {
   return 1;
 }
 
-function appointmentStatusWeight(status: string) {
-  if (status === "proposed") {
+function isAppointmentPendingClosure(
+  appointment: DashboardAppointment,
+  currentTimeMs: number
+) {
+  if (
+    appointment.status !== "proposed" &&
+    appointment.status !== "confirmed"
+  ) {
+    return false;
+  }
+
+  const appointmentTime = new Date(appointment.scheduledAtValue).getTime();
+
+  if (Number.isNaN(appointmentTime)) {
+    return false;
+  }
+
+  return appointmentTime < currentTimeMs;
+}
+
+function appointmentDashboardWeight(
+  appointment: DashboardAppointment,
+  currentTimeMs: number
+) {
+  if (isAppointmentPendingClosure(appointment, currentTimeMs)) {
+    return 3;
+  }
+
+  if (appointment.status === "proposed") {
     return 2;
   }
 
-  if (status === "confirmed") {
+  if (appointment.status === "confirmed") {
     return 1;
   }
 
@@ -385,9 +412,20 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       followUp.urgency === "overdue" || followUp.urgency === "today"
   ).length;
 
-  const appointmentsPendingConfirmation = appointments.filter(
-    (appointment) => appointment.status === "proposed"
+  const currentTimeMs = Date.now();
+
+  const appointmentsPendingClosure = appointments.filter((appointment) =>
+    isAppointmentPendingClosure(appointment, currentTimeMs)
   ).length;
+
+  const appointmentsPendingConfirmation = appointments.filter(
+    (appointment) =>
+      appointment.status === "proposed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs)
+  ).length;
+
+  const appointmentsNeedAttention =
+    appointmentsPendingClosure + appointmentsPendingConfirmation;
 
   const priorityItems = [...inquiries]
     .filter((inquiry) => needsCompanyAttention(inquiry))
@@ -430,7 +468,8 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   const nextAppointments = [...appointments]
     .sort((a, b) => {
       const statusDifference =
-        appointmentStatusWeight(b.status) - appointmentStatusWeight(a.status);
+        appointmentDashboardWeight(b, currentTimeMs) -
+        appointmentDashboardWeight(a, currentTimeMs);
 
       if (statusDifference !== 0) {
         return statusDifference;
@@ -496,10 +535,14 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         />
 
         <StatCard
-          title="Citas por confirmar"
-          value={appointmentsPendingConfirmation}
+          title="Citas pendientes"
+          value={appointmentsNeedAttention}
           icon={CalendarClock}
-          caption="Pendientes de validación interna"
+          caption={
+            appointmentsPendingClosure > 0
+              ? `${appointmentsPendingClosure} pendientes de cerrar`
+              : "Pendientes de validación interna"
+          }
         />
 
         <StatCard
@@ -548,6 +591,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
               <h2 className="text-lg font-bold text-slate-950">
                 Citas internas
               </h2>
+
+              <button
+                onClick={() => setActiveView("appointments")}
+                className="text-sm font-semibold text-[#0F4C5C] hover:underline"
+              >
+                Ver agenda
+              </button>
             </div>
 
             {nextAppointments.length === 0 ? (
@@ -556,37 +606,49 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
               </div>
             ) : (
               <div className="space-y-3">
-                {nextAppointments.map((appointment) => (
-                  <article
-                    key={appointment.id}
-                    className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
-                  >
-                    <div className="text-sm font-semibold text-slate-950">
-                      {appointment.title}
-                    </div>
+                {nextAppointments.map((appointment) => {
+                  const appointmentPendingClosure =
+                    isAppointmentPendingClosure(appointment, currentTimeMs);
 
-                    <p className="mt-1 text-xs text-slate-500">
-                      {appointment.scheduledAt} ·{" "}
-                      {getAppointmentStatusLabel(appointment.status)}
-                    </p>
+                  return (
+                    <article
+                      key={appointment.id}
+                      className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+                    >
+                      <div className="text-sm font-semibold text-slate-950">
+                        {appointment.title}
+                      </div>
 
-                    {appointment.notes ? (
-                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">
-                        {appointment.notes}
+                      <p className="mt-1 text-xs text-slate-500">
+                        {appointment.scheduledAt} ·{" "}
+                        {getAppointmentStatusLabel(appointment.status)}
                       </p>
-                    ) : null}
 
-                    {appointment.inquiryId ? (
-                      <button
-                        type="button"
-                        onClick={() => openInquiry(appointment.inquiryId)}
-                        className="mt-3 text-xs font-semibold text-[#0F4C5C] hover:underline"
-                      >
-                        Abrir caso
-                      </button>
-                    ) : null}
-                  </article>
-                ))}
+                      {appointmentPendingClosure ? (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+                          Pendiente de cerrar. Esta cita interna ya ha pasado y
+                          sigue activa.
+                        </div>
+                      ) : null}
+
+                      {appointment.notes ? (
+                        <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-600">
+                          {appointment.notes}
+                        </p>
+                      ) : null}
+
+                      {appointment.inquiryId ? (
+                        <button
+                          type="button"
+                          onClick={() => openInquiry(appointment.inquiryId)}
+                          className="mt-3 text-xs font-semibold text-[#0F4C5C] hover:underline"
+                        >
+                          Abrir caso
+                        </button>
+                      ) : null}
+                    </article>
+                  );
+                })}
               </div>
             )}
           </section>
