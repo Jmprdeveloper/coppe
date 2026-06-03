@@ -706,7 +706,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                 }
                 disabled={isUpdating}
               >
-                Marcar como confirmada
+                Marcar como confirmada internamente
               </Button>
 
               <Button
@@ -1043,3 +1043,4 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     </div>
   );
 }
+

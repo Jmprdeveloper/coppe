@@ -2049,7 +2049,7 @@ export function InquiryDetail({
                                         updatingAppointmentId === appointment.id
                                       }
                                     >
-                                      Marcar como confirmada
+                                      Marcar como confirmada internamente
                                     </Button>
 
                                     <Button
@@ -2481,6 +2481,7 @@ export function InquiryDetail({
     </div>
   );
 }
+
 
 
 
