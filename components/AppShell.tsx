@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   CalendarClock,
+  CalendarDays,
   Inbox,
   LayoutDashboard,
   Settings,
@@ -17,6 +18,7 @@ import {
 } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 import { classNames } from "../lib/utils";
+import { Appointments } from "./Appointments";
 import { CustomerDetail } from "./CustomerDetail";
 import { Customers } from "./Customers";
 import { Dashboard } from "./Dashboard";
@@ -32,6 +34,7 @@ const navigation = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "inquiries", label: "Casos", icon: Inbox },
   { key: "customers", label: "Clientes", icon: UsersRound },
+  { key: "appointments", label: "Agenda interna", icon: CalendarDays },
   { key: "followups", label: "Seguimientos", icon: CalendarClock },
   { key: "settings", label: "Configuración", icon: Settings },
 ];
@@ -157,6 +160,9 @@ export function AppShell({
           />
         );
 
+      case "appointments":
+        return <Appointments openInquiry={openInquiry} />;
+
       case "followups":
         return <FollowUps openInquiry={openInquiry} />;
 
@@ -252,7 +258,7 @@ export function AppShell({
           </main>
 
           <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-2 py-2 lg:hidden">
-            <div className="grid grid-cols-5 gap-1">
+            <div className="grid grid-cols-6 gap-1">
               {navigation.map((item) => {
                 const Icon = item.icon;
                 const active = activeView === item.key;
@@ -262,7 +268,7 @@ export function AppShell({
                     key={item.key}
                     onClick={() => setActiveView(item.key)}
                     className={classNames(
-                      "flex flex-col items-center gap-1 rounded-xl px-2 py-2 text-[11px] font-medium",
+                      "flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium",
                       active
                         ? "bg-[#E6F3F6] text-[#0F4C5C]"
                         : "text-slate-500"
