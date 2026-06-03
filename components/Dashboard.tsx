@@ -10,7 +10,9 @@ import {
 } from "lucide-react";
 
 import {
+  compareAppointmentsByScheduledAt,
   getAppointmentStatusLabel,
+  isAppointmentPendingClosure,
   mapAppointmentRowToAppointment,
   type AppointmentRow,
 } from "../lib/appointmentUtils";
@@ -106,26 +108,6 @@ function priorityWeight(priority: Priority) {
   }
 
   return 1;
-}
-
-function isAppointmentPendingClosure(
-  appointment: DashboardAppointment,
-  currentTimeMs: number
-) {
-  if (
-    appointment.status !== "proposed" &&
-    appointment.status !== "confirmed"
-  ) {
-    return false;
-  }
-
-  const appointmentTime = new Date(appointment.scheduledAtValue).getTime();
-
-  if (Number.isNaN(appointmentTime)) {
-    return false;
-  }
-
-  return appointmentTime < currentTimeMs;
 }
 
 function appointmentDashboardWeight(
@@ -475,10 +457,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         return statusDifference;
       }
 
-      return (
-        new Date(a.scheduledAtValue).getTime() -
-        new Date(b.scheduledAtValue).getTime()
-      );
+      return compareAppointmentsByScheduledAt(a, b);
     })
     .slice(0, 4);
 
