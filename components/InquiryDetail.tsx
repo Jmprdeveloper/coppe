@@ -277,6 +277,13 @@ export function InquiryDetail({
   const [appointmentTitle, setAppointmentTitle] = useState("");
   const [appointmentScheduledAt, setAppointmentScheduledAt] = useState("");
   const [appointmentNotes, setAppointmentNotes] = useState("");
+  const [editingAppointmentId, setEditingAppointmentId] = useState<
+    string | null
+  >(null);
+  const [editAppointmentTitle, setEditAppointmentTitle] = useState("");
+  const [editAppointmentScheduledAt, setEditAppointmentScheduledAt] =
+    useState("");
+  const [editAppointmentNotes, setEditAppointmentNotes] = useState("");
 
   const [followUpTitle, setFollowUpTitle] = useState("");
   const [followUpDueAt, setFollowUpDueAt] = useState(
@@ -296,6 +303,7 @@ export function InquiryDetail({
   const [isSavingNote, setIsSavingNote] = useState(false);
   const [isReanalyzingInquiry, setIsReanalyzingInquiry] = useState(false);
   const [isCreatingAppointment, setIsCreatingAppointment] = useState(false);
+  const [isSavingAppointmentEdit, setIsSavingAppointmentEdit] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
   const [isSavingFollowUpEdit, setIsSavingFollowUpEdit] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
@@ -350,6 +358,10 @@ export function InquiryDetail({
       setAppointmentTitle("");
       setAppointmentScheduledAt("");
       setAppointmentNotes("");
+      setEditingAppointmentId(null);
+      setEditAppointmentTitle("");
+      setEditAppointmentScheduledAt("");
+      setEditAppointmentNotes("");
       setFollowUpTitle("");
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
       setShowCreateFollowUpForm(false);
@@ -407,6 +419,10 @@ export function InquiryDetail({
       setAppointmentTitle("");
       setAppointmentScheduledAt("");
       setAppointmentNotes("");
+      setEditingAppointmentId(null);
+      setEditAppointmentTitle("");
+      setEditAppointmentScheduledAt("");
+      setEditAppointmentNotes("");
       setFollowUpTitle(`Revisar caso de ${inquiryData.customer_name}`);
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
@@ -1091,6 +1107,128 @@ export function InquiryDetail({
     setAppointmentMessage("Estado de la cita actualizado.");
   };
 
+  const handleOpenEditAppointmentForm = (appointment: Appointment) => {
+    setAppointmentMessage("");
+    setAppointmentErrorMessage("");
+    setEditingAppointmentId(appointment.id);
+    setEditAppointmentTitle(appointment.title);
+    setEditAppointmentScheduledAt(
+      formatDateTimeLocalFromIso(appointment.scheduledAtIso)
+    );
+    setEditAppointmentNotes(appointment.notes);
+  };
+
+  const handleCancelEditAppointment = () => {
+    setEditingAppointmentId(null);
+    setEditAppointmentTitle("");
+    setEditAppointmentScheduledAt("");
+    setEditAppointmentNotes("");
+    setAppointmentErrorMessage("");
+  };
+
+  const handleSaveAppointmentEdit = async () => {
+    setAppointmentMessage("");
+    setAppointmentErrorMessage("");
+
+    const editingAppointment = appointments.find(
+      (appointment) => appointment.id === editingAppointmentId
+    );
+
+    if (!editingAppointment) {
+      setAppointmentErrorMessage(
+        "No se puede editar la cita porque no se encontró en pantalla."
+      );
+      return;
+    }
+
+    const cleanEditAppointmentTitle = editAppointmentTitle.trim();
+
+    if (!cleanEditAppointmentTitle) {
+      setAppointmentErrorMessage("El título de la cita es obligatorio.");
+      return;
+    }
+
+    if (!editAppointmentScheduledAt) {
+      setAppointmentErrorMessage(
+        "La fecha y hora de la cita son obligatorias."
+      );
+      return;
+    }
+
+    const scheduledDate = new Date(editAppointmentScheduledAt);
+
+    if (Number.isNaN(scheduledDate.getTime())) {
+      setAppointmentErrorMessage("La fecha indicada no es válida.");
+      return;
+    }
+
+    if (scheduledDate.getTime() < Date.now() - 60 * 1000) {
+      setAppointmentErrorMessage(
+        "No puedes guardar una cita en una fecha pasada."
+      );
+      return;
+    }
+
+    setIsSavingAppointmentEdit(true);
+
+    const { data, error } = await supabase
+      .from("appointments")
+      .update({
+        title: cleanEditAppointmentTitle,
+        scheduled_at: scheduledDate.toISOString(),
+        notes: editAppointmentNotes.trim() || null,
+      })
+      .eq("id", editingAppointment.id)
+      .select(
+        [
+          "id",
+          "inquiry_id",
+          "customer_id",
+          "title",
+          "scheduled_at",
+          "duration_minutes",
+          "status",
+          "notes",
+          "created_at",
+          "updated_at",
+        ].join(", ")
+      )
+      .single<AppointmentRow>();
+
+    setIsSavingAppointmentEdit(false);
+
+    if (error || !data) {
+      setAppointmentErrorMessage(
+        `No se pudo actualizar la cita: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const mappedAppointment = mapAppointmentRowToAppointment(data);
+
+    setAppointments((currentAppointments) =>
+      currentAppointments
+        .map((appointment) =>
+          appointment.id === editingAppointment.id
+            ? mappedAppointment
+            : appointment
+        )
+        .sort(
+          (firstAppointment, secondAppointment) =>
+            new Date(firstAppointment.scheduledAtIso).getTime() -
+            new Date(secondAppointment.scheduledAtIso).getTime()
+        )
+    );
+
+    setEditingAppointmentId(null);
+    setEditAppointmentTitle("");
+    setEditAppointmentScheduledAt("");
+    setEditAppointmentNotes("");
+    setAppointmentMessage("Cita actualizada correctamente.");
+  };
+
   const handleCreateFollowUp = async () => {
     setFollowUpCreateMessage("");
     setFollowUpCreateErrorMessage("");
@@ -1450,6 +1588,10 @@ export function InquiryDetail({
     (followUp) => followUp.id === editingFollowUpId
   );
 
+  const editingAppointment = appointments.find(
+    (appointment) => appointment.id === editingAppointmentId
+  );
+
   return (
     <div>
       <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -1792,90 +1934,177 @@ export function InquiryDetail({
                           key={appointment.id}
                           className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
                         >
-                          <div className="text-sm font-semibold text-slate-950">
-                            {appointment.title}
-                          </div>
+                          {editingAppointment?.id === appointment.id ? (
+                            <>
+                              <h4 className="text-sm font-bold text-slate-950">
+                                Editar cita interna
+                              </h4>
 
-                          <p className="mt-1 text-xs text-slate-500">
-                            {appointment.scheduledAt} ·{" "}
-                            {getAppointmentStatusLabel(appointment.status)}
-                          </p>
+                              <p className="mt-1 text-xs leading-5 text-slate-500">
+                                Actualiza el título, la fecha/hora o las notas
+                                internas de esta cita.
+                              </p>
 
-                          {appointment.notes ? (
-                            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                              {appointment.notes}
-                            </p>
-                          ) : null}
+                              <div className="mt-4 space-y-3">
+                                <label className="block text-sm font-medium text-slate-700">
+                                  Título
+                                  <input
+                                    value={editAppointmentTitle}
+                                    onChange={(event) =>
+                                      setEditAppointmentTitle(event.target.value)
+                                    }
+                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                                  />
+                                </label>
 
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {appointment.status === "proposed" ? (
-                              <>
+                                <label className="block text-sm font-medium text-slate-700">
+                                  Fecha y hora
+                                  <input
+                                    type="datetime-local"
+                                    value={editAppointmentScheduledAt}
+                                    onChange={(event) =>
+                                      setEditAppointmentScheduledAt(
+                                        event.target.value
+                                      )
+                                    }
+                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                                  />
+                                </label>
+
+                                <label className="block text-sm font-medium text-slate-700">
+                                  Notas
+                                  <textarea
+                                    value={editAppointmentNotes}
+                                    onChange={(event) =>
+                                      setEditAppointmentNotes(event.target.value)
+                                    }
+                                    className="mt-1 min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                                    placeholder="Ej. Detalles relevantes para preparar la cita..."
+                                  />
+                                </label>
+                              </div>
+
+                              <div className="mt-4 flex flex-wrap gap-2">
                                 <Button
-                                  variant="secondary"
-                                  onClick={() =>
-                                    handleUpdateAppointmentStatus(
-                                      appointment.id,
-                                      "confirmed"
-                                    )
-                                  }
-                                  disabled={
-                                    updatingAppointmentId === appointment.id
-                                  }
+                                  onClick={handleSaveAppointmentEdit}
+                                  disabled={isSavingAppointmentEdit}
                                 >
-                                  Marcar como confirmada
+                                  {isSavingAppointmentEdit
+                                    ? "Guardando cambios..."
+                                    : "Guardar cambios"}
                                 </Button>
 
                                 <Button
-                                  variant="ghost"
-                                  onClick={() =>
-                                    handleUpdateAppointmentStatus(
-                                      appointment.id,
-                                      "cancelled"
-                                    )
-                                  }
-                                  disabled={
-                                    updatingAppointmentId === appointment.id
-                                  }
+                                  variant="secondary"
+                                  onClick={handleCancelEditAppointment}
+                                  disabled={isSavingAppointmentEdit}
                                 >
                                   Cancelar
                                 </Button>
-                              </>
-                            ) : null}
+                              </div>
+                            </>
+                          ) : (
+                            <>
+                              <div className="text-sm font-semibold text-slate-950">
+                                {appointment.title}
+                              </div>
 
-                            {appointment.status === "confirmed" ? (
-                              <>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {appointment.scheduledAt} ·{" "}
+                                {getAppointmentStatusLabel(
+                                  appointment.status
+                                )}
+                              </p>
+
+                              {appointment.notes ? (
+                                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                                  {appointment.notes}
+                                </p>
+                              ) : null}
+
+                              <div className="mt-3 flex flex-wrap gap-2">
                                 <Button
                                   variant="secondary"
                                   onClick={() =>
-                                    handleUpdateAppointmentStatus(
-                                      appointment.id,
-                                      "completed"
-                                    )
+                                    handleOpenEditAppointmentForm(appointment)
                                   }
                                   disabled={
                                     updatingAppointmentId === appointment.id
                                   }
                                 >
-                                  Completar
+                                  Editar
                                 </Button>
 
-                                <Button
-                                  variant="ghost"
-                                  onClick={() =>
-                                    handleUpdateAppointmentStatus(
-                                      appointment.id,
-                                      "cancelled"
-                                    )
-                                  }
-                                  disabled={
-                                    updatingAppointmentId === appointment.id
-                                  }
-                                >
-                                  Cancelar
-                                </Button>
-                              </>
-                            ) : null}
-                          </div>
+                                {appointment.status === "proposed" ? (
+                                  <>
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() =>
+                                        handleUpdateAppointmentStatus(
+                                          appointment.id,
+                                          "confirmed"
+                                        )
+                                      }
+                                      disabled={
+                                        updatingAppointmentId === appointment.id
+                                      }
+                                    >
+                                      Marcar como confirmada
+                                    </Button>
+
+                                    <Button
+                                      variant="ghost"
+                                      onClick={() =>
+                                        handleUpdateAppointmentStatus(
+                                          appointment.id,
+                                          "cancelled"
+                                        )
+                                      }
+                                      disabled={
+                                        updatingAppointmentId === appointment.id
+                                      }
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </>
+                                ) : null}
+
+                                {appointment.status === "confirmed" ? (
+                                  <>
+                                    <Button
+                                      variant="secondary"
+                                      onClick={() =>
+                                        handleUpdateAppointmentStatus(
+                                          appointment.id,
+                                          "completed"
+                                        )
+                                      }
+                                      disabled={
+                                        updatingAppointmentId === appointment.id
+                                      }
+                                    >
+                                      Completar
+                                    </Button>
+
+                                    <Button
+                                      variant="ghost"
+                                      onClick={() =>
+                                        handleUpdateAppointmentStatus(
+                                          appointment.id,
+                                          "cancelled"
+                                        )
+                                      }
+                                      disabled={
+                                        updatingAppointmentId === appointment.id
+                                      }
+                                    >
+                                      Cancelar
+                                    </Button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </>
+                          )}
                         </article>
                       ))}
                     </div>
