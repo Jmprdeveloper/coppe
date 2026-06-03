@@ -34,6 +34,13 @@ type InternalAppointment = Appointment & {
   scheduledAtValue: string;
 };
 
+type AppointmentStatusFilter =
+  | "all"
+  | "proposed"
+  | "confirmed"
+  | "completed"
+  | "cancelled";
+
 function getDefaultDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -64,6 +71,14 @@ function formatDateTimeLocalFromIso(value: string | null) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function isActiveInquiryOption(inquiry: InquiryOptionRow) {
@@ -143,6 +158,50 @@ function sortAppointmentsByDate(
   );
 }
 
+function isAppointmentPendingClosure(
+  appointment: InternalAppointment,
+  currentTimeMs: number
+) {
+  if (
+    appointment.status !== "proposed" &&
+    appointment.status !== "confirmed"
+  ) {
+    return false;
+  }
+
+  const appointmentTime = new Date(appointment.scheduledAtValue).getTime();
+
+  if (Number.isNaN(appointmentTime)) {
+    return false;
+  }
+
+  return appointmentTime < currentTimeMs;
+}
+
+function matchesAppointmentSearch(
+  appointment: InternalAppointment,
+  searchTerm: string
+) {
+  const cleanSearchTerm = normalizeSearchText(searchTerm);
+
+  if (!cleanSearchTerm) {
+    return true;
+  }
+
+  const searchableContent = normalizeSearchText(
+    [
+      appointment.title,
+      appointment.scheduledAt,
+      getAppointmentStatusLabel(appointment.status),
+      appointment.inquiryLabel,
+      appointment.inquiryStatus,
+      appointment.notes,
+    ].join(" ")
+  );
+
+  return searchableContent.includes(cleanSearchTerm);
+}
+
 export function Appointments({ openInquiry }: AppointmentsProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -157,6 +216,10 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   const [title, setTitle] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<AppointmentStatusFilter>("all");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -266,6 +329,39 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
   const isEditing = Boolean(editingAppointment);
 
+  const filteredAppointments = appointments.filter((appointment) => {
+    const matchesStatus =
+      statusFilter === "all" || appointment.status === statusFilter;
+
+    return matchesStatus && matchesAppointmentSearch(appointment, searchTerm);
+  });
+
+  const currentTimeMs = Date.now();
+
+  const pendingClosureAppointments = filteredAppointments.filter(
+    (appointment) => isAppointmentPendingClosure(appointment, currentTimeMs)
+  );
+
+  const pendingConfirmationAppointments = filteredAppointments.filter(
+    (appointment) =>
+      appointment.status === "proposed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs)
+  );
+
+  const confirmedAppointments = filteredAppointments.filter(
+    (appointment) =>
+      appointment.status === "confirmed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs)
+  );
+
+  const historyAppointments = filteredAppointments.filter(
+    (appointment) =>
+      appointment.status === "completed" || appointment.status === "cancelled"
+  );
+
+  const hasActiveFilters =
+    searchTerm.trim().length > 0 || statusFilter !== "all";
+
   const resetForm = () => {
     setEditingAppointmentId(null);
     setTitle("");
@@ -297,6 +393,11 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   const handleCancelForm = () => {
     setShowForm(false);
     resetForm();
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
   };
 
   const handleSaveAppointment = async () => {
@@ -517,7 +618,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     }
 
     if (status === "confirmed") {
-      setSuccessMessage("Cita interna marcada como confirmada.");
+      setSuccessMessage("Cita interna marcada como confirmada internamente.");
       return;
     }
 
@@ -529,22 +630,10 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     setSuccessMessage("Cita interna cancelada correctamente.");
   };
 
-  const pendingConfirmationAppointments = appointments.filter(
-    (appointment) => appointment.status === "proposed"
-  );
-
-  const confirmedAppointments = appointments.filter(
-    (appointment) => appointment.status === "confirmed"
-  );
-
-  const historyAppointments = appointments.filter(
-    (appointment) =>
-      appointment.status === "completed" || appointment.status === "cancelled"
-  );
-
   const renderAppointmentCard = (
     appointment: InternalAppointment,
-    isHistory = false
+    isHistory = false,
+    isPendingClosure = false
   ) => {
     const isUpdating = updatingAppointmentId === appointment.id;
 
@@ -575,6 +664,13 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             </button>
           ) : null}
         </div>
+
+        {isPendingClosure ? (
+          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+            Esta cita interna ya ha pasado y sigue activa. Revísala y márcala
+            como realizada o cancelada.
+          </div>
+        ) : null}
 
         <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
           <div className="font-semibold text-slate-700">Caso asociado</div>
@@ -676,6 +772,50 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           </Button>
         }
       />
+
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+          <label className="text-sm font-medium text-slate-700">
+            Buscar cita
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              placeholder="Buscar por título, caso o notas..."
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Estado
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as AppointmentStatusFilter)
+              }
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+            >
+              <option value="all">Todas</option>
+              <option value="proposed">Pendientes de confirmar</option>
+              <option value="confirmed">Confirmadas internamente</option>
+              <option value="completed">Realizadas</option>
+              <option value="cancelled">Canceladas</option>
+            </select>
+          </label>
+
+          <Button
+            variant="secondary"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500">
+          Mostrando {filteredAppointments.length} de {appointments.length} citas
+          internas.
+        </p>
+      </div>
 
       {showForm ? (
         <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -816,43 +956,69 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       ) : null}
 
       {!isLoading && !errorMessage ? (
-        <div className="grid gap-6 xl:grid-cols-2">
+        <>
           <section>
             <h2 className="mb-3 text-lg font-bold text-slate-950">
-              Pendientes de confirmar
+              Pendientes de cerrar
             </h2>
 
-            {pendingConfirmationAppointments.length === 0 ? (
+            {pendingClosureAppointments.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay citas internas pendientes de confirmar.
+                {hasActiveFilters
+                  ? "No hay citas internas pendientes de cerrar que coincidan con los filtros."
+                  : "No hay citas internas activas con fecha pasada."}
               </div>
             ) : (
               <div className="space-y-3">
-                {pendingConfirmationAppointments.map((appointment) =>
-                  renderAppointmentCard(appointment)
+                {pendingClosureAppointments.map((appointment) =>
+                  renderAppointmentCard(appointment, false, true)
                 )}
               </div>
             )}
           </section>
 
-          <section>
-            <h2 className="mb-3 text-lg font-bold text-slate-950">
-              Confirmadas internamente
-            </h2>
+          <div className="mt-6 grid gap-6 xl:grid-cols-2">
+            <section>
+              <h2 className="mb-3 text-lg font-bold text-slate-950">
+                Pendientes de confirmar
+              </h2>
 
-            {confirmedAppointments.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay citas internas confirmadas.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {confirmedAppointments.map((appointment) =>
-                  renderAppointmentCard(appointment)
-                )}
-              </div>
-            )}
-          </section>
-        </div>
+              {pendingConfirmationAppointments.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                  {hasActiveFilters
+                    ? "No hay citas internas pendientes que coincidan con los filtros."
+                    : "No hay citas internas pendientes de confirmar."}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {pendingConfirmationAppointments.map((appointment) =>
+                    renderAppointmentCard(appointment)
+                  )}
+                </div>
+              )}
+            </section>
+
+            <section>
+              <h2 className="mb-3 text-lg font-bold text-slate-950">
+                Confirmadas internamente
+              </h2>
+
+              {confirmedAppointments.length === 0 ? (
+                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                  {hasActiveFilters
+                    ? "No hay citas internas confirmadas que coincidan con los filtros."
+                    : "No hay citas internas confirmadas."}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {confirmedAppointments.map((appointment) =>
+                    renderAppointmentCard(appointment)
+                  )}
+                </div>
+              )}
+            </section>
+          </div>
+        </>
       ) : null}
 
       {!isLoading && !errorMessage ? (
@@ -861,7 +1027,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
           {historyAppointments.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              Todavía no hay citas internas realizadas o canceladas.
+              {hasActiveFilters
+                ? "No hay citas internas del historial que coincidan con los filtros."
+                : "Todavía no hay citas internas realizadas o canceladas."}
             </div>
           ) : (
             <div className="space-y-3">
