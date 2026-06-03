@@ -7,6 +7,7 @@ export type View =
   | "inquiryDetail"
   | "customers"
   | "customerDetail"
+  | "appointments"
   | "followups"
   | "settings"
   | "InquiryForm";
@@ -83,6 +84,7 @@ export type FollowUp = {
   status: "pending" | "completed" | "cancelled";
   urgency: "today" | "overdue" | "upcoming";
 };
+
 export type AppointmentStatus =
   | "proposed"
   | "confirmed"
