@@ -4,7 +4,9 @@ import { useEffect, useMemo, useState } from "react";
 import { CalendarClock } from "lucide-react";
 
 import {
+  compareAppointmentsByScheduledAt,
   getAppointmentStatusLabel,
+  isAppointmentPendingClosure,
   mapAppointmentRowToAppointment,
   type AppointmentRow,
 } from "../lib/appointmentUtils";
@@ -185,26 +187,6 @@ function isActiveInquiry(inquiry: Inquiry) {
     status === "pending" ||
     status === "waiting_customer"
   );
-}
-
-function isAppointmentPendingClosure(
-  appointment: CustomerAppointment,
-  currentTimeMs: number
-) {
-  if (
-    appointment.status !== "proposed" &&
-    appointment.status !== "confirmed"
-  ) {
-    return false;
-  }
-
-  const appointmentTime = new Date(appointment.scheduledAtValue).getTime();
-
-  if (Number.isNaN(appointmentTime)) {
-    return false;
-  }
-
-  return appointmentTime < currentTimeMs;
 }
 
 export function CustomerDetail({
@@ -433,9 +415,9 @@ export function CustomerDetail({
         )
       );
       setAppointments(
-        ((appointmentsData ?? []) as unknown as AppointmentRow[]).map(
-          mapAppointmentRowToCustomerAppointment
-        )
+        ((appointmentsData ?? []) as unknown as AppointmentRow[])
+          .map(mapAppointmentRowToCustomerAppointment)
+          .sort(compareAppointmentsByScheduledAt)
       );
       setSelectedInquiryId(activeInquiries[0]?.id ?? "");
       setNewFollowUpTitle(`Revisar caso de ${customerData.name}`);
