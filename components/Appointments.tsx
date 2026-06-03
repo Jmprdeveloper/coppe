@@ -34,6 +34,13 @@ type InternalAppointment = Appointment & {
   scheduledAtValue: string;
 };
 
+type AppointmentStatusFilter =
+  | "all"
+  | "proposed"
+  | "confirmed"
+  | "completed"
+  | "cancelled";
+
 function getDefaultDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -64,6 +71,14 @@ function formatDateTimeLocalFromIso(value: string | null) {
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
 }
 
 function isActiveInquiryOption(inquiry: InquiryOptionRow) {
@@ -143,6 +158,30 @@ function sortAppointmentsByDate(
   );
 }
 
+function matchesAppointmentSearch(
+  appointment: InternalAppointment,
+  searchTerm: string
+) {
+  const cleanSearchTerm = normalizeSearchText(searchTerm);
+
+  if (!cleanSearchTerm) {
+    return true;
+  }
+
+  const searchableContent = normalizeSearchText(
+    [
+      appointment.title,
+      appointment.scheduledAt,
+      getAppointmentStatusLabel(appointment.status),
+      appointment.inquiryLabel,
+      appointment.inquiryStatus,
+      appointment.notes,
+    ].join(" ")
+  );
+
+  return searchableContent.includes(cleanSearchTerm);
+}
+
 export function Appointments({ openInquiry }: AppointmentsProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -157,6 +196,10 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   const [title, setTitle] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] =
+    useState<AppointmentStatusFilter>("all");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -266,6 +309,29 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
   const isEditing = Boolean(editingAppointment);
 
+  const filteredAppointments = appointments.filter((appointment) => {
+    const matchesStatus =
+      statusFilter === "all" || appointment.status === statusFilter;
+
+    return matchesStatus && matchesAppointmentSearch(appointment, searchTerm);
+  });
+
+  const pendingConfirmationAppointments = filteredAppointments.filter(
+    (appointment) => appointment.status === "proposed"
+  );
+
+  const confirmedAppointments = filteredAppointments.filter(
+    (appointment) => appointment.status === "confirmed"
+  );
+
+  const historyAppointments = filteredAppointments.filter(
+    (appointment) =>
+      appointment.status === "completed" || appointment.status === "cancelled"
+  );
+
+  const hasActiveFilters =
+    searchTerm.trim().length > 0 || statusFilter !== "all";
+
   const resetForm = () => {
     setEditingAppointmentId(null);
     setTitle("");
@@ -297,6 +363,11 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   const handleCancelForm = () => {
     setShowForm(false);
     resetForm();
+  };
+
+  const handleClearFilters = () => {
+    setSearchTerm("");
+    setStatusFilter("all");
   };
 
   const handleSaveAppointment = async () => {
@@ -529,19 +600,6 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     setSuccessMessage("Cita interna cancelada correctamente.");
   };
 
-  const pendingConfirmationAppointments = appointments.filter(
-    (appointment) => appointment.status === "proposed"
-  );
-
-  const confirmedAppointments = appointments.filter(
-    (appointment) => appointment.status === "confirmed"
-  );
-
-  const historyAppointments = appointments.filter(
-    (appointment) =>
-      appointment.status === "completed" || appointment.status === "cancelled"
-  );
-
   const renderAppointmentCard = (
     appointment: InternalAppointment,
     isHistory = false
@@ -676,6 +734,50 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           </Button>
         }
       />
+
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
+          <label className="text-sm font-medium text-slate-700">
+            Buscar cita
+            <input
+              value={searchTerm}
+              onChange={(event) => setSearchTerm(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              placeholder="Buscar por título, caso o notas..."
+            />
+          </label>
+
+          <label className="text-sm font-medium text-slate-700">
+            Estado
+            <select
+              value={statusFilter}
+              onChange={(event) =>
+                setStatusFilter(event.target.value as AppointmentStatusFilter)
+              }
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+            >
+              <option value="all">Todas</option>
+              <option value="proposed">Pendientes de confirmar</option>
+              <option value="confirmed">Confirmadas internamente</option>
+              <option value="completed">Realizadas</option>
+              <option value="cancelled">Canceladas</option>
+            </select>
+          </label>
+
+          <Button
+            variant="secondary"
+            onClick={handleClearFilters}
+            disabled={!hasActiveFilters}
+          >
+            Limpiar filtros
+          </Button>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500">
+          Mostrando {filteredAppointments.length} de {appointments.length} citas
+          internas.
+        </p>
+      </div>
 
       {showForm ? (
         <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -824,7 +926,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
             {pendingConfirmationAppointments.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay citas internas pendientes de confirmar.
+                {hasActiveFilters
+                  ? "No hay citas internas pendientes que coincidan con los filtros."
+                  : "No hay citas internas pendientes de confirmar."}
               </div>
             ) : (
               <div className="space-y-3">
@@ -842,7 +946,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
             {confirmedAppointments.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay citas internas confirmadas.
+                {hasActiveFilters
+                  ? "No hay citas internas confirmadas que coincidan con los filtros."
+                  : "No hay citas internas confirmadas."}
               </div>
             ) : (
               <div className="space-y-3">
@@ -861,7 +967,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
           {historyAppointments.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              Todavía no hay citas internas realizadas o canceladas.
+              {hasActiveFilters
+                ? "No hay citas internas del historial que coincidan con los filtros."
+                : "Todavía no hay citas internas realizadas o canceladas."}
             </div>
           ) : (
             <div className="space-y-3">
