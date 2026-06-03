@@ -1759,7 +1759,7 @@ export function InquiryDetail({
               }}
               maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
               className="mt-4 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
-              placeholder="Ej. El cliente ha enviado nuevos datos, una aclaración o una respuesta relacionada con este caso..."
+              placeholder="Pega aquí el nuevo mensaje recibido del cliente..."
             />
 
             <p className="mt-1 text-right text-xs text-slate-500">
@@ -1852,7 +1852,7 @@ export function InquiryDetail({
                         setAppointmentTitle(event.target.value)
                       }
                       className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                      placeholder="Ej. Cita con cliente"
+                      placeholder="Escribe el título de la cita"
                     />
                   </label>
 
@@ -1876,7 +1876,7 @@ export function InquiryDetail({
                         setAppointmentNotes(event.target.value)
                       }
                       className="mt-1 min-h-[90px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                      placeholder="Ej. Detalles relevantes para preparar la cita..."
+                      placeholder="Añade detalles relevantes para preparar la cita..."
                     />
                   </label>
                 </div>
@@ -1976,7 +1976,7 @@ export function InquiryDetail({
                                       setEditAppointmentNotes(event.target.value)
                                     }
                                     className="mt-1 min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                                    placeholder="Ej. Detalles relevantes para preparar la cita..."
+                                    placeholder="Añade detalles relevantes para preparar la cita..."
                                   />
                                 </label>
                               </div>
@@ -2478,6 +2478,7 @@ export function InquiryDetail({
     </div>
   );
 }
+
 
 
 

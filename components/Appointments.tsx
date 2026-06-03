@@ -857,7 +857,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                 value={title}
                 onChange={(event) => setTitle(event.target.value)}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="Ej. Cita con cliente"
+                placeholder="Escribe el título de la cita"
               />
             </label>
 
@@ -877,7 +877,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                 value={notes}
                 onChange={(event) => setNotes(event.target.value)}
                 className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="Ej. Detalles relevantes para preparar la cita..."
+                placeholder="Añade detalles relevantes para preparar la cita..."
               />
             </label>
           </div>
@@ -1015,4 +1015,5 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     </div>
   );
 }
+
 

@@ -191,7 +191,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                     setErrorMessage("");
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Ej. Hotel Costa Azul"
+                  placeholder="Introduce el nombre de la empresa"
                 />
               </label>
 
