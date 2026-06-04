@@ -24,6 +24,11 @@ type SettingsPageProps = {
   onCompanyUpdated?: (company: CurrentCompany) => void;
 };
 
+type PublicIntakeSettingsRow = {
+  public_intake_token: string | null;
+  public_intake_enabled: boolean | null;
+};
+
 function normalizeTone(value: string | null | undefined): ToneOption {
   if (
     value === "profesional y cercano" ||
@@ -55,16 +60,28 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [tone, setTone] = useState<ToneOption>("profesional y cercano");
   const [language, setLanguage] = useState<LanguageOption>("es");
 
+  const [publicIntakeToken, setPublicIntakeToken] = useState("");
+  const [publicIntakeEnabled, setPublicIntakeEnabled] = useState(false);
+  const [publicFormOrigin, setPublicFormOrigin] = useState("");
+  const [copyMessage, setCopyMessage] = useState("");
+  const [copyErrorMessage, setCopyErrorMessage] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   useEffect(() => {
+    setPublicFormOrigin(window.location.origin);
+  }, []);
+
+  useEffect(() => {
     async function loadCompanySettings() {
       setIsLoading(true);
       setErrorMessage("");
       setMessage("");
+      setCopyMessage("");
+      setCopyErrorMessage("");
 
       const { data, error } = await getCurrentCompany(supabase);
 
@@ -86,21 +103,66 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         return;
       }
 
+      const { data: publicIntakeSettings, error: publicIntakeSettingsError } =
+        await supabase
+          .from("companies")
+          .select("public_intake_token, public_intake_enabled")
+          .eq("id", data.id)
+          .maybeSingle<PublicIntakeSettingsRow>();
+
+      if (publicIntakeSettingsError) {
+        setErrorMessage(
+          `No se pudo cargar la configuración del formulario público: ${
+            publicIntakeSettingsError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       setCompanyId(data.id);
       setName(data.name ?? "");
       setSector(normalizeCompanySector(data.sector));
       setDescription(data.description ?? "");
       setTone(normalizeTone(data.tone));
       setLanguage(normalizeLanguage(data.language));
+      setPublicIntakeToken(publicIntakeSettings?.public_intake_token ?? "");
+      setPublicIntakeEnabled(Boolean(publicIntakeSettings?.public_intake_enabled));
       setIsLoading(false);
     }
 
     loadCompanySettings();
   }, [supabase]);
 
+  const publicIntakeUrl =
+    publicFormOrigin && publicIntakeToken
+      ? `${publicFormOrigin}/contacto/${publicIntakeToken}`
+      : "";
+
+  const handleCopyPublicIntakeUrl = async () => {
+    setCopyMessage("");
+    setCopyErrorMessage("");
+
+    if (!publicIntakeUrl) {
+      setCopyErrorMessage("No hay ningún enlace público disponible.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicIntakeUrl);
+      setCopyMessage("Enlace copiado correctamente.");
+    } catch {
+      setCopyErrorMessage(
+        "No se pudo copiar el enlace. Puedes seleccionarlo y copiarlo manualmente."
+      );
+    }
+  };
+
   const handleSave = async () => {
     setErrorMessage("");
     setMessage("");
+    setCopyMessage("");
+    setCopyErrorMessage("");
 
     if (!companyId) {
       setErrorMessage("No se puede guardar porque no hay empresa cargada.");
@@ -305,6 +367,57 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   </select>
                 </label>
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">
+                Formulario web público
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Comparte este enlace para recibir mensajes desde un formulario
+                público. Los mensajes crearán casos automáticamente con el canal
+                Formulario web.
+              </p>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Estado
+                </div>
+
+                <div className="mt-1 font-medium text-slate-800">
+                  {publicIntakeEnabled ? "Activo" : "Desactivado"}
+                </div>
+              </div>
+
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                Enlace público
+                <input
+                  value={publicIntakeUrl || "Enlace no disponible"}
+                  readOnly
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                />
+              </label>
+
+              {copyErrorMessage ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {copyErrorMessage}
+                </div>
+              ) : null}
+
+              {copyMessage ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {copyMessage}
+                </div>
+              ) : null}
+
+              <Button
+                className="mt-4 w-full"
+                onClick={handleCopyPublicIntakeUrl}
+                disabled={!publicIntakeUrl}
+              >
+                Copiar enlace
+              </Button>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-6 text-slate-600 shadow-sm">
