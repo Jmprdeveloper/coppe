@@ -18,6 +18,9 @@ type PublicIntakeResponse = {
   error?: string;
 };
 
+const MAX_CUSTOMER_NAME_LENGTH = 120;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_PHONE_LENGTH = 40;
 const MAX_MESSAGE_LENGTH = 6000;
 
 export function PublicIntakeForm({
@@ -28,6 +31,7 @@ export function PublicIntakeForm({
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [message, setMessage] = useState("");
+  const [companyWebsite, setCompanyWebsite] = useState("");
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
@@ -46,14 +50,48 @@ export function PublicIntakeForm({
     const cleanEmail = email.trim().toLowerCase();
     const cleanPhone = phone.trim();
     const cleanMessage = message.trim();
+    const cleanCompanyWebsite = companyWebsite.trim();
+
+    if (cleanCompanyWebsite) {
+      setCustomerName("");
+      setEmail("");
+      setPhone("");
+      setMessage("");
+      setCompanyWebsite("");
+      setSuccessMessage(
+        "Mensaje recibido correctamente. La empresa revisará tu solicitud."
+      );
+      return;
+    }
 
     if (!cleanCustomerName) {
       setErrorMessage("Introduce tu nombre.");
       return;
     }
 
+    if (cleanCustomerName.length > MAX_CUSTOMER_NAME_LENGTH) {
+      setErrorMessage(
+        `El nombre no puede superar los ${MAX_CUSTOMER_NAME_LENGTH} caracteres.`
+      );
+      return;
+    }
+
     if (!cleanEmail && !cleanPhone) {
       setErrorMessage("Introduce al menos un email o un teléfono.");
+      return;
+    }
+
+    if (cleanEmail.length > MAX_EMAIL_LENGTH) {
+      setErrorMessage(
+        `El email no puede superar los ${MAX_EMAIL_LENGTH} caracteres.`
+      );
+      return;
+    }
+
+    if (cleanPhone.length > MAX_PHONE_LENGTH) {
+      setErrorMessage(
+        `El teléfono no puede superar los ${MAX_PHONE_LENGTH} caracteres.`
+      );
       return;
     }
 
@@ -83,6 +121,7 @@ export function PublicIntakeForm({
           email: cleanEmail,
           phone: cleanPhone,
           message: cleanMessage,
+          companyWebsite: cleanCompanyWebsite,
         }),
       });
 
@@ -100,6 +139,7 @@ export function PublicIntakeForm({
       setEmail("");
       setPhone("");
       setMessage("");
+      setCompanyWebsite("");
       setSuccessMessage(
         payload.message ||
           "Mensaje recibido correctamente. La empresa revisará tu solicitud."
@@ -140,6 +180,20 @@ export function PublicIntakeForm({
           </div>
 
           <form className="space-y-5 p-6 md:p-8" onSubmit={handleSubmit}>
+            <div aria-hidden="true" className="hidden">
+              <label>
+                Web de empresa
+                <input
+                  type="text"
+                  value={companyWebsite}
+                  onChange={(event) => setCompanyWebsite(event.target.value)}
+                  tabIndex={-1}
+                  autoComplete="off"
+                  name="companyWebsite"
+                />
+              </label>
+            </div>
+
             <label className="block text-sm font-medium text-slate-700">
               Nombre
               <input
@@ -148,6 +202,7 @@ export function PublicIntakeForm({
                   setCustomerName(event.target.value);
                   resetFeedback();
                 }}
+                maxLength={MAX_CUSTOMER_NAME_LENGTH}
                 className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                 placeholder="Introduce tu nombre"
               />
@@ -163,6 +218,7 @@ export function PublicIntakeForm({
                     setEmail(event.target.value);
                     resetFeedback();
                   }}
+                  maxLength={MAX_EMAIL_LENGTH}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                   placeholder="Introduce tu email"
                 />
@@ -177,6 +233,7 @@ export function PublicIntakeForm({
                     setPhone(event.target.value);
                     resetFeedback();
                   }}
+                  maxLength={MAX_PHONE_LENGTH}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
                   placeholder="Introduce tu teléfono"
                 />

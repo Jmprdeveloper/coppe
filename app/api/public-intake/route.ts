@@ -17,6 +17,7 @@ type PublicIntakeRequestBody = {
   email?: string;
   phone?: string;
   message?: string;
+  companyWebsite?: string;
 };
 
 type PublicIntakeCompany = {
@@ -42,6 +43,10 @@ type CustomerRow = {
   last_interaction_at: string | null;
   created_at: string;
 };
+
+const MAX_CUSTOMER_NAME_LENGTH = 120;
+const MAX_EMAIL_LENGTH = 254;
+const MAX_PHONE_LENGTH = 40;
 
 function buildFallbackSubject(message: string) {
   const firstLine = message
@@ -80,6 +85,20 @@ function buildFallbackAnalysis(
     suggestedResponse: `Hola ${customerName}, gracias por contactar con ${company.name}. Hemos recibido tu mensaje y lo revisaremos lo antes posible.`,
     subject,
   };
+}
+
+function getStringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function buildAcceptedHoneypotResponse() {
+  return NextResponse.json(
+    {
+      ok: true,
+      message: "Mensaje recibido correctamente.",
+    },
+    { status: 201 }
+  );
 }
 
 async function findExistingCustomer(
@@ -154,22 +173,18 @@ export async function POST(request: Request) {
     );
   }
 
+  const honeypotValue = getStringValue(body.companyWebsite);
+
+  if (honeypotValue) {
+    return buildAcceptedHoneypotResponse();
+  }
+
   const publicIntakeToken =
-    typeof body.publicIntakeToken === "string"
-      ? body.publicIntakeToken.trim()
-      : typeof body.token === "string"
-        ? body.token.trim()
-        : "";
-
-  const customerName =
-    typeof body.customerName === "string" ? body.customerName.trim() : "";
-
-  const email =
-    typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
-
-  const phone = typeof body.phone === "string" ? body.phone.trim() : "";
-
-  const message = typeof body.message === "string" ? body.message.trim() : "";
+    getStringValue(body.publicIntakeToken) || getStringValue(body.token);
+  const customerName = getStringValue(body.customerName);
+  const email = getStringValue(body.email).toLowerCase();
+  const phone = getStringValue(body.phone);
+  const message = getStringValue(body.message);
 
   if (!publicIntakeToken) {
     return NextResponse.json(
@@ -185,11 +200,36 @@ export async function POST(request: Request) {
     );
   }
 
+  if (customerName.length > MAX_CUSTOMER_NAME_LENGTH) {
+    return NextResponse.json(
+      {
+        error: `El nombre no puede superar los ${MAX_CUSTOMER_NAME_LENGTH} caracteres.`,
+      },
+      { status: 400 }
+    );
+  }
+
   if (!email && !phone) {
     return NextResponse.json(
       {
         error:
           "Introduce al menos un email o un teléfono para poder contactar con el cliente.",
+      },
+      { status: 400 }
+    );
+  }
+
+  if (email.length > MAX_EMAIL_LENGTH) {
+    return NextResponse.json(
+      { error: `El email no puede superar los ${MAX_EMAIL_LENGTH} caracteres.` },
+      { status: 400 }
+    );
+  }
+
+  if (phone.length > MAX_PHONE_LENGTH) {
+    return NextResponse.json(
+      {
+        error: `El teléfono no puede superar los ${MAX_PHONE_LENGTH} caracteres.`,
       },
       { status: 400 }
     );
