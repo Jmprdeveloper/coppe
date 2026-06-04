@@ -63,6 +63,9 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [publicIntakeToken, setPublicIntakeToken] = useState("");
   const [publicIntakeEnabled, setPublicIntakeEnabled] = useState(false);
   const [publicFormOrigin, setPublicFormOrigin] = useState("");
+  const [isUpdatingPublicIntake, setIsUpdatingPublicIntake] = useState(false);
+  const [publicIntakeMessage, setPublicIntakeMessage] = useState("");
+  const [publicIntakeErrorMessage, setPublicIntakeErrorMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const [copyErrorMessage, setCopyErrorMessage] = useState("");
 
@@ -80,6 +83,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setIsLoading(true);
       setErrorMessage("");
       setMessage("");
+      setPublicIntakeMessage("");
+      setPublicIntakeErrorMessage("");
       setCopyMessage("");
       setCopyErrorMessage("");
 
@@ -127,7 +132,9 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setTone(normalizeTone(data.tone));
       setLanguage(normalizeLanguage(data.language));
       setPublicIntakeToken(publicIntakeSettings?.public_intake_token ?? "");
-      setPublicIntakeEnabled(Boolean(publicIntakeSettings?.public_intake_enabled));
+      setPublicIntakeEnabled(
+        Boolean(publicIntakeSettings?.public_intake_enabled)
+      );
       setIsLoading(false);
     }
 
@@ -142,6 +149,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const handleCopyPublicIntakeUrl = async () => {
     setCopyMessage("");
     setCopyErrorMessage("");
+    setPublicIntakeMessage("");
+    setPublicIntakeErrorMessage("");
 
     if (!publicIntakeUrl) {
       setCopyErrorMessage("No hay ningún enlace público disponible.");
@@ -158,9 +167,66 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     }
   };
 
+  const handleTogglePublicIntakeEnabled = async () => {
+    setPublicIntakeMessage("");
+    setPublicIntakeErrorMessage("");
+    setCopyMessage("");
+    setCopyErrorMessage("");
+
+    if (!companyId) {
+      setPublicIntakeErrorMessage(
+        "No se puede actualizar el formulario porque no hay empresa cargada."
+      );
+      return;
+    }
+
+    const nextEnabled = !publicIntakeEnabled;
+
+    if (
+      !nextEnabled &&
+      !window.confirm(
+        "¿Seguro que quieres desactivar el formulario web público? El enlace dejará de estar disponible para nuevos mensajes."
+      )
+    ) {
+      return;
+    }
+
+    setIsUpdatingPublicIntake(true);
+
+    const { data, error } = await supabase
+      .from("companies")
+      .update({
+        public_intake_enabled: nextEnabled,
+      })
+      .eq("id", companyId)
+      .select("public_intake_token, public_intake_enabled")
+      .single<PublicIntakeSettingsRow>();
+
+    setIsUpdatingPublicIntake(false);
+
+    if (error || !data) {
+      setPublicIntakeErrorMessage(
+        `No se pudo actualizar el formulario público: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setPublicIntakeToken(data.public_intake_token ?? publicIntakeToken);
+    setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
+    setPublicIntakeMessage(
+      nextEnabled
+        ? "Formulario web público activado correctamente."
+        : "Formulario web público desactivado correctamente."
+    );
+  };
+
   const handleSave = async () => {
     setErrorMessage("");
     setMessage("");
+    setPublicIntakeMessage("");
+    setPublicIntakeErrorMessage("");
     setCopyMessage("");
     setCopyErrorMessage("");
 
@@ -238,8 +304,9 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
             </h2>
 
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              Estos datos ayudan a COPPE a contextualizar los mensajes, casos y respuestas de la empresa, y a
-              preparar respuestas más adecuadas para tu actividad.
+              Estos datos ayudan a COPPE a contextualizar los mensajes, casos y
+              respuestas de la empresa, y a preparar respuestas más adecuadas
+              para tu actividad.
             </p>
 
             <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -399,6 +466,18 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 />
               </label>
 
+              {publicIntakeErrorMessage ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {publicIntakeErrorMessage}
+                </div>
+              ) : null}
+
+              {publicIntakeMessage ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {publicIntakeMessage}
+                </div>
+              ) : null}
+
               {copyErrorMessage ? (
                 <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {copyErrorMessage}
@@ -411,13 +490,35 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 </div>
               ) : null}
 
-              <Button
-                className="mt-4 w-full"
-                onClick={handleCopyPublicIntakeUrl}
-                disabled={!publicIntakeUrl}
-              >
-                Copiar enlace
-              </Button>
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <Button
+                  className="w-full"
+                  onClick={handleCopyPublicIntakeUrl}
+                  disabled={!publicIntakeUrl}
+                >
+                  Copiar enlace
+                </Button>
+
+                <Button
+                  className="w-full"
+                  variant={publicIntakeEnabled ? "secondary" : "primary"}
+                  onClick={handleTogglePublicIntakeEnabled}
+                  disabled={isUpdatingPublicIntake || !publicIntakeToken}
+                >
+                  {isUpdatingPublicIntake
+                    ? "Actualizando..."
+                    : publicIntakeEnabled
+                      ? "Desactivar"
+                      : "Activar"}
+                </Button>
+              </div>
+
+              {!publicIntakeEnabled ? (
+                <p className="mt-3 text-xs leading-5 text-slate-500">
+                  El enlace existe, pero no aceptará nuevos mensajes mientras el
+                  formulario esté desactivado.
+                </p>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-6 text-slate-600 shadow-sm">
