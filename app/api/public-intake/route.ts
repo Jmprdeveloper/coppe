@@ -44,6 +44,10 @@ type CustomerRow = {
   created_at: string;
 };
 
+type InboundEventRow = {
+  id: string;
+};
+
 const MAX_CUSTOMER_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_PHONE_LENGTH = 40;
@@ -99,6 +103,75 @@ function buildAcceptedHoneypotResponse() {
     },
     { status: 201 }
   );
+}
+
+async function createInboundEvent(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  companyId: string,
+  rawPayload: Record<string, unknown>
+) {
+  const { data, error } = await supabaseAdmin
+    .from("inbound_events")
+    .insert({
+      company_id: companyId,
+      source_channel: "Formulario web",
+      status: "received",
+      raw_payload: rawPayload,
+    })
+    .select("id")
+    .single<InboundEventRow>();
+
+  if (error || !data) {
+    throw new Error(
+      `No se pudo registrar la entrada recibida: ${
+        error?.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  return data.id;
+}
+
+async function updateInboundEvent(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  inboundEventId: string,
+  values: {
+    status: "processed" | "failed";
+    customer_id?: string | null;
+    inquiry_id?: string | null;
+    error_message?: string | null;
+    processed_at: string;
+  }
+) {
+  const { error } = await supabaseAdmin
+    .from("inbound_events")
+    .update(values)
+    .eq("id", inboundEventId);
+
+  if (error) {
+    console.error("Could not update inbound event:", error);
+  }
+}
+
+async function buildFailedResponseAfterInboundEvent(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  inboundEventId: string,
+  errorMessage: string,
+  status: number,
+  ids: {
+    customerId?: string | null;
+    inquiryId?: string | null;
+  } = {}
+) {
+  await updateInboundEvent(supabaseAdmin, inboundEventId, {
+    status: "failed",
+    customer_id: ids.customerId ?? null,
+    inquiry_id: ids.inquiryId ?? null,
+    error_message: errorMessage,
+    processed_at: new Date().toISOString(),
+  });
+
+  return NextResponse.json({ error: errorMessage }, { status });
 }
 
 async function findExistingCustomer(
@@ -298,6 +371,29 @@ export async function POST(request: Request) {
     );
   }
 
+  let inboundEventId: string;
+
+  try {
+    inboundEventId = await createInboundEvent(supabaseAdmin, company.id, {
+      publicIntakeToken,
+      customerName,
+      email,
+      phone,
+      message,
+      sourceChannel: "Formulario web",
+    });
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "No se pudo registrar la entrada recibida.",
+      },
+      { status: 500 }
+    );
+  }
+
   const now = new Date().toISOString();
 
   let customer: CustomerRow | null = null;
@@ -310,14 +406,13 @@ export async function POST(request: Request) {
       phone
     );
   } catch (error) {
-    return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo comprobar si el cliente ya existe.",
-      },
-      { status: 500 }
+    return buildFailedResponseAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      error instanceof Error
+        ? error.message
+        : "No se pudo comprobar si el cliente ya existe.",
+      500
     );
   }
 
@@ -349,13 +444,14 @@ export async function POST(request: Request) {
         .single<CustomerRow>();
 
     if (updateCustomerError || !updatedCustomer) {
-      return NextResponse.json(
-        {
-          error: `No se pudo actualizar el cliente existente: ${
-            updateCustomerError?.message || "sin detalle del error"
-          }`,
-        },
-        { status: 500 }
+      return buildFailedResponseAfterInboundEvent(
+        supabaseAdmin,
+        inboundEventId,
+        `No se pudo actualizar el cliente existente: ${
+          updateCustomerError?.message || "sin detalle del error"
+        }`,
+        500,
+        { customerId: customer.id }
       );
     }
 
@@ -379,13 +475,13 @@ export async function POST(request: Request) {
         .single<CustomerRow>();
 
     if (createCustomerError || !createdCustomer) {
-      return NextResponse.json(
-        {
-          error: `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
-            createCustomerError?.message ?? ""
-          )}`,
-        },
-        { status: 500 }
+      return buildFailedResponseAfterInboundEvent(
+        supabaseAdmin,
+        inboundEventId,
+        `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
+          createCustomerError?.message ?? ""
+        )}`,
+        500
       );
     }
 
@@ -429,13 +525,14 @@ export async function POST(request: Request) {
       .single<{ id: string }>();
 
   if (createInquiryError || !createdInquiry) {
-    return NextResponse.json(
-      {
-        error: `No se pudo crear el caso: ${
-          createInquiryError?.message || "sin detalle del error"
-        }`,
-      },
-      { status: 500 }
+    return buildFailedResponseAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      `No se pudo crear el caso: ${
+        createInquiryError?.message || "sin detalle del error"
+      }`,
+      500,
+      { customerId: customer.id }
     );
   }
 
@@ -452,15 +549,27 @@ export async function POST(request: Request) {
     });
 
   if (createMessageError) {
-    return NextResponse.json(
+    return buildFailedResponseAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      `El caso se creó, pero no se pudo guardar el mensaje inicial: ${
+        createMessageError.message || "sin detalle del error"
+      }`,
+      500,
       {
-        error: `El caso se creó, pero no se pudo guardar el mensaje inicial: ${
-          createMessageError.message || "sin detalle del error"
-        }`,
-      },
-      { status: 500 }
+        customerId: customer.id,
+        inquiryId: createdInquiry.id,
+      }
     );
   }
+
+  await updateInboundEvent(supabaseAdmin, inboundEventId, {
+    status: "processed",
+    customer_id: customer.id,
+    inquiry_id: createdInquiry.id,
+    error_message: null,
+    processed_at: new Date().toISOString(),
+  });
 
   return NextResponse.json(
     {
