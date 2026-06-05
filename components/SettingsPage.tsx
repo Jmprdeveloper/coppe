@@ -50,6 +50,10 @@ function normalizeLanguage(value: string | null | undefined): LanguageOption {
   return "es";
 }
 
+function createPublicIntakeToken() {
+  return crypto.randomUUID();
+}
+
 export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -219,6 +223,58 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       nextEnabled
         ? "Formulario web público activado correctamente."
         : "Formulario web público desactivado correctamente."
+    );
+  };
+
+  const handleRegeneratePublicIntakeToken = async () => {
+    setPublicIntakeMessage("");
+    setPublicIntakeErrorMessage("");
+    setCopyMessage("");
+    setCopyErrorMessage("");
+
+    if (!companyId) {
+      setPublicIntakeErrorMessage(
+        "No se puede regenerar el enlace porque no hay empresa cargada."
+      );
+      return;
+    }
+
+    if (
+      !window.confirm(
+        "¿Seguro que quieres regenerar el enlace público? El enlace anterior dejará de funcionar."
+      )
+    ) {
+      return;
+    }
+
+    const nextToken = createPublicIntakeToken();
+
+    setIsUpdatingPublicIntake(true);
+
+    const { data, error } = await supabase
+      .from("companies")
+      .update({
+        public_intake_token: nextToken,
+      })
+      .eq("id", companyId)
+      .select("public_intake_token, public_intake_enabled")
+      .single<PublicIntakeSettingsRow>();
+
+    setIsUpdatingPublicIntake(false);
+
+    if (error || !data?.public_intake_token) {
+      setPublicIntakeErrorMessage(
+        `No se pudo regenerar el enlace público: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setPublicIntakeToken(data.public_intake_token);
+    setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
+    setPublicIntakeMessage(
+      "Enlace público regenerado correctamente. El enlace anterior ya no funcionará."
     );
   };
 
@@ -490,27 +546,38 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 </div>
               ) : null}
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+              <div className="mt-4 space-y-2">
                 <Button
                   className="w-full"
                   onClick={handleCopyPublicIntakeUrl}
-                  disabled={!publicIntakeUrl}
+                  disabled={!publicIntakeUrl || isUpdatingPublicIntake}
                 >
                   Copiar enlace
                 </Button>
 
-                <Button
-                  className="w-full"
-                  variant={publicIntakeEnabled ? "secondary" : "primary"}
-                  onClick={handleTogglePublicIntakeEnabled}
-                  disabled={isUpdatingPublicIntake || !publicIntakeToken}
-                >
-                  {isUpdatingPublicIntake
-                    ? "Actualizando..."
-                    : publicIntakeEnabled
-                      ? "Desactivar"
-                      : "Activar"}
-                </Button>
+                <div className="grid gap-2 sm:grid-cols-2">
+                  <Button
+                    className="w-full"
+                    variant={publicIntakeEnabled ? "secondary" : "primary"}
+                    onClick={handleTogglePublicIntakeEnabled}
+                    disabled={isUpdatingPublicIntake || !publicIntakeToken}
+                  >
+                    {isUpdatingPublicIntake
+                      ? "Actualizando..."
+                      : publicIntakeEnabled
+                        ? "Desactivar"
+                        : "Activar"}
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    variant="ghost"
+                    onClick={handleRegeneratePublicIntakeToken}
+                    disabled={isUpdatingPublicIntake || !companyId}
+                  >
+                    Regenerar enlace
+                  </Button>
+                </div>
               </div>
 
               {!publicIntakeEnabled ? (
@@ -519,6 +586,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   formulario esté desactivado.
                 </p>
               ) : null}
+
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Si regeneras el enlace, el enlace anterior dejará de funcionar
+                y tendrás que compartir el nuevo.
+              </p>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-6 text-slate-600 shadow-sm">
