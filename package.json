@@ -14,7 +14,8 @@
     "lucide-react": "^1.16.0",
     "next": "^16.2.6",
     "react": "^19.2.6",
-    "react-dom": "^19.2.6"
+    "react-dom": "^19.2.6",
+    "svix": "^1.95.1"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
