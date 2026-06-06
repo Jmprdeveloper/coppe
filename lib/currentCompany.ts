@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { normalizeCompanyMemberRole } from "./companyPermissions";
+
 export type CompanyMemberRole = "owner" | "member";
 
 export type CurrentCompany = {
@@ -17,16 +19,6 @@ type CurrentCompanyMembershipRow = {
   company_name: string;
   role: string;
 };
-
-function normalizeCompanyMemberRole(
-  role: string | null | undefined
-): CompanyMemberRole {
-  if (role === "member") {
-    return "member";
-  }
-
-  return "owner";
-}
 
 export async function getCurrentCompany(supabase: SupabaseClient) {
   const { data: membership, error: membershipError } = await supabase
