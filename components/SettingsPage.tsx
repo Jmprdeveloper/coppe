@@ -6,6 +6,7 @@ import {
   companySectorOptions,
   normalizeCompanySector,
 } from "../lib/companyOptions";
+import { canManageCompanySettings } from "../lib/companyPermissions";
 import { getCurrentCompany, type CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
@@ -57,6 +58,10 @@ function createPublicIntakeToken() {
 export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
+  const [currentCompany, setCurrentCompany] = useState<CurrentCompany | null>(
+    null
+  );
+
   const [companyId, setCompanyId] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [sector, setSector] = useState("");
@@ -78,6 +83,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
+  const canEditCompanySettings = canManageCompanySettings(currentCompany);
+
   useEffect(() => {
     setPublicFormOrigin(window.location.origin);
   }, []);
@@ -85,6 +92,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   useEffect(() => {
     async function loadCompanySettings() {
       setIsLoading(true);
+      setCurrentCompany(null);
       setErrorMessage("");
       setMessage("");
       setPublicIntakeMessage("");
@@ -129,6 +137,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         return;
       }
 
+      setCurrentCompany(data);
       setCompanyId(data.id);
       setName(data.name ?? "");
       setSector(normalizeCompanySector(data.sector));
@@ -176,6 +185,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeErrorMessage("");
     setCopyMessage("");
     setCopyErrorMessage("");
+
+    if (!canEditCompanySettings) {
+      setPublicIntakeErrorMessage(
+        "Solo un usuario owner puede modificar el formulario web público."
+      );
+      return;
+    }
 
     if (!companyId) {
       setPublicIntakeErrorMessage(
@@ -232,6 +248,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setCopyMessage("");
     setCopyErrorMessage("");
 
+    if (!canEditCompanySettings) {
+      setPublicIntakeErrorMessage(
+        "Solo un usuario owner puede regenerar el enlace del formulario web público."
+      );
+      return;
+    }
+
     if (!companyId) {
       setPublicIntakeErrorMessage(
         "No se puede regenerar el enlace porque no hay empresa cargada."
@@ -286,6 +309,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setCopyMessage("");
     setCopyErrorMessage("");
 
+    if (!canEditCompanySettings) {
+      setErrorMessage(
+        "Solo un usuario owner puede modificar la configuración de empresa."
+      );
+      return;
+    }
+
     if (!companyId) {
       setErrorMessage("No se puede guardar porque no hay empresa cargada.");
       return;
@@ -331,13 +361,19 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       return;
     }
 
-    setName(updatedCompany.name ?? "");
-    setSector(normalizeCompanySector(updatedCompany.sector));
-    setDescription(updatedCompany.description ?? "");
-    setTone(normalizeTone(updatedCompany.tone));
-    setLanguage(normalizeLanguage(updatedCompany.language));
+    const nextCurrentCompany: CurrentCompany = {
+      ...updatedCompany,
+      userRole: currentCompany?.userRole,
+    };
 
-    onCompanyUpdated?.(updatedCompany);
+    setCurrentCompany(nextCurrentCompany);
+    setName(nextCurrentCompany.name ?? "");
+    setSector(normalizeCompanySector(nextCurrentCompany.sector));
+    setDescription(nextCurrentCompany.description ?? "");
+    setTone(normalizeTone(nextCurrentCompany.tone));
+    setLanguage(normalizeLanguage(nextCurrentCompany.language));
+
+    onCompanyUpdated?.(nextCurrentCompany);
     setMessage("Configuración guardada correctamente.");
   };
 
@@ -365,17 +401,25 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               para tu actividad.
             </p>
 
+            {!canEditCompanySettings ? (
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                Tu usuario puede consultar esta configuración, pero solo un
+                usuario owner puede modificarla.
+              </div>
+            ) : null}
+
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="text-sm font-medium text-slate-700">
                 Nombre de empresa
                 <input
                   value={name}
+                  disabled={!canEditCompanySettings}
                   onChange={(event) => {
                     setName(event.target.value);
                     setMessage("");
                     setErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   placeholder="Introduce el nombre de la empresa"
                 />
               </label>
@@ -384,12 +428,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 Sector
                 <select
                   value={sector}
+                  disabled={!canEditCompanySettings}
                   onChange={(event) => {
                     setSector(event.target.value);
                     setMessage("");
                     setErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 >
                   <option value="">Selecciona un sector</option>
 
@@ -408,12 +453,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 Descripción
                 <textarea
                   value={description}
+                  disabled={!canEditCompanySettings}
                   onChange={(event) => {
                     setDescription(event.target.value);
                     setMessage("");
                     setErrorMessage("");
                   }}
-                  className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                  className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   placeholder="Describe brevemente qué hace la empresa y qué tipo de mensajes o casos recibe de sus clientes."
                 />
               </label>
@@ -434,7 +480,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
             <Button
               className="mt-5"
               onClick={handleSave}
-              disabled={isSaving || isLoading}
+              disabled={isSaving || isLoading || !canEditCompanySettings}
             >
               {isSaving ? "Guardando..." : "Guardar cambios"}
             </Button>
@@ -456,12 +502,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   Tono
                   <select
                     value={tone}
+                    disabled={!canEditCompanySettings}
                     onChange={(event) => {
                       setTone(normalizeTone(event.target.value));
                       setMessage("");
                       setErrorMessage("");
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="profesional y cercano">
                       Profesional y cercano
@@ -478,12 +525,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   Idioma principal
                   <select
                     value={language}
+                    disabled={!canEditCompanySettings}
                     onChange={(event) => {
                       setLanguage(normalizeLanguage(event.target.value));
                       setMessage("");
                       setErrorMessage("");
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                   >
                     <option value="es">Español</option>
                     <option value="en">Inglés</option>
@@ -560,7 +608,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                     className="w-full"
                     variant={publicIntakeEnabled ? "secondary" : "primary"}
                     onClick={handleTogglePublicIntakeEnabled}
-                    disabled={isUpdatingPublicIntake || !publicIntakeToken}
+                    disabled={
+                      isUpdatingPublicIntake ||
+                      !publicIntakeToken ||
+                      !canEditCompanySettings
+                    }
                   >
                     {isUpdatingPublicIntake
                       ? "Actualizando..."
@@ -573,7 +625,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                     className="w-full"
                     variant="ghost"
                     onClick={handleRegeneratePublicIntakeToken}
-                    disabled={isUpdatingPublicIntake || !companyId}
+                    disabled={
+                      isUpdatingPublicIntake ||
+                      !companyId ||
+                      !canEditCompanySettings
+                    }
                   >
                     Regenerar enlace
                   </Button>
