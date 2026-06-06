@@ -12,6 +12,7 @@ import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
 import { PageHeader } from "./PageHeader";
+import { TeamSettingsCard } from "./TeamSettingsCard";
 
 type ToneOption =
   | "profesional y cercano"
@@ -487,6 +488,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
           </div>
 
           <div className="space-y-5">
+            <TeamSettingsCard />
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-slate-950">
                 Preferencias del asistente
