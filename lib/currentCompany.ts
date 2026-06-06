@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export type CompanyMemberRole = "owner" | "member";
+
 export type CurrentCompany = {
   id: string;
   name: string;
@@ -7,15 +9,62 @@ export type CurrentCompany = {
   description: string | null;
   tone: string | null;
   language: string | null;
+  userRole?: CompanyMemberRole;
 };
 
+type CurrentCompanyMembershipRow = {
+  company_id: string;
+  company_name: string;
+  role: string;
+};
+
+function normalizeCompanyMemberRole(
+  role: string | null | undefined
+): CompanyMemberRole {
+  if (role === "member") {
+    return "member";
+  }
+
+  return "owner";
+}
+
 export async function getCurrentCompany(supabase: SupabaseClient) {
+  const { data: membership, error: membershipError } = await supabase
+    .rpc("get_current_company_membership")
+    .maybeSingle<CurrentCompanyMembershipRow>();
+
+  if (membershipError) {
+    return {
+      data: null,
+      error: membershipError,
+    };
+  }
+
+  if (!membership) {
+    return {
+      data: null,
+      error: null,
+    };
+  }
+
   const { data, error } = await supabase
     .from("companies")
     .select("id, name, sector, description, tone, language")
-    .order("created_at", { ascending: true })
-    .limit(1)
-    .maybeSingle<CurrentCompany>();
+    .eq("id", membership.company_id)
+    .maybeSingle<Omit<CurrentCompany, "userRole">>();
 
-  return { data, error };
+  if (error || !data) {
+    return {
+      data,
+      error,
+    };
+  }
+
+  return {
+    data: {
+      ...data,
+      userRole: normalizeCompanyMemberRole(membership.role),
+    },
+    error: null,
+  };
 }
