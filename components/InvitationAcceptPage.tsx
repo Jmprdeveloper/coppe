@@ -146,6 +146,7 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
   const [isLoadingAuth, setIsLoadingAuth] = useState(true);
   const [isSubmittingAuth, setIsSubmittingAuth] = useState(false);
   const [isAccepting, setIsAccepting] = useState(false);
+  const [isSigningOut, setIsSigningOut] = useState(false);
 
   const [previewErrorMessage, setPreviewErrorMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
@@ -317,6 +318,33 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
       setAuthErrorMessage(message);
     } finally {
       setIsSubmittingAuth(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    setAuthMessage("");
+    setAuthErrorMessage("");
+    setAcceptMessage("");
+    setAcceptErrorMessage("");
+    setIsSigningOut(true);
+
+    const { error } = await supabase.auth.signOut();
+
+    setIsSigningOut(false);
+
+    if (error) {
+      setAcceptErrorMessage(
+        getAuthErrorMessage(error.message || "No se pudo cerrar sesión.")
+      );
+      return;
+    }
+
+    setUser(null);
+    setAuthMode("login");
+    setPassword("");
+
+    if (preview?.email) {
+      setEmail(preview.email);
     }
   };
 
@@ -586,9 +614,19 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
                 </div>
 
                 {loggedUserDoesNotMatchInvitation ? (
-                  <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
-                    Esta invitación pertenece a {preview.email}. Cierra sesión
-                    e inicia sesión con ese email para aceptarla.
+                  <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+                    <p>
+                      Esta invitación pertenece a {preview.email}. Cierra sesión
+                      e inicia sesión con ese email para aceptarla.
+                    </p>
+
+                    <Button
+                      className="w-full"
+                      onClick={handleSignOut}
+                      disabled={isSigningOut}
+                    >
+                      {isSigningOut ? "Cerrando sesión..." : "Cerrar sesión"}
+                    </Button>
                   </div>
                 ) : null}
 
