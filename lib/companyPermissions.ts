@@ -3,11 +3,11 @@ import type { CompanyMemberRole, CurrentCompany } from "./currentCompany";
 export function normalizeCompanyMemberRole(
   role: string | null | undefined
 ): CompanyMemberRole {
-  if (role === "member") {
-    return "member";
+  if (role === "owner") {
+    return "owner";
   }
 
-  return "owner";
+  return "member";
 }
 
 export function isCompanyOwner(
