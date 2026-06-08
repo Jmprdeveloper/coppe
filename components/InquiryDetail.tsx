@@ -75,6 +75,17 @@ type InquiryMessageRow = {
   created_at: string;
 };
 
+type InboundEventForInquiryRow = {
+  id: string;
+  raw_payload: Record<string, unknown> | null;
+};
+
+type PublicIntakeReceivedDetails = {
+  customerName: string;
+  email: string;
+  phone: string;
+};
+
 type FollowUpRow = {
   id: string;
   title: string;
@@ -177,6 +188,77 @@ function getMessageDirectionLabel(direction: string) {
   return "Mensaje";
 }
 
+function getRawPayloadStringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeComparableText(value: string | null | undefined) {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function normalizeComparablePhone(value: string | null | undefined) {
+  const digits = (value ?? "").replace(/\D/g, "");
+
+  if (digits.startsWith("0034") && digits.length > 9) {
+    return digits.slice(4);
+  }
+
+  if (digits.startsWith("34") && digits.length > 9) {
+    return digits.slice(2);
+  }
+
+  return digits;
+}
+
+function buildPublicIntakeReceivedDetails(
+  inboundEvent: InboundEventForInquiryRow | null,
+  linkedCustomer: CustomerRow | null,
+  inquiryData: InquiryDetailRow
+): PublicIntakeReceivedDetails | null {
+  const rawPayload = inboundEvent?.raw_payload ?? null;
+
+  if (!rawPayload) {
+    return null;
+  }
+
+  const receivedCustomerName = getRawPayloadStringValue(rawPayload.customerName);
+  const receivedEmail = getRawPayloadStringValue(rawPayload.email).toLowerCase();
+  const receivedPhone = getRawPayloadStringValue(rawPayload.phone);
+
+  if (!receivedCustomerName && !receivedEmail && !receivedPhone) {
+    return null;
+  }
+
+  const linkedCustomerName = linkedCustomer?.name || inquiryData.customer_name;
+  const linkedCustomerEmail = linkedCustomer?.email ?? "";
+  const linkedCustomerPhone = linkedCustomer?.phone ?? "";
+
+  const hasDifferentName =
+    Boolean(receivedCustomerName && linkedCustomerName) &&
+    normalizeComparableText(receivedCustomerName) !==
+      normalizeComparableText(linkedCustomerName);
+
+  const hasDifferentEmail =
+    Boolean(receivedEmail && linkedCustomerEmail) &&
+    normalizeComparableText(receivedEmail) !==
+      normalizeComparableText(linkedCustomerEmail);
+
+  const hasDifferentPhone =
+    Boolean(receivedPhone && linkedCustomerPhone) &&
+    normalizeComparablePhone(receivedPhone) !==
+      normalizeComparablePhone(linkedCustomerPhone);
+
+  if (!hasDifferentName && !hasDifferentEmail && !hasDifferentPhone) {
+    return null;
+  }
+
+  return {
+    customerName: receivedCustomerName,
+    email: receivedEmail,
+    phone: receivedPhone,
+  };
+}
+
 function buildInquiryContextFromMessages(
   messages: InquiryMessageRow[],
   fallbackMessage: string,
@@ -267,6 +349,8 @@ export function InquiryDetail({
   );
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [publicIntakeReceivedDetails, setPublicIntakeReceivedDetails] =
+    useState<PublicIntakeReceivedDetails | null>(null);
 
   const [note, setNote] = useState("");
   const [additionalCustomerInfo, setAdditionalCustomerInfo] = useState("");
@@ -353,6 +437,7 @@ export function InquiryDetail({
       setInquiryMessages([]);
       setFollowUps([]);
       setAppointments([]);
+      setPublicIntakeReceivedDetails(null);
       setNote("");
       setAdditionalCustomerInfo("");
       setAdditionalCustomerSourceChannel("");
@@ -427,6 +512,8 @@ export function InquiryDetail({
       setFollowUpTitle(`Revisar caso de ${inquiryData.customer_name}`);
       setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
 
+      let loadedCustomer: CustomerRow | null = null;
+
       if (inquiryData.customer_id) {
         const { data: customerData, error: customerError } = await supabase
           .from("customers")
@@ -435,8 +522,29 @@ export function InquiryDetail({
           .maybeSingle<CustomerRow>();
 
         if (!customerError && customerData) {
+          loadedCustomer = customerData;
           setCustomer(customerData);
         }
+      }
+
+      const { data: inboundEventData, error: inboundEventError } =
+        await supabase
+          .from("inbound_events")
+          .select("id, raw_payload")
+          .eq("inquiry_id", inquiryData.id)
+          .eq("source_channel", "Formulario web")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle<InboundEventForInquiryRow>();
+
+      if (!inboundEventError && inboundEventData) {
+        setPublicIntakeReceivedDetails(
+          buildPublicIntakeReceivedDetails(
+            inboundEventData,
+            loadedCustomer,
+            inquiryData
+          )
+        );
       }
 
       const { data: inquiryMessagesData, error: inquiryMessagesError } =
@@ -1832,6 +1940,60 @@ export function InquiryDetail({
               {customer?.phone || "Sin teléfono"}
             </p>
           </div>
+
+          {publicIntakeReceivedDetails ? (
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
+              <h3 className="font-bold text-amber-950">
+                Datos recibidos del formulario
+              </h3>
+
+              <p className="mt-2 text-sm leading-6 text-amber-900">
+                Este mensaje se ha asociado al cliente existente mostrado arriba
+                porque coincidía un dato de contacto, pero el formulario llegó
+                con estos datos:
+              </p>
+
+              <div className="mt-4 space-y-2 text-sm">
+                {publicIntakeReceivedDetails.customerName ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      Nombre recibido
+                    </div>
+                    <div className="mt-0.5 text-amber-950">
+                      {publicIntakeReceivedDetails.customerName}
+                    </div>
+                  </div>
+                ) : null}
+
+                {publicIntakeReceivedDetails.email ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      Email recibido
+                    </div>
+                    <div className="mt-0.5 text-amber-950">
+                      {publicIntakeReceivedDetails.email}
+                    </div>
+                  </div>
+                ) : null}
+
+                {publicIntakeReceivedDetails.phone ? (
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                      Teléfono recibido
+                    </div>
+                    <div className="mt-0.5 text-amber-950">
+                      {publicIntakeReceivedDetails.phone}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <p className="mt-4 text-xs leading-5 text-amber-800">
+                Revisa si conviene actualizar el cliente, mantenerlo como está
+                o crear un cliente separado manualmente.
+              </p>
+            </div>
+          ) : null}
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">Cita interna</h3>
