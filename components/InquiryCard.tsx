@@ -1,9 +1,11 @@
 import { ChevronRight } from "lucide-react";
 
+import { formatSourceChannel } from "../lib/sourceChannels";
+import type { Inquiry } from "../types";
+
 import { CategoryBadge } from "./CategoryBadge";
 import { PriorityBadge } from "./PriorityBadge";
 import { StatusBadge } from "./StatusBadge";
-import type { Inquiry } from "../types";
 
 type InquiryCardProps = {
   inquiry: Inquiry;
@@ -14,6 +16,7 @@ export function InquiryCard({ inquiry, onOpen }: InquiryCardProps) {
   const subject = inquiry.subject || "Sin asunto";
   const summary =
     inquiry.aiSummary || inquiry.originalMessage || "Sin resumen disponible";
+  const sourceChannel = formatSourceChannel(inquiry.sourceChannel);
 
   return (
     <button
@@ -27,14 +30,16 @@ export function InquiryCard({ inquiry, onOpen }: InquiryCardProps) {
               {inquiry.customerName}
             </h3>
 
+            <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-medium text-slate-600">
+              {sourceChannel}
+            </span>
+
             <PriorityBadge priority={inquiry.aiPriority} />
             <CategoryBadge category={inquiry.aiCategory} />
             <StatusBadge status={inquiry.status} />
           </div>
 
-          <div className="mt-2 font-medium text-slate-800">
-            {subject}
-          </div>
+          <div className="mt-2 font-medium text-slate-800">{subject}</div>
 
           <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-600">
             {summary}
