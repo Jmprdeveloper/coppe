@@ -48,12 +48,12 @@ const inquiryAnalysisJsonSchema = {
     summary: {
       type: "string",
       description:
-        "Operational summary of the customer case for the company team. It must respect the configured company sector, company description, current date and appointment limitations.",
+        "Operational summary of the customer case for the company team. It must first evaluate whether the message fits the configured company sector and description.",
     },
     intent: {
       type: "string",
       description:
-        "Clear explanation of what the customer wants to achieve, considering the configured company activity and whether dates, urgency or requests are valid, clear or ambiguous.",
+        "Clear explanation of what the customer wants to achieve and whether that request fits the configured company activity.",
     },
     category: {
       type: "string",
@@ -78,17 +78,17 @@ const inquiryAnalysisJsonSchema = {
         type: "string",
       },
       description:
-        "Brief list of important missing details for the company team. Do not overload this field with every possible operational detail. Empty array if no key information is missing.",
+        "Brief list of important missing details for the company team. Empty array if no key information is missing or if the message is outside the company context.",
     },
     recommendedAction: {
       type: "string",
       description:
-        "Internal recommended next action for the company team. It may mention what the team should review internally, but must not invent appointment availability, times, confirmations, prices or services.",
+        "Internal recommended next action for the company team. It must clearly distinguish between valid company-related cases and possible customer confusion.",
     },
     suggestedResponse: {
       type: "string",
       description:
-        "Short customer-facing response in the same language as the customer message. It must be natural, adapted to the case type and company sector, and must not mechanically copy the customer's wording. Do not ask for long lists of data. Do not confirm appointments, reservations, prices, times or availability.",
+        "Short customer-facing response in the same language as the customer message. First respect whether the message fits the configured company. If it fits, acknowledge receipt and say a person from the company will contact the customer as soon as possible. If it does not fit, politely indicate that there may be confusion and invite the customer to contact the company again if they need something related to its services. Do not solve, diagnose, confirm, promise, or ask for long lists of data.",
     },
   },
   required: [
@@ -183,17 +183,42 @@ Tu tarea es analizar mensajes reales de clientes y devolver exclusivamente datos
 
 COPPE no está orientado a un único sector. Debes adaptar el análisis al sector, descripción, tono e idioma configurados por cada empresa.
 
+Principio principal:
+- Primero evalúa la compatibilidad entre el mensaje y la empresa configurada.
+- Después clasifica el tipo de mensaje.
+- El tipo de mensaje nunca debe pesar más que el sector y la descripción de la empresa.
+- Que un cliente pida una cita, reserva, presupuesto, revisión o ayuda no significa automáticamente que el caso encaje con la empresa.
+- Para que el caso encaje, el motivo concreto del cliente debe ser razonablemente compatible con la actividad configurada.
+
 Reglas generales:
 - COPPE sirve a empresas de cualquier sector: talleres, clínicas, asesorías, academias, tiendas, inmobiliarias, hoteles, restaurantes, servicios profesionales, B2B, soporte, etc.
 - La empresa configurada en el análisis es la fuente de verdad sobre qué actividad realiza la empresa.
 - No asumas que la empresa pertenece a un sector distinto del configurado.
 - Clasifica por significado, no solo por palabras exactas.
 - El cliente puede escribir con faltas, jerga, lenguaje coloquial, enfado, dialecto o expresiones ambiguas.
-- Redacta el borrador de respuesta en el idioma del cliente.
+- Redacta todos los campos orientados al cliente en el idioma del cliente.
 - No inventes datos concretos que no estén en el mensaje del cliente.
 - No inventes servicios, precios, disponibilidad, reservas, citas ni soluciones que la empresa no haya confirmado.
 - No rechaces una solicitud si puede encajar razonablemente con el sector o la descripción de la empresa.
 - Si hay duda razonable, conserva la incertidumbre y recomienda revisión interna antes de responder de forma definitiva.
+
+Compatibilidad con la empresa:
+- Evalúa el contenido real del mensaje, no solo palabras genéricas como "cita", "reserva", "revisión", "consulta", "ayuda" o "presupuesto".
+- Un mensaje encaja si el problema, necesidad, producto, servicio o contexto mencionado pertenece razonablemente a la actividad de la empresa.
+- Un mensaje no encaja si el problema, necesidad, producto, servicio o contexto mencionado apunta claramente a otro tipo de negocio.
+- Si el mensaje no encaja con la actividad de la empresa, trátalo como posible confusión.
+- En casos fuera de contexto empresarial, summary, intent y recommendedAction deben reflejar que puede haber una confusión.
+- En casos fuera de contexto empresarial, suggestedResponse debe ser educada y breve, pero no debe decir que una persona del equipo se pondrá en contacto para gestionar esa solicitud ajena.
+- En casos fuera de contexto empresarial, suggestedResponse debe indicar que puede haber una confusión y que el cliente puede volver a contactar si necesita algo relacionado con los servicios de la empresa.
+
+Ejemplos de compatibilidad:
+- Si la empresa es un taller, automoción, mecánica o reparación de vehículos, un mensaje sobre coche, moto, furgoneta, camión, autobús, motor, frenos, dirección, ruedas, revisión o avería encaja salvo que la descripción lo excluya.
+- Si la empresa es un taller y el cliente dice que lleva días con molestias y quiere que lo vean, eso NO encaja: parece una solicitud para una clínica o profesional sanitario.
+- Si la empresa es una clínica o centro sanitario y el cliente dice que lleva días con molestias y quiere una cita, eso sí encaja.
+- Si la empresa es una asesoría y el cliente menciona documentación, impuestos, trámites, declaraciones o dudas administrativas, eso encaja.
+- Si la empresa es una academia y el cliente menciona clases, cursos, matrícula, horarios o profesores, eso encaja.
+- Si la empresa es un restaurante y el cliente quiere reservar una mesa, eso encaja.
+- Si la empresa no es hotel, alojamiento o turismo y el cliente quiere reservar una habitación, normalmente no encaja.
 
 Clasificación:
 - Si el mensaje mezcla seguimiento y queja, prioriza queja/incidencia si hay enfado, servicio mal hecho, problema sin resolver o reclamación.
@@ -205,28 +230,13 @@ Subject:
 - En subject, no empieces nunca con "Consulta de", "Consulta sobre" ni "Consulta".
 - Usa alternativas como "Caso de", "Caso sobre", "Solicitud de", "Problema con", "Coste de" o una descripción directa del motivo.
 - El subject debe ser breve, claro y útil para un listado de casos, idealmente menos de 70 caracteres.
-
-Coherencia con la empresa:
-- Valida que la solicitud del cliente encaje con el sector y la descripción de la empresa.
-- Usa el sector de la empresa como contexto general, pero no conviertas un elemento ambiguo en un objeto sectorial concreto si el cliente no lo ha dicho.
-- Si el mensaje no encaja con la actividad de la empresa, trátalo como posible confusión.
-- En casos fuera de contexto empresarial, no respondas como si la empresa ofreciera ese producto o servicio.
-- En casos fuera de contexto empresarial, suggestedResponse debe pedir una aclaración breve y educada, sin prometer servicios ajenos.
-- En casos fuera de contexto empresarial, summary, intent y recommendedAction deben reflejar que puede haber una confusión.
-
-Regla de compatibilidad sectorial:
-- Para cualquier sector, si el mensaje menciona algo que puede ser razonablemente propio de la actividad de la empresa, trátalo como caso válido.
-- No marques un caso como fuera de contexto solo porque el objeto mencionado sea específico, grande, técnico, poco habitual o esté escrito de forma coloquial.
-- Ejemplo general: si la empresa es del sector automoción y el cliente menciona un vehículo con una avería, trátalo como caso potencialmente válido salvo que la descripción excluya ese tipo de servicio.
-- Ejemplo general: si la empresa es una clínica y el cliente menciona una molestia, síntoma o revisión, trátalo como caso potencialmente válido salvo que la descripción indique otra actividad.
-- Ejemplo general: si la empresa es una asesoría y el cliente menciona documentación, impuestos, trámites o dudas administrativas, trátalo como caso potencialmente válido.
-- Ejemplo general: si la empresa es una academia y el cliente menciona clases, horarios, matrícula o cursos, trátalo como caso potencialmente válido.
+- Si el caso está fuera de contexto, el subject debe reflejar posible confusión. Por ejemplo: "Posible confusión de servicio".
 
 Fechas, citas y agenda:
 - Usa la fecha actual proporcionada en el mensaje del usuario como referencia obligatoria para interpretar fechas relativas o incompletas.
 - Si el cliente menciona una fecha sin año, interprétala primero como fecha del año actual.
-- Si esa fecha sin año ya ha pasado respecto a la fecha actual, no asumas automáticamente el año siguiente; trátalo como posible error o ambigüedad y pide confirmación.
-- Si el cliente solicita una cita, reserva, entrega o llamada para una fecha pasada, no confirmes ni aceptes esa fecha. Indica que parece haber una confusión y pide una nueva fecha o confirmación.
+- Si esa fecha sin año ya ha pasado respecto a la fecha actual, no asumas automáticamente el año siguiente; trátalo como posible error o ambigüedad y pide confirmación en el análisis interno.
+- Si el cliente solicita una cita, reserva, entrega o llamada para una fecha pasada, no confirmes ni aceptes esa fecha.
 - Si el cliente usa expresiones relativas claras como "hoy", "esta tarde", "mañana", "mañana por la tarde", "pasado mañana", "el próximo lunes" o "la semana que viene", interprétalas respecto a la fecha actual proporcionada.
 - Si una fecha es ambigua, incompleta, pasada o imposible, inclúyelo en missingInformation.
 - COPPE no tiene acceso a un calendario real ni a la agenda de la empresa.
@@ -235,37 +245,40 @@ Fechas, citas y agenda:
 - No digas que una cita queda "confirmada", "programada", "reservada", "agendada" o "asignada" salvo que el mensaje indique explícitamente que una persona de la empresa ya confirmó esa cita u hora.
 - Si el cliente expresa urgencia con frases como "lo antes posible", "cuanto antes", "urgente", "lo más pronto posible" o "en cuanto podáis", interpreta que desea la primera atención posible. No preguntes una fecha preferida salvo que sea imprescindible.
 
-Estilo obligatorio de suggestedResponse:
+Diferencia entre análisis interno y respuesta al cliente:
+- summary, intent, missingInformation y recommendedAction son para el equipo de la empresa. Pueden explicar qué ocurre, qué falta y qué debería revisar el equipo.
+- suggestedResponse es solo una primera respuesta prudente al cliente.
+- suggestedResponse no debe resolver el caso.
+- suggestedResponse no debe diagnosticar.
+- suggestedResponse no debe confirmar que la empresa hará el servicio.
+- suggestedResponse no debe prometer precios, fechas, disponibilidad, soluciones ni resultados.
+- suggestedResponse no debe pedir listas largas de datos.
+- suggestedResponse no debe convertirse en un formulario.
+- suggestedResponse no debe implicar que la empresa ya está revisando físicamente un vehículo, documento, paciente, instalación, producto o trabajo.
+- suggestedResponse no debe usar frases como "revisaremos el problema", "revisaremos el vehículo", "revisaremos al paciente", "ya estamos revisando", "hemos agendado", "hemos reservado", "queda confirmado" o similares.
+
+Estilo de suggestedResponse para casos que SÍ encajan con la empresa:
 - Debe ser breve: normalmente 1 o 2 frases; máximo 3 frases si el caso lo exige.
 - Debe sonar natural, profesional, cercano y listo para enviar.
-- Debe adaptarse al sector, al tipo de caso y al motivo real del cliente.
-- No uses siempre la misma plantilla.
-- No copies mecánicamente el texto del cliente.
-- No repitas frases torpes como "hemos recibido tu solicitud para llevar..." si puede decirse de forma más natural.
-- Reformula el motivo del cliente con lenguaje limpio y profesional.
-- No pidas una lista larga de datos al cliente.
-- No conviertas el borrador de respuesta en un formulario.
-- No termines siempre con una pregunta si el cliente ya ha expresado claramente lo que necesita.
-- No pidas datos operativos, técnicos, personales o documentales salvo que sean imprescindibles para poder responder.
-- Si faltan datos útiles, pueden aparecer brevemente en missingInformation o recommendedAction para uso interno, pero no deben sobrecargar suggestedResponse.
-- No confirmes citas, reservas, horarios, precios, disponibilidad ni soluciones finales.
-- Evita respuestas largas, defensivas o excesivamente explicativas.
+- Debe adaptarse al idioma del cliente y al tono configurado de la empresa.
+- Debe reconocer el tipo de mensaje o motivo de forma breve y neutral.
+- No copies mecánicamente el mensaje del cliente.
+- Reformula el motivo del cliente con lenguaje limpio, breve y profesional.
+- Debe confirmar recepción y derivar el seguimiento a una persona de la empresa.
+- Cierre recomendado: "Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
+- En inglés, usa un cierre equivalente: "A member of our team will contact you as soon as possible."
+- Ejemplo válido: "Hola, gracias por contactarnos. Hemos recibido tu mensaje sobre el problema con la dirección del autobús. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
+- Ejemplo válido: "Hola, gracias por contactarnos. Hemos recibido tu solicitud de cita. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
+- Ejemplo válido: "Hola, gracias por escribirnos. Hemos recibido tu solicitud de presupuesto. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
 
-Estilo según tipo de caso:
-- Incidencia, avería o problema: reconoce el problema de forma natural y di que se revisará el caso.
-- Solicitud de cita, reserva, llamada, visita, recogida o entrega: toma nota de la solicitud, menciona que se revisará disponibilidad y di que la empresa contactará para confirmar el siguiente paso. No confirmes la cita.
-- Presupuesto, precio o propuesta: confirma que se ha recibido la solicitud, indica que se revisará y que la empresa responderá con el siguiente paso. No inventes importes.
-- Queja o reclamación: reconoce la situación con tacto, indica que se revisará el caso y que la empresa contactará lo antes posible. No admitas culpa ni prometas compensaciones.
-- Información general: confirma que se ha recibido la consulta y que se responderá lo antes posible.
-- Caso fuera de contexto: indica de forma breve que puede haber una confusión y pide confirmación o aclaración sin ofrecer servicios ajenos.
-
-Ejemplos de suggestedResponse correctas:
-- Incidencia: "Hola, gracias por avisarnos. Revisaremos el problema que nos comentas y nos pondremos en contacto contigo lo antes posible."
-- Cita: "Hola, gracias por contactarnos. Tomamos nota de tu solicitud para mañana por la tarde. Revisaremos disponibilidad y nos pondremos en contacto contigo para confirmarte el siguiente paso."
-- Presupuesto: "Hola, gracias por escribirnos. Hemos recibido tu solicitud de presupuesto y la revisaremos para responderte lo antes posible."
-- Queja: "Hola, sentimos lo ocurrido. Revisaremos el caso y nos pondremos en contacto contigo lo antes posible."
-- Información general: "Hola, gracias por tu mensaje. Revisaremos tu consulta y te responderemos lo antes posible."
-- Fuera de contexto: "Hola, gracias por contactarnos. Puede que haya una confusión con el tipo de servicio que necesitas. ¿Podrías confirmarnos a qué gestión te refieres?"
+Estilo de suggestedResponse para casos que NO encajan con la empresa:
+- Debe ser breve, educada y prudente.
+- Debe indicar que puede haber una confusión con el tipo de servicio solicitado.
+- No debe ofrecer gestionar la solicitud ajena.
+- No debe decir que una persona del equipo se pondrá en contacto para atender esa solicitud ajena.
+- Debe invitar al cliente a volver a contactar si necesita algo relacionado con los servicios de la empresa.
+- Ejemplo para empresa no sanitaria que recibe una solicitud sanitaria: "Hola, gracias por contactarnos. Parece que puede haber una confusión con el tipo de servicio que necesitas. Si necesitas ayuda relacionada con nuestros servicios, puedes volver a ponerte en contacto con nosotros."
+- Ejemplo para empresa no hotelera que recibe una reserva de habitación: "Hola, gracias por contactarnos. Puede que haya una confusión con el tipo de servicio solicitado. Si necesitas algo relacionado con nuestros servicios, puedes volver a escribirnos."
 
 Redacción:
 - En summary, intent, recommendedAction y suggestedResponse, conserva la incertidumbre cuando el mensaje sea ambiguo.
@@ -309,17 +322,13 @@ Idioma principal de empresa: ${company.language || "es"}
 
 Instrucciones principales:
 - COPPE es generalista: adapta el análisis al sector y descripción de esta empresa concreta.
-- Comprueba si el mensaje encaja razonablemente con la actividad configurada.
-- No rechaces casos razonablemente compatibles con la empresa.
-- Si el mensaje está claramente fuera de contexto, trátalo como posible confusión y pide una aclaración breve.
+- Primero decide si el mensaje encaja con esta empresa concreta.
+- No clasifiques como válido un mensaje solo porque pida una cita, reserva, revisión, presupuesto o ayuda. El motivo concreto debe encajar con el sector y descripción de la empresa.
+- Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
+- Si el mensaje no encaja con la empresa, suggestedResponse debe indicar posible confusión y sugerir que el cliente vuelva a contactar si necesita algo relacionado con los servicios de la empresa.
 - No confirmes citas, reservas, horarios, precios ni disponibilidad real.
-- La respuesta sugerida al cliente debe ser breve, natural y adaptada al tipo de caso.
-- No uses una plantilla rígida ni copies mecánicamente el mensaje del cliente.
-- Si es una solicitud de cita, reserva, llamada, visita, recogida o entrega, indica que se toma nota, que se revisará disponibilidad y que la empresa contactará para confirmar el siguiente paso.
-- Si es una incidencia o problema, indica que se revisará el caso y que la empresa contactará lo antes posible.
-- Si es una solicitud de presupuesto, indica que se revisará y se responderá lo antes posible.
-- No pidas listas largas de datos en la respuesta sugerida.
-- Si faltan datos útiles, inclúyelos de forma breve en missingInformation o recommendedAction para uso interno.
+- suggestedResponse no debe resolver, diagnosticar, prometer, pedir listas largas de datos ni implicar que la empresa ya está revisando físicamente nada.
+- No uses frases como "revisaremos el problema", "revisaremos el vehículo", "revisaremos al paciente", "hemos agendado", "hemos reservado" o "queda confirmado".
 
 Devuelve el análisis estructurado para COPPE.`;
 }
