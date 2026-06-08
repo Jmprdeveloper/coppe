@@ -3,14 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import { Plus, Search, X } from "lucide-react";
 
+import { inquiryCategoryOptions } from "../lib/inquiryCategories";
 import {
   formatDateTime,
   normalizeInquiryCategory,
   normalizeInquiryStatus,
   normalizePriority,
 } from "../lib/inquiryUtils";
-import { inquiryCategoryOptions } from "../lib/inquiryCategories";
 import { normalizeSearchText } from "../lib/searchUtils";
+import {
+  formatSourceChannel,
+  sourceChannelOptions,
+} from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
@@ -47,6 +51,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [priorityFilter, setPriorityFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [sourceChannelFilter, setSourceChannelFilter] = useState("all");
 
   const [isLoading, setIsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState("");
@@ -90,12 +95,14 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
     setStatusFilter("all");
     setPriorityFilter("all");
     setCategoryFilter("all");
+    setSourceChannelFilter("all");
   };
 
   const normalizedSearch = normalizeSearchText(appliedSearchTerm);
 
   const filteredInquiries = inquiries.filter((inquiry) => {
     const normalizedStatus = normalizeInquiryStatus(inquiry.status);
+    const formattedSourceChannel = formatSourceChannel(inquiry.source_channel);
 
     const matchesSearch =
       !normalizedSearch ||
@@ -105,7 +112,8 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
         normalizedSearch
       ) ||
       normalizeSearchText(inquiry.ai_summary).includes(normalizedSearch) ||
-      normalizeSearchText(inquiry.ai_category).includes(normalizedSearch);
+      normalizeSearchText(inquiry.ai_category).includes(normalizedSearch) ||
+      normalizeSearchText(formattedSourceChannel).includes(normalizedSearch);
 
     const matchesStatus =
       statusFilter === "all" || normalizedStatus === statusFilter;
@@ -117,20 +125,31 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
       categoryFilter === "all" ||
       normalizeInquiryCategory(inquiry.ai_category) === categoryFilter;
 
-    return matchesSearch && matchesStatus && matchesPriority && matchesCategory;
+    const matchesSourceChannel =
+      sourceChannelFilter === "all" ||
+      formattedSourceChannel === formatSourceChannel(sourceChannelFilter);
+
+    return (
+      matchesSearch &&
+      matchesStatus &&
+      matchesPriority &&
+      matchesCategory &&
+      matchesSourceChannel
+    );
   });
 
   const hasActiveFilters =
     appliedSearchTerm.trim().length > 0 ||
     statusFilter !== "all" ||
     priorityFilter !== "all" ||
-    categoryFilter !== "all";
+    categoryFilter !== "all" ||
+    sourceChannelFilter !== "all";
 
   return (
     <div>
       <PageHeader
         title="Casos"
-        description="Todos los casos de atención registrados, clasificados por estado, prioridad y categoría."
+        description="Todos los casos de atención registrados, clasificados por estado, prioridad, categoría y canal."
         action={
           <Button onClick={() => setActiveView("InquiryForm")}>
             <Plus size={16} /> Registrar mensaje
@@ -152,7 +171,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                 }
               }}
               className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-              placeholder="Buscar por cliente, asunto, mensaje o categoría..."
+              placeholder="Buscar por cliente, asunto, mensaje, categoría o canal..."
             />
           </div>
 
@@ -173,7 +192,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
           </div>
         </div>
 
-        <div className="grid gap-2 md:grid-cols-3">
+        <div className="grid gap-2 md:grid-cols-4">
           <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Estado
             <select
@@ -224,6 +243,26 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               ))}
             </select>
           </label>
+
+          <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Canal
+            <select
+              value={sourceChannelFilter}
+              onChange={(event) => setSourceChannelFilter(event.target.value)}
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
+            >
+              <option value="all">Todos</option>
+
+              {sourceChannelOptions.map((sourceChannelOption) => (
+                <option
+                  key={sourceChannelOption.value}
+                  value={sourceChannelOption.value}
+                >
+                  {sourceChannelOption.label}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
       </div>
 
@@ -254,8 +293,9 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
 
       {!isLoading && !errorMessage && filteredInquiries.length > 0 ? (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <div className="hidden grid-cols-[1.1fr_2fr_1fr_1fr_1fr_0.8fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
+          <div className="hidden grid-cols-[1.1fr_0.9fr_2fr_1fr_1fr_1fr_0.8fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
             <div>Cliente</div>
+            <div>Canal</div>
             <div>Resumen</div>
             <div>Categoría</div>
             <div>Prioridad</div>
@@ -268,7 +308,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               <button
                 key={inquiry.id}
                 onClick={() => openInquiry(inquiry.id)}
-                className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-50 md:grid-cols-[1.1fr_2fr_1fr_1fr_1fr_0.8fr] md:items-center"
+                className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-50 md:grid-cols-[1.1fr_0.9fr_2fr_1fr_1fr_1fr_0.8fr] md:items-center"
               >
                 <div>
                   <div className="font-semibold text-slate-950">
@@ -276,8 +316,13 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                   </div>
 
                   <div className="mt-1 text-xs text-slate-500 md:hidden">
+                    {formatSourceChannel(inquiry.source_channel)} ·{" "}
                     {formatDateTime(inquiry.created_at)}
                   </div>
+                </div>
+
+                <div className="hidden text-sm font-medium text-slate-600 md:block">
+                  {formatSourceChannel(inquiry.source_channel)}
                 </div>
 
                 <div>
