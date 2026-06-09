@@ -9,6 +9,18 @@ import {
 
 export const runtime = "nodejs";
 
+type WhatsAppPayloadSummaryValue = {
+  metadata?: {
+    phone_number_id?: string | null;
+  } | null;
+  messages?: Array<{
+    type?: string | null;
+  }> | null;
+  statuses?: Array<{
+    status?: string | null;
+  }> | null;
+};
+
 function getWhatsAppVerifyToken() {
   return process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim() ?? "";
 }
@@ -21,6 +33,37 @@ function getSearchParam(request: Request, name: string) {
   const url = new URL(request.url);
 
   return url.searchParams.get(name)?.trim() ?? "";
+}
+
+function getInboundWhatsAppPayloadSummary(payload: WhatsAppWebhookPayload) {
+  return {
+    object: payload.object,
+    entries:
+      payload.entry?.map((entry) => ({
+        id: entry.id,
+        changes:
+          entry.changes?.map((change) => {
+            const value = change.value as WhatsAppPayloadSummaryValue;
+            const messages = Array.isArray(value?.messages)
+              ? value.messages
+              : [];
+            const statuses = Array.isArray(value?.statuses)
+              ? value.statuses
+              : [];
+
+            return {
+              field: change.field,
+              phoneNumberId: value?.metadata?.phone_number_id ?? null,
+              hasMessages: messages.length > 0,
+              messageCount: messages.length,
+              messageTypes: messages.map((message) => message.type ?? null),
+              hasStatuses: statuses.length > 0,
+              statusCount: statuses.length,
+              statuses: statuses.map((status) => status.status ?? null),
+            };
+          }) ?? [],
+      })) ?? [],
+  };
 }
 
 function verifyWhatsAppSignature(rawPayload: string, request: Request) {
@@ -103,6 +146,11 @@ export async function POST(request: Request) {
 
     try {
       payload = JSON.parse(rawPayload) as WhatsAppWebhookPayload;
+
+      console.info(
+        "Inbound WhatsApp webhook payload summary:",
+        JSON.stringify(getInboundWhatsAppPayloadSummary(payload))
+      );
     } catch (error) {
       console.error("Invalid inbound WhatsApp JSON body:", error);
 
