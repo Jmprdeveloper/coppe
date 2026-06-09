@@ -80,7 +80,8 @@ type InboundEventForInquiryRow = {
   raw_payload: Record<string, unknown> | null;
 };
 
-type PublicIntakeReceivedDetails = {
+type InboundReceivedDetails = {
+  sourceChannel: string;
   customerName: string;
   email: string;
   phone: string;
@@ -210,20 +211,23 @@ function normalizeComparablePhone(value: string | null | undefined) {
   return digits;
 }
 
-function buildPublicIntakeReceivedDetails(
+function buildInboundReceivedDetails(
   inboundEvent: InboundEventForInquiryRow | null,
   linkedCustomer: CustomerRow | null,
   inquiryData: InquiryDetailRow
-): PublicIntakeReceivedDetails | null {
+): InboundReceivedDetails | null {
   const rawPayload = inboundEvent?.raw_payload ?? null;
 
   if (!rawPayload) {
     return null;
   }
 
+  const receivedSourceChannel = formatSourceChannel(inquiryData.source_channel);
   const receivedCustomerName = getRawPayloadStringValue(rawPayload.customerName);
   const receivedEmail = getRawPayloadStringValue(rawPayload.email).toLowerCase();
-  const receivedPhone = getRawPayloadStringValue(rawPayload.phone);
+  const receivedPhone =
+    getRawPayloadStringValue(rawPayload.phone) ||
+    getRawPayloadStringValue(rawPayload.fromPhone);
 
   if (!receivedCustomerName && !receivedEmail && !receivedPhone) {
     return null;
@@ -253,6 +257,7 @@ function buildPublicIntakeReceivedDetails(
   }
 
   return {
+    sourceChannel: receivedSourceChannel,
     customerName: receivedCustomerName,
     email: receivedEmail,
     phone: receivedPhone,
@@ -349,8 +354,8 @@ export function InquiryDetail({
   );
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [publicIntakeReceivedDetails, setPublicIntakeReceivedDetails] =
-    useState<PublicIntakeReceivedDetails | null>(null);
+  const [inboundReceivedDetails, setInboundReceivedDetails] =
+    useState<InboundReceivedDetails | null>(null);
 
   const [note, setNote] = useState("");
   const [additionalCustomerInfo, setAdditionalCustomerInfo] = useState("");
@@ -437,7 +442,7 @@ export function InquiryDetail({
       setInquiryMessages([]);
       setFollowUps([]);
       setAppointments([]);
-      setPublicIntakeReceivedDetails(null);
+      setInboundReceivedDetails(null);
       setNote("");
       setAdditionalCustomerInfo("");
       setAdditionalCustomerSourceChannel("");
@@ -532,14 +537,14 @@ export function InquiryDetail({
           .from("inbound_events")
           .select("id, raw_payload")
           .eq("inquiry_id", inquiryData.id)
-          .eq("source_channel", "Formulario web")
+          .in("source_channel", ["Formulario web", "WhatsApp"])
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle<InboundEventForInquiryRow>();
 
       if (!inboundEventError && inboundEventData) {
-        setPublicIntakeReceivedDetails(
-          buildPublicIntakeReceivedDetails(
+        setInboundReceivedDetails(
+          buildInboundReceivedDetails(
             inboundEventData,
             loadedCustomer,
             inquiryData
@@ -1941,48 +1946,48 @@ export function InquiryDetail({
             </p>
           </div>
 
-          {publicIntakeReceivedDetails ? (
+          {inboundReceivedDetails ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
               <h3 className="font-bold text-amber-950">
-                Datos recibidos del formulario
+                Datos recibidos de {inboundReceivedDetails.sourceChannel}
               </h3>
 
               <p className="mt-2 text-sm leading-6 text-amber-900">
                 Este mensaje se ha asociado al cliente existente mostrado arriba
-                porque coincidía un dato de contacto, pero el formulario llegó
-                con estos datos:
+                porque coincidía un dato de contacto, pero el mensaje llegó
+                desde {inboundReceivedDetails.sourceChannel} con estos datos:
               </p>
 
               <div className="mt-4 space-y-2 text-sm">
-                {publicIntakeReceivedDetails.customerName ? (
+                {inboundReceivedDetails.customerName ? (
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
                       Nombre recibido
                     </div>
                     <div className="mt-0.5 text-amber-950">
-                      {publicIntakeReceivedDetails.customerName}
+                      {inboundReceivedDetails.customerName}
                     </div>
                   </div>
                 ) : null}
 
-                {publicIntakeReceivedDetails.email ? (
+                {inboundReceivedDetails.email ? (
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
                       Email recibido
                     </div>
                     <div className="mt-0.5 text-amber-950">
-                      {publicIntakeReceivedDetails.email}
+                      {inboundReceivedDetails.email}
                     </div>
                   </div>
                 ) : null}
 
-                {publicIntakeReceivedDetails.phone ? (
+                {inboundReceivedDetails.phone ? (
                   <div>
                     <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
                       Teléfono recibido
                     </div>
                     <div className="mt-0.5 text-amber-950">
-                      {publicIntakeReceivedDetails.phone}
+                      {inboundReceivedDetails.phone}
                     </div>
                   </div>
                 ) : null}
