@@ -1,4 +1,4 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
@@ -21,22 +21,6 @@ function getSearchParam(request: Request, name: string) {
   const url = new URL(request.url);
 
   return url.searchParams.get(name)?.trim() ?? "";
-}
-
-function getSafeSecretFingerprint(value: string) {
-  if (!value) {
-    return {
-      length: 0,
-      sha256Prefix: "",
-    };
-  }
-
-  const hash = createHash("sha256").update(value, "utf8").digest("hex");
-
-  return {
-    length: value.length,
-    sha256Prefix: hash.slice(0, 12),
-  };
 }
 
 function verifyWhatsAppSignature(rawPayload: string, request: Request) {
@@ -72,14 +56,6 @@ export async function GET(request: Request) {
   const verifyToken = getSearchParam(request, "hub.verify_token");
   const challenge = getSearchParam(request, "hub.challenge");
   const expectedVerifyToken = getWhatsAppVerifyToken();
-
-  const debugToken = getSearchParam(request, "coppe_debug");
-
-if (debugToken && expectedVerifyToken && debugToken === expectedVerifyToken) {
-  return NextResponse.json({
-    whatsappAppSecret: getSafeSecretFingerprint(getWhatsAppAppSecret()),
-  });
-}
 
   if (
     mode === "subscribe" &&
