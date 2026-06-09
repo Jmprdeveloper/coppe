@@ -78,53 +78,93 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  let rawPayload = "";
-
   try {
-    rawPayload = await request.text();
-  } catch {
+    let rawPayload = "";
+
+    try {
+      rawPayload = await request.text();
+    } catch (error) {
+      console.error("Could not read inbound WhatsApp request body:", error);
+
+      return NextResponse.json(
+        { error: "No se pudo leer el cuerpo de la petición." },
+        { status: 400 }
+      );
+    }
+
+    if (!verifyWhatsAppSignature(rawPayload, request)) {
+      return NextResponse.json(
+        { error: "Firma de WhatsApp no válida." },
+        { status: 401 }
+      );
+    }
+
+    let payload: WhatsAppWebhookPayload;
+
+    try {
+      payload = JSON.parse(rawPayload) as WhatsAppWebhookPayload;
+    } catch (error) {
+      console.error("Invalid inbound WhatsApp JSON body:", error);
+
+      return NextResponse.json(
+        { error: "El cuerpo de la petición no es válido." },
+        { status: 400 }
+      );
+    }
+
+    let result: Awaited<ReturnType<typeof processInboundWhatsAppWebhook>>;
+
+    try {
+      result = await processInboundWhatsAppWebhook(payload);
+    } catch (error) {
+      console.error("Inbound WhatsApp webhook processing failed:", error);
+
+      return NextResponse.json(
+        {
+          error: "No se pudo procesar el webhook de WhatsApp.",
+          detail:
+            error instanceof Error
+              ? error.message
+              : "Error desconocido al procesar WhatsApp.",
+        },
+        { status: 500 }
+      );
+    }
+
+    if (!result.ok) {
+      if (result.status >= 500) {
+        console.error("Inbound WhatsApp processing returned error:", result);
+      }
+
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status }
+      );
+    }
+
     return NextResponse.json(
-      { error: "No se pudo leer el cuerpo de la petición." },
-      { status: 400 }
-    );
-  }
-
-  if (!verifyWhatsAppSignature(rawPayload, request)) {
-    return NextResponse.json(
-      { error: "Firma de WhatsApp no válida." },
-      { status: 401 }
-    );
-  }
-
-  let payload: WhatsAppWebhookPayload;
-
-  try {
-    payload = JSON.parse(rawPayload) as WhatsAppWebhookPayload;
-  } catch {
-    return NextResponse.json(
-      { error: "El cuerpo de la petición no es válido." },
-      { status: 400 }
-    );
-  }
-
-  const result = await processInboundWhatsAppWebhook(payload);
-
-  if (!result.ok) {
-    return NextResponse.json(
-      { error: result.error },
+      {
+        ok: true,
+        processed: result.processed,
+        ignored: result.ignored,
+        duplicates: result.duplicates,
+        inquiryIds: result.inquiryIds,
+        message: result.message,
+      },
       { status: result.status }
     );
-  }
+  } catch (error) {
+    console.error("Unexpected inbound WhatsApp route error:", error);
 
-  return NextResponse.json(
-    {
-      ok: true,
-      processed: result.processed,
-      ignored: result.ignored,
-      duplicates: result.duplicates,
-      inquiryIds: result.inquiryIds,
-      message: result.message,
-    },
-    { status: result.status }
-  );
+    return NextResponse.json(
+      {
+        error: "Error inesperado en el webhook de WhatsApp.",
+        detail:
+          error instanceof Error
+            ? error.message
+            : "Error inesperado sin detalle disponible.",
+      },
+      { status: 500 }
+    );
+  }
 }
