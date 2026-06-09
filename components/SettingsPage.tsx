@@ -31,6 +31,13 @@ type PublicIntakeSettingsRow = {
   public_intake_enabled: boolean | null;
 };
 
+type InboundWhatsAppChannelSettingsRow = {
+  id: string;
+  phone_number_id: string;
+  display_phone_number: string | null;
+  enabled: boolean;
+};
+
 function normalizeTone(value: string | null | undefined): ToneOption {
   if (
     value === "profesional y cercano" ||
@@ -79,6 +86,17 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [copyMessage, setCopyMessage] = useState("");
   const [copyErrorMessage, setCopyErrorMessage] = useState("");
 
+  const [whatsAppChannelId, setWhatsAppChannelId] = useState("");
+  const [whatsAppPhoneNumberId, setWhatsAppPhoneNumberId] = useState("");
+  const [whatsAppDisplayPhoneNumber, setWhatsAppDisplayPhoneNumber] =
+    useState("");
+  const [whatsAppEnabled, setWhatsAppEnabled] = useState(false);
+  const [isSavingWhatsAppChannel, setIsSavingWhatsAppChannel] = useState(false);
+  const [whatsAppMessage, setWhatsAppMessage] = useState("");
+  const [whatsAppErrorMessage, setWhatsAppErrorMessage] = useState("");
+  const [whatsAppCopyMessage, setWhatsAppCopyMessage] = useState("");
+  const [whatsAppCopyErrorMessage, setWhatsAppCopyErrorMessage] = useState("");
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -100,6 +118,14 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setPublicIntakeErrorMessage("");
       setCopyMessage("");
       setCopyErrorMessage("");
+      setWhatsAppMessage("");
+      setWhatsAppErrorMessage("");
+      setWhatsAppCopyMessage("");
+      setWhatsAppCopyErrorMessage("");
+      setWhatsAppChannelId("");
+      setWhatsAppPhoneNumberId("");
+      setWhatsAppDisplayPhoneNumber("");
+      setWhatsAppEnabled(false);
 
       const { data, error } = await getCurrentCompany(supabase);
 
@@ -138,6 +164,25 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         return;
       }
 
+      const { data: whatsAppChannelSettings, error: whatsAppChannelError } =
+        await supabase
+          .from("inbound_whatsapp_channels")
+          .select("id, phone_number_id, display_phone_number, enabled")
+          .eq("company_id", data.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle<InboundWhatsAppChannelSettingsRow>();
+
+      if (whatsAppChannelError) {
+        setErrorMessage(
+          `No se pudo cargar la configuración de WhatsApp: ${
+            whatsAppChannelError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       setCurrentCompany(data);
       setCompanyId(data.id);
       setName(data.name ?? "");
@@ -149,6 +194,14 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setPublicIntakeEnabled(
         Boolean(publicIntakeSettings?.public_intake_enabled)
       );
+      setWhatsAppChannelId(whatsAppChannelSettings?.id ?? "");
+      setWhatsAppPhoneNumberId(
+        whatsAppChannelSettings?.phone_number_id ?? ""
+      );
+      setWhatsAppDisplayPhoneNumber(
+        whatsAppChannelSettings?.display_phone_number ?? ""
+      );
+      setWhatsAppEnabled(Boolean(whatsAppChannelSettings?.enabled));
       setIsLoading(false);
     }
 
@@ -159,6 +212,16 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     publicFormOrigin && publicIntakeToken
       ? `${publicFormOrigin}/contacto/${publicIntakeToken}`
       : "";
+
+  const whatsAppWebhookUrl = publicFormOrigin
+    ? `${publicFormOrigin}/api/inbound-whatsapp`
+    : "";
+
+  const whatsAppStatusLabel = whatsAppPhoneNumberId
+    ? whatsAppEnabled
+      ? "Activo"
+      : "Configurado pero desactivado"
+    : "No configurado";
 
   const handleCopyPublicIntakeUrl = async () => {
     setCopyMessage("");
@@ -177,6 +240,27 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     } catch {
       setCopyErrorMessage(
         "No se pudo copiar el enlace. Puedes seleccionarlo y copiarlo manualmente."
+      );
+    }
+  };
+
+  const handleCopyWhatsAppWebhookUrl = async () => {
+    setWhatsAppCopyMessage("");
+    setWhatsAppCopyErrorMessage("");
+    setWhatsAppMessage("");
+    setWhatsAppErrorMessage("");
+
+    if (!whatsAppWebhookUrl) {
+      setWhatsAppCopyErrorMessage("No hay una URL de webhook disponible.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(whatsAppWebhookUrl);
+      setWhatsAppCopyMessage("URL del webhook copiada correctamente.");
+    } catch {
+      setWhatsAppCopyErrorMessage(
+        "No se pudo copiar la URL. Puedes seleccionarla y copiarla manualmente."
       );
     }
   };
@@ -302,6 +386,95 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     );
   };
 
+  const handleSaveWhatsAppChannel = async () => {
+    setWhatsAppMessage("");
+    setWhatsAppErrorMessage("");
+    setWhatsAppCopyMessage("");
+    setWhatsAppCopyErrorMessage("");
+
+    if (!canEditCompanySettings) {
+      setWhatsAppErrorMessage(
+        "Solo un usuario owner puede modificar el canal WhatsApp."
+      );
+      return;
+    }
+
+    if (!companyId) {
+      setWhatsAppErrorMessage(
+        "No se puede guardar WhatsApp porque no hay empresa cargada."
+      );
+      return;
+    }
+
+    const cleanPhoneNumberId = whatsAppPhoneNumberId.trim();
+    const cleanDisplayPhoneNumber = whatsAppDisplayPhoneNumber.trim();
+
+    if (!cleanPhoneNumberId) {
+      setWhatsAppErrorMessage(
+        "Introduce el Phone number ID de Meta para activar el canal WhatsApp."
+      );
+      return;
+    }
+
+    if (cleanPhoneNumberId.length > 120) {
+      setWhatsAppErrorMessage(
+        "El Phone number ID no puede superar los 120 caracteres."
+      );
+      return;
+    }
+
+    if (cleanDisplayPhoneNumber.length > 40) {
+      setWhatsAppErrorMessage(
+        "El número visible no puede superar los 40 caracteres."
+      );
+      return;
+    }
+
+    setIsSavingWhatsAppChannel(true);
+
+    const query = whatsAppChannelId
+      ? supabase
+          .from("inbound_whatsapp_channels")
+          .update({
+            phone_number_id: cleanPhoneNumberId,
+            display_phone_number: cleanDisplayPhoneNumber || null,
+            enabled: whatsAppEnabled,
+          })
+          .eq("id", whatsAppChannelId)
+          .select("id, phone_number_id, display_phone_number, enabled")
+          .single<InboundWhatsAppChannelSettingsRow>()
+      : supabase
+          .from("inbound_whatsapp_channels")
+          .insert({
+            company_id: companyId,
+            phone_number_id: cleanPhoneNumberId,
+            display_phone_number: cleanDisplayPhoneNumber || null,
+            provider: "meta",
+            enabled: whatsAppEnabled,
+          })
+          .select("id, phone_number_id, display_phone_number, enabled")
+          .single<InboundWhatsAppChannelSettingsRow>();
+
+    const { data, error } = await query;
+
+    setIsSavingWhatsAppChannel(false);
+
+    if (error || !data) {
+      setWhatsAppErrorMessage(
+        `No se pudo guardar la configuración de WhatsApp: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setWhatsAppChannelId(data.id);
+    setWhatsAppPhoneNumberId(data.phone_number_id);
+    setWhatsAppDisplayPhoneNumber(data.display_phone_number ?? "");
+    setWhatsAppEnabled(Boolean(data.enabled));
+    setWhatsAppMessage("Configuración de WhatsApp guardada correctamente.");
+  };
+
   const handleSave = async () => {
     setErrorMessage("");
     setMessage("");
@@ -309,6 +482,10 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeErrorMessage("");
     setCopyMessage("");
     setCopyErrorMessage("");
+    setWhatsAppMessage("");
+    setWhatsAppErrorMessage("");
+    setWhatsAppCopyMessage("");
+    setWhatsAppCopyErrorMessage("");
 
     if (!canEditCompanySettings) {
       setErrorMessage(
@@ -382,7 +559,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     <div>
       <PageHeader
         title="Configuración"
-        description="Ajusta los datos de tu empresa y las preferencias del asistente."
+        description="Ajusta los datos de tu empresa, canales y preferencias del asistente."
       />
 
       {isLoading ? (
@@ -489,6 +666,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
           <div className="space-y-5">
             <TeamSettingsCard />
+
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-slate-950">
                 Preferencias del asistente
@@ -648,6 +826,151 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               <p className="mt-3 text-xs leading-5 text-slate-500">
                 Si regeneras el enlace, el enlace anterior dejará de funcionar
                 y tendrás que compartir el nuevo.
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <h2 className="text-lg font-bold text-slate-950">
+                Canal WhatsApp
+              </h2>
+
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                Configura la recepción automática de mensajes desde WhatsApp
+                Business Cloud API. Los mensajes entrantes crearán casos con el
+                canal WhatsApp.
+              </p>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Estado
+                </div>
+
+                <div className="mt-1 font-medium text-slate-800">
+                  {whatsAppStatusLabel}
+                </div>
+              </div>
+
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                URL del webhook
+                <input
+                  value={whatsAppWebhookUrl || "URL no disponible"}
+                  readOnly
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                />
+              </label>
+
+              <p className="mt-2 text-xs leading-5 text-slate-500">
+                Usa esta URL en Meta como webhook de WhatsApp. El token de
+                verificación debe coincidir con la variable de entorno
+                WHATSAPP_WEBHOOK_VERIFY_TOKEN.
+              </p>
+
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                Phone number ID de Meta
+                <input
+                  value={whatsAppPhoneNumberId}
+                  disabled={!canEditCompanySettings}
+                  onChange={(event) => {
+                    setWhatsAppPhoneNumberId(event.target.value);
+                    setWhatsAppMessage("");
+                    setWhatsAppErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  placeholder="Ej. 123456789012345"
+                />
+              </label>
+
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                Número visible
+                <input
+                  value={whatsAppDisplayPhoneNumber}
+                  disabled={!canEditCompanySettings}
+                  onChange={(event) => {
+                    setWhatsAppDisplayPhoneNumber(event.target.value);
+                    setWhatsAppMessage("");
+                    setWhatsAppErrorMessage("");
+                  }}
+                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  placeholder="Ej. +34 600 000 000"
+                />
+              </label>
+
+              <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <input
+                  type="checkbox"
+                  checked={whatsAppEnabled}
+                  disabled={!canEditCompanySettings}
+                  onChange={(event) => {
+                    setWhatsAppEnabled(event.target.checked);
+                    setWhatsAppMessage("");
+                    setWhatsAppErrorMessage("");
+                  }}
+                  className="mt-1"
+                />
+
+                <span>
+                  <span className="font-semibold text-slate-800">
+                    Canal activo
+                  </span>
+
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    Si está desactivado, COPPE rechazará nuevos mensajes
+                    entrantes para este número.
+                  </span>
+                </span>
+              </label>
+
+              {whatsAppErrorMessage ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {whatsAppErrorMessage}
+                </div>
+              ) : null}
+
+              {whatsAppMessage ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {whatsAppMessage}
+                </div>
+              ) : null}
+
+              {whatsAppCopyErrorMessage ? (
+                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {whatsAppCopyErrorMessage}
+                </div>
+              ) : null}
+
+              {whatsAppCopyMessage ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {whatsAppCopyMessage}
+                </div>
+              ) : null}
+
+              <div className="mt-4 space-y-2">
+                <Button
+                  className="w-full"
+                  variant="secondary"
+                  onClick={handleCopyWhatsAppWebhookUrl}
+                  disabled={!whatsAppWebhookUrl}
+                >
+                  Copiar URL webhook
+                </Button>
+
+                <Button
+                  className="w-full"
+                  onClick={handleSaveWhatsAppChannel}
+                  disabled={
+                    isSavingWhatsAppChannel || !canEditCompanySettings
+                  }
+                >
+                  {isSavingWhatsAppChannel
+                    ? "Guardando WhatsApp..."
+                    : "Guardar WhatsApp"}
+                </Button>
+              </div>
+
+              <p className="mt-3 text-xs leading-5 text-slate-500">
+                Esta configuración solo guarda el canal entrante. El envío de
+                respuestas por WhatsApp y las plantillas de Meta quedan para una
+                fase posterior.
               </p>
             </div>
 
