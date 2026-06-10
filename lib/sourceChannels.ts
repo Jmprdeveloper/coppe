@@ -38,14 +38,19 @@ const sourceChannelLabelsByKey: Record<string, string> = {
 
   sms: "SMS",
 
+  web: "Formulario web",
   form: "Formulario web",
   formulario: "Formulario web",
   formulario_web: "Formulario web",
   web_form: "Formulario web",
+  public_intake: "Formulario web",
+  public_form: "Formulario web",
+  contacto: "Formulario web",
 
   web_chat: "Chat web",
   chat_web: "Chat web",
   chat: "Chat web",
+  public_chat: "Chat web",
 
   instagram: "Instagram",
   facebook: "Facebook",
@@ -95,6 +100,7 @@ export function formatSourceChannel(value: string | null | undefined) {
 
   return sourceChannelLabelsByKey[normalizedKey] ?? cleanValue;
 }
+
 export function normalizeSourceChannelValue(
   value: string | null | undefined,
   fallback = "Email"

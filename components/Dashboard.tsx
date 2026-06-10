@@ -26,6 +26,10 @@ import {
   mapInquiryRowToInquiry,
   type InquiryRow,
 } from "../lib/inquiryUtils";
+import {
+  formatSourceChannel,
+  sourceChannelOptions,
+} from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
 import type { Appointment, FollowUp, Inquiry, Priority } from "../types";
 
@@ -68,6 +72,12 @@ type DashboardFollowUp = FollowUp & {
 
 type DashboardAppointment = Appointment & {
   scheduledAtValue: string;
+};
+
+type ChannelSummary = {
+  label: string;
+  count: number;
+  percentage: number;
 };
 
 function mapFollowUpRowToFollowUp(row: FollowUpRow): DashboardFollowUp {
@@ -131,6 +141,61 @@ function appointmentDashboardWeight(
 
 function needsCompanyAttention(inquiry: Inquiry) {
   return inquiry.status === "new" || inquiry.status === "pending";
+}
+
+function buildChannelSummaries(inquiries: DashboardInquiry[]): ChannelSummary[] {
+  const countsByChannel = new Map<string, number>();
+
+  inquiries.forEach((inquiry) => {
+    const channelLabel = formatSourceChannel(inquiry.sourceChannel);
+
+    countsByChannel.set(channelLabel, (countsByChannel.get(channelLabel) ?? 0) + 1);
+  });
+
+  const total = inquiries.length;
+
+  const knownChannelSummaries = sourceChannelOptions
+    .map((sourceChannelOption) => {
+      const label = formatSourceChannel(sourceChannelOption.value);
+      const count = countsByChannel.get(label) ?? 0;
+
+      countsByChannel.delete(label);
+
+      return {
+        label,
+        count,
+        percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+      };
+    })
+    .filter((summary) => summary.count > 0);
+
+  const unknownChannelSummaries = Array.from(countsByChannel.entries()).map(
+    ([label, count]) => ({
+      label,
+      count,
+      percentage: total > 0 ? Math.round((count / total) * 100) : 0,
+    })
+  );
+
+  return [...knownChannelSummaries, ...unknownChannelSummaries]
+    .sort((a, b) => {
+      if (b.count !== a.count) {
+        return b.count - a.count;
+      }
+
+      return a.label.localeCompare(b.label);
+    })
+    .slice(0, 5);
+}
+
+function getMainChannelLabel(channelSummaries: ChannelSummary[]) {
+  const [mainChannel] = channelSummaries;
+
+  if (!mainChannel) {
+    return "Sin actividad";
+  }
+
+  return `${mainChannel.label} · ${mainChannel.count}`;
 }
 
 export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
@@ -461,11 +526,15 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     })
     .slice(0, 4);
 
+  const channelSummaries = buildChannelSummaries(inquiries);
+  const mainChannelLabel = getMainChannelLabel(channelSummaries);
+  const hasChannelActivity = channelSummaries.length > 0;
+
   return (
     <div>
       <PageHeader
         title="Dashboard"
-        description="Vista rápida de los casos, citas internas y seguimientos que necesitan atención ahora."
+        description="Vista rápida de los casos, citas internas, canales y seguimientos que necesitan atención ahora."
         action={
           <Button onClick={() => setActiveView("InquiryForm")}>
             <Plus size={16} /> Registrar mensaje
@@ -565,6 +634,77 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
         </section>
 
         <div className="space-y-6">
+          <section>
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-950">
+                Actividad por canal
+              </h2>
+
+              <button
+                onClick={() => setActiveView("inquiries")}
+                className="text-sm font-semibold text-[#0F4C5C] hover:underline"
+              >
+                Ver casos
+              </button>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              {hasChannelActivity ? (
+                <>
+                  <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Canal principal
+                    </div>
+
+                    <div className="mt-1 text-sm font-bold text-slate-950">
+                      {mainChannelLabel}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 space-y-3">
+                    {channelSummaries.map((channelSummary) => (
+                      <div key={channelSummary.label}>
+                        <div className="flex items-center justify-between gap-3 text-sm">
+                          <span className="font-medium text-slate-700">
+                            {channelSummary.label}
+                          </span>
+
+                          <span className="text-xs font-semibold text-slate-500">
+                            {channelSummary.count} ·{" "}
+                            {channelSummary.percentage}%
+                          </span>
+                        </div>
+
+                        <div className="mt-1 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div
+                            className="h-full rounded-full bg-[#0F4C5C]"
+                            style={{
+                              width: `${Math.max(
+                                channelSummary.percentage,
+                                4
+                              )}%`,
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <p className="mt-4 text-xs leading-5 text-slate-500">
+                    Distribución calculada sobre todos los casos registrados en
+                    el espacio activo.
+                  </p>
+                </>
+              ) : (
+                <div className="text-sm leading-6 text-slate-600">
+                  Todavía no hay actividad por canal. Cuando entren mensajes por
+                  Formulario web, Chat web, WhatsApp u otros canales, aparecerán
+                  aquí.
+                </div>
+              )}
+            </div>
+          </section>
+
           <section>
             <div className="mb-3 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-950">
