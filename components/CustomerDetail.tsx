@@ -30,6 +30,7 @@ import {
   type InquiryRow,
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
+import { formatSourceChannel } from "../lib/sourceChannels";
 import type { Appointment, CustomerStatus, FollowUp, Inquiry } from "../types";
 
 import { Button } from "./Button";
@@ -187,6 +188,18 @@ function isActiveInquiry(inquiry: Inquiry) {
     status === "pending" ||
     status === "waiting_customer"
   );
+}
+
+function getLatestSourceChannel(inquiries: Inquiry[]) {
+  const latestInquiry = [...inquiries].sort((a, b) =>
+    b.createdAt.localeCompare(a.createdAt)
+  )[0];
+
+  if (!latestInquiry) {
+    return "Sin canal todavía";
+  }
+
+  return formatSourceChannel(latestInquiry.sourceChannel);
 }
 
 export function CustomerDetail({
@@ -908,6 +921,14 @@ export function CustomerDetail({
       appointment.status === "completed" || appointment.status === "cancelled"
   );
 
+  const activeInquiryCount = activeInquiries.length;
+  const pendingFollowUpCount = pendingFollowUps.length;
+  const pendingAppointmentCount =
+    pendingClosureAppointments.length +
+    pendingConfirmationAppointments.length +
+    confirmedAppointments.length;
+  const latestSourceChannel = getLatestSourceChannel(inquiries);
+
   const renderAppointmentCard = (
     appointment: CustomerAppointment,
     isPendingClosure = false
@@ -971,6 +992,78 @@ export function CustomerDetail({
           customer.phone || "Sin teléfono"
         }`}
       />
+
+      <div className="mb-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Casos totales
+          </div>
+
+          <div className="mt-2 text-2xl font-bold text-slate-950">
+            {inquiries.length}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-500">
+            Historial completo del cliente
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Casos activos
+          </div>
+
+          <div className="mt-2 text-2xl font-bold text-slate-950">
+            {activeInquiryCount}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-500">
+            Requieren seguimiento o respuesta
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Seguimientos
+          </div>
+
+          <div className="mt-2 text-2xl font-bold text-slate-950">
+            {pendingFollowUpCount}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-500">
+            Pendientes de atender
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Citas internas
+          </div>
+
+          <div className="mt-2 text-2xl font-bold text-slate-950">
+            {pendingAppointmentCount}
+          </div>
+
+          <div className="mt-1 text-xs text-slate-500">
+            Activas o pendientes
+          </div>
+        </div>
+
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Último canal
+          </div>
+
+          <div className="mt-2 truncate text-sm font-bold text-slate-950">
+            {latestSourceChannel}
+          </div>
+
+          <div className="mt-2 inline-flex rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+            {formatCustomerStatus(customer.status)}
+          </div>
+        </div>
+      </div>
 
       <div className="grid gap-5 xl:grid-cols-[360px_1fr]">
         <aside className="space-y-5">
