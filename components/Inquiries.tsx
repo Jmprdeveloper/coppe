@@ -41,6 +41,16 @@ type InquiryRow = {
   created_at: string;
 };
 
+function SourceChannelBadge({ channel }: { channel: string | null }) {
+  const label = formatSourceChannel(channel);
+
+  return (
+    <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
 export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -157,7 +167,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
         }
       />
 
-      <div className="mb-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-3">
+      <div className="mb-4 space-y-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
         <div className="flex flex-col gap-2 md:flex-row md:items-center">
           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
             <Search size={16} className="shrink-0 text-slate-400" />
@@ -251,7 +261,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               onChange={(event) => setSourceChannelFilter(event.target.value)}
               className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none focus:border-[#0F4C5C]"
             >
-              <option value="all">Todos</option>
+              <option value="all">Todos los canales</option>
 
               {sourceChannelOptions.map((sourceChannelOption) => (
                 <option
@@ -266,12 +276,23 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
         </div>
       </div>
 
-      {hasActiveFilters ? (
-        <div className="mb-4 text-sm text-slate-500">
-          Mostrando {filteredInquiries.length} resultado
-          {filteredInquiries.length === 1 ? "" : "s"} con los filtros actuales.
+      <div className="mb-4 flex flex-col gap-2 text-sm text-slate-500 md:flex-row md:items-center md:justify-between">
+        <div>
+          {hasActiveFilters
+            ? `Mostrando ${filteredInquiries.length} de ${inquiries.length} caso${
+                inquiries.length === 1 ? "" : "s"
+              }.`
+            : `${inquiries.length} caso${inquiries.length === 1 ? "" : "s"} registrado${
+                inquiries.length === 1 ? "" : "s"
+              }.`}
         </div>
-      ) : null}
+
+        {sourceChannelFilter !== "all" ? (
+          <div className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+            Canal: {formatSourceChannel(sourceChannelFilter)}
+          </div>
+        ) : null}
+      </div>
 
       {errorMessage ? (
         <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -315,14 +336,16 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                     {inquiry.customer_name}
                   </div>
 
-                  <div className="mt-1 text-xs text-slate-500 md:hidden">
-                    {formatSourceChannel(inquiry.source_channel)} ·{" "}
-                    {formatDateTime(inquiry.created_at)}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 md:hidden">
+                    <SourceChannelBadge channel={inquiry.source_channel} />
+                    <span className="text-xs text-slate-500">
+                      {formatDateTime(inquiry.created_at)}
+                    </span>
                   </div>
                 </div>
 
-                <div className="hidden text-sm font-medium text-slate-600 md:block">
-                  {formatSourceChannel(inquiry.source_channel)}
+                <div className="hidden md:block">
+                  <SourceChannelBadge channel={inquiry.source_channel} />
                 </div>
 
                 <div>
