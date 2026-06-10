@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  History,
+  Plus,
+  Search,
+  X,
+} from "lucide-react";
 
 import {
   formatFollowUpDueAt,
@@ -40,6 +49,25 @@ type InquiryOptionRow = {
   customer_name: string;
   subject: string | null;
   status: string;
+};
+
+type FollowUpColumnTone = "overdue" | "today" | "upcoming";
+
+type FollowUpMetricProps = {
+  title: string;
+  value: number;
+  caption: string;
+  tone: "red" | "amber" | "sky" | "slate";
+  icon: typeof AlertTriangle;
+};
+
+type FollowUpColumnProps = {
+  title: string;
+  description: string;
+  count: number;
+  tone: FollowUpColumnTone;
+  followUps: FollowUp[];
+  emptyMessage: string;
 };
 
 function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
@@ -90,6 +118,58 @@ function formatDateTimeLocalFromIso(value: string | null) {
   return `${year}-${month}-${day}T${hours}:${minutes}`;
 }
 
+function normalizeSearchText(value: string | null | undefined) {
+  return (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function getFollowUpTime(followUp: FollowUp) {
+  if (!followUp.dueAtIso) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  const timestamp = new Date(followUp.dueAtIso).getTime();
+
+  if (Number.isNaN(timestamp)) {
+    return Number.MAX_SAFE_INTEGER;
+  }
+
+  return timestamp;
+}
+
+function compareFollowUps(first: FollowUp, second: FollowUp) {
+  const timeDifference = getFollowUpTime(first) - getFollowUpTime(second);
+
+  if (timeDifference !== 0) {
+    return timeDifference;
+  }
+
+  return first.title.localeCompare(second.title);
+}
+
+function matchesFollowUpSearch(followUp: FollowUp, searchTerm: string) {
+  const cleanSearchTerm = normalizeSearchText(searchTerm);
+
+  if (!cleanSearchTerm) {
+    return true;
+  }
+
+  const searchableContent = normalizeSearchText(
+    [
+      followUp.title,
+      followUp.customerName,
+      followUp.dueAt,
+      followUp.status,
+      followUp.urgency,
+    ].join(" ")
+  );
+
+  return searchableContent.includes(cleanSearchTerm);
+}
+
 function isActiveInquiryOption(inquiry: InquiryOptionRow) {
   const status = normalizeInquiryStatus(inquiry.status);
 
@@ -99,6 +179,7 @@ function isActiveInquiryOption(inquiry: InquiryOptionRow) {
     status === "waiting_customer"
   );
 }
+
 function formatInquiryStatus(status: string) {
   const normalizedStatus = normalizeInquiryStatus(status);
 
@@ -129,6 +210,73 @@ function formatInquiryStatus(status: string) {
   return "Estado no indicado";
 }
 
+function getMetricClasses(tone: FollowUpMetricProps["tone"]) {
+  if (tone === "red") {
+    return "border-red-200 bg-white shadow-sm shadow-red-100/70 text-red-700";
+  }
+
+  if (tone === "amber") {
+    return "border-amber-200 bg-white shadow-sm shadow-amber-100/70 text-amber-700";
+  }
+
+  if (tone === "sky") {
+    return "border-sky-200 bg-white shadow-sm shadow-sky-100/70 text-sky-700";
+  }
+
+  return "border-slate-200 bg-white shadow-sm shadow-slate-100/80 text-slate-600";
+}
+
+function getColumnClasses(tone: FollowUpColumnTone) {
+  if (tone === "overdue") {
+    return {
+      wrapper: "border-red-200 bg-red-50/70",
+      header: "bg-red-100/80 text-red-900",
+      count: "bg-white text-red-700",
+    };
+  }
+
+  if (tone === "today") {
+    return {
+      wrapper: "border-amber-200 bg-amber-50/70",
+      header: "bg-amber-100/80 text-amber-900",
+      count: "bg-white text-amber-700",
+    };
+  }
+
+  return {
+    wrapper: "border-sky-200 bg-sky-50/70",
+    header: "bg-sky-100/80 text-sky-900",
+    count: "bg-white text-sky-700",
+  };
+}
+
+function FollowUpMetric({
+  title,
+  value,
+  caption,
+  tone,
+  icon: Icon,
+}: FollowUpMetricProps) {
+  return (
+    <div className={`rounded-2xl border p-4 ${getMetricClasses(tone)}`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {title}
+          </div>
+          <div className="mt-2 text-3xl font-bold text-slate-950">{value}</div>
+        </div>
+
+        <div className="rounded-full bg-slate-50 p-2">
+          <Icon size={17} />
+        </div>
+      </div>
+
+      <div className="mt-3 text-xs leading-5 text-slate-500">{caption}</div>
+    </div>
+  );
+}
+
 export function FollowUps({ openInquiry }: FollowUpsProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -142,6 +290,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
   const [selectedInquiryId, setSelectedInquiryId] = useState("");
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState(getDefaultDateTimeLocal());
+  const [searchTerm, setSearchTerm] = useState("");
 
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -204,7 +353,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
       const mappedFollowUps = (
         (followUpsData ?? []) as unknown as FollowUpRow[]
-      ).map(mapFollowUpRowToFollowUp);
+      )
+        .map(mapFollowUpRowToFollowUp)
+        .sort(compareFollowUps);
 
       const mappedInquiries = (inquiriesData ??
         []) as unknown as InquiryOptionRow[];
@@ -270,6 +421,10 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     setShowCreateForm(false);
     setEditingFollowUpId(null);
     setFormErrorMessage("");
+  };
+
+  const handleClearSearch = () => {
+    setSearchTerm("");
   };
 
   const handleSaveFollowUp = async () => {
@@ -340,9 +495,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       const mappedFollowUp = mapFollowUpRowToFollowUp(data);
 
       setFollowUps((currentFollowUps) =>
-        currentFollowUps.map((followUp) =>
-          followUp.id === editingFollowUp.id ? mappedFollowUp : followUp
-        )
+        currentFollowUps
+          .map((followUp) =>
+            followUp.id === editingFollowUp.id ? mappedFollowUp : followUp
+          )
+          .sort(compareFollowUps)
       );
 
       setEditingFollowUpId(null);
@@ -396,10 +553,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       return;
     }
 
-    setFollowUps((currentFollowUps) => [
-      mapFollowUpRowToFollowUp(data),
-      ...currentFollowUps,
-    ]);
+    setFollowUps((currentFollowUps) =>
+      [mapFollowUpRowToFollowUp(data), ...currentFollowUps].sort(
+        compareFollowUps
+      )
+    );
 
     setTitle(`Revisar caso de ${selectedInquiry.customer_name}`);
     setDueAt(getDefaultDateTimeLocal());
@@ -448,9 +606,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     const mappedUpdatedFollowUp = mapFollowUpRowToFollowUp(updatedFollowUp);
 
     setFollowUps((currentFollowUps) =>
-      currentFollowUps.map((followUp) =>
-        followUp.id === followUpId ? mappedUpdatedFollowUp : followUp
-      )
+      currentFollowUps
+        .map((followUp) =>
+          followUp.id === followUpId ? mappedUpdatedFollowUp : followUp
+        )
+        .sort(compareFollowUps)
     );
 
     if (status === "pending") {
@@ -465,11 +625,15 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     );
   };
 
-  const pendingFollowUps = followUps.filter(
+  const filteredFollowUps = followUps.filter((followUp) =>
+    matchesFollowUpSearch(followUp, searchTerm)
+  );
+
+  const pendingFollowUps = filteredFollowUps.filter(
     (followUp) => followUp.status === "pending"
   );
 
-  const historyFollowUps = followUps.filter(
+  const historyFollowUps = filteredFollowUps.filter(
     (followUp) =>
       followUp.status === "completed" || followUp.status === "cancelled"
   );
@@ -486,17 +650,155 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     (followUp) => followUp.urgency === "upcoming"
   );
 
+  const allPendingFollowUps = followUps.filter(
+    (followUp) => followUp.status === "pending"
+  );
+
+  const allOverdueCount = allPendingFollowUps.filter(
+    (followUp) => followUp.urgency === "overdue"
+  ).length;
+
+  const allTodayCount = allPendingFollowUps.filter(
+    (followUp) => followUp.urgency === "today"
+  ).length;
+
+  const allUpcomingCount = allPendingFollowUps.filter(
+    (followUp) => followUp.urgency === "upcoming"
+  ).length;
+
+  const allHistoryCount = followUps.filter(
+    (followUp) =>
+      followUp.status === "completed" || followUp.status === "cancelled"
+  ).length;
+
+  const hasActiveSearch = searchTerm.trim().length > 0;
+
+  const renderFollowUpColumn = ({
+    title,
+    description,
+    count,
+    tone,
+    followUps: columnFollowUps,
+    emptyMessage,
+  }: FollowUpColumnProps) => {
+    const columnClasses = getColumnClasses(tone);
+
+    return (
+      <section className={`rounded-3xl border p-4 ${columnClasses.wrapper}`}>
+        <div className={`rounded-2xl px-4 py-3 ${columnClasses.header}`}>
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="font-bold">{title}</h2>
+              <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
+            </div>
+
+            <span
+              className={`rounded-full px-2.5 py-1 text-xs font-bold ${columnClasses.count}`}
+            >
+              {count}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {columnFollowUps.length === 0 ? (
+            <div className="rounded-2xl bg-white/80 px-4 py-5 text-sm text-slate-600 shadow-sm">
+              {emptyMessage}
+            </div>
+          ) : (
+            columnFollowUps.map((followUp) => (
+              <FollowUpCard
+                key={followUp.id}
+                followUp={followUp}
+                onOpen={openInquiry}
+                onEdit={handleOpenEditForm}
+                onComplete={(id) =>
+                  handleUpdateFollowUpStatus(id, "completed")
+                }
+                onCancel={(id) => handleUpdateFollowUpStatus(id, "cancelled")}
+                isUpdating={updatingFollowUpId === followUp.id}
+              />
+            ))
+          )}
+        </div>
+      </section>
+    );
+  };
+
   return (
     <div>
       <PageHeader
         title="Seguimientos"
-        description="Tareas pendientes para no olvidar casos importantes."
+        description="Tareas operativas para no olvidar casos importantes, respuestas pendientes o revisiones internas."
         action={
           <Button onClick={handleOpenCreateForm}>
             <Plus size={16} /> Crear seguimiento
           </Button>
         }
       />
+
+      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <FollowUpMetric
+          title="Vencidos"
+          value={allOverdueCount}
+          caption="Tareas pendientes fuera de plazo"
+          tone="red"
+          icon={AlertTriangle}
+        />
+
+        <FollowUpMetric
+          title="Hoy"
+          value={allTodayCount}
+          caption="Tareas programadas para hoy"
+          tone="amber"
+          icon={Clock3}
+        />
+
+        <FollowUpMetric
+          title="Próximos"
+          value={allUpcomingCount}
+          caption="Pendientes con fecha futura"
+          tone="sky"
+          icon={CalendarDays}
+        />
+
+        <FollowUpMetric
+          title="Historial"
+          value={allHistoryCount}
+          caption="Completados o cancelados"
+          tone="slate"
+          icon={History}
+        />
+      </div>
+
+      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+          <label className="text-sm font-medium text-slate-700">
+            Buscar seguimiento
+            <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+              <Search size={16} className="shrink-0 text-slate-400" />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                placeholder="Buscar por título, cliente, fecha o estado..."
+              />
+            </div>
+          </label>
+
+          <Button
+            variant="secondary"
+            onClick={handleClearSearch}
+            disabled={!hasActiveSearch}
+          >
+            Limpiar búsqueda
+          </Button>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500">
+          Mostrando {filteredFollowUps.length} de {followUps.length} seguimientos.
+        </p>
+      </div>
 
       {showCreateForm ? (
         <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -555,8 +857,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                   ) : (
                     inquiryOptions.map((inquiry) => (
                       <option key={inquiry.id} value={inquiry.id}>
-                        {inquiry.customer_name} ·{" "}
-                        {inquiry.subject || "Sin asunto"} ·{" "}
+                        {inquiry.customer_name} · {inquiry.subject || "Sin asunto"} ·{" "}
                         {formatInquiryStatus(inquiry.status)}
                       </option>
                     ))
@@ -633,115 +934,140 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       ) : null}
 
       {!isLoading && !errorMessage ? (
-        <div className="grid gap-6 xl:grid-cols-3">
+        <>
           <section>
-            <h2 className="mb-3 text-lg font-bold text-slate-950">Vencidos</h2>
-
-            {overdue.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay seguimientos vencidos.
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">
+                  Tareas activas
+                </h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Seguimientos pendientes organizados por urgencia.
+                </p>
               </div>
-            ) : (
-              <div className="space-y-3">
-                {overdue.map((followUp) => (
-                  <FollowUpCard
-                    key={followUp.id}
-                    followUp={followUp}
-                    onOpen={openInquiry}
-                    onEdit={handleOpenEditForm}
-                    onComplete={(id) =>
-                      handleUpdateFollowUpStatus(id, "completed")
-                    }
-                    onCancel={(id) =>
-                      handleUpdateFollowUpStatus(id, "cancelled")
-                    }
-                    isUpdating={updatingFollowUpId === followUp.id}
-                  />
-                ))}
+
+              <div className="text-xs font-semibold text-slate-500">
+                {pendingFollowUps.length} pendiente
+                {pendingFollowUps.length === 1 ? "" : "s"}
               </div>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-3 text-lg font-bold text-slate-950">Hoy</h2>
-
-            {today.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay seguimientos para hoy.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {today.map((followUp) => (
-                  <FollowUpCard
-                    key={followUp.id}
-                    followUp={followUp}
-                    onOpen={openInquiry}
-                    onEdit={handleOpenEditForm}
-                    onComplete={(id) =>
-                      handleUpdateFollowUpStatus(id, "completed")
-                    }
-                    onCancel={(id) =>
-                      handleUpdateFollowUpStatus(id, "cancelled")
-                    }
-                    isUpdating={updatingFollowUpId === followUp.id}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section>
-            <h2 className="mb-3 text-lg font-bold text-slate-950">Próximos</h2>
-
-            {upcoming.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                No hay seguimientos próximos.
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {upcoming.map((followUp) => (
-                  <FollowUpCard
-                    key={followUp.id}
-                    followUp={followUp}
-                    onOpen={openInquiry}
-                    onEdit={handleOpenEditForm}
-                    onComplete={(id) =>
-                      handleUpdateFollowUpStatus(id, "completed")
-                    }
-                    onCancel={(id) =>
-                      handleUpdateFollowUpStatus(id, "cancelled")
-                    }
-                    isUpdating={updatingFollowUpId === followUp.id}
-                  />
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-      ) : null}
-
-      {!isLoading && !errorMessage ? (
-        <section className="mt-8">
-          <h2 className="mb-3 text-lg font-bold text-slate-950">Historial</h2>
-
-          {historyFollowUps.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-              Todavía no hay seguimientos completados o cancelados.
             </div>
-          ) : (
-            <div className="space-y-3">
-              {historyFollowUps.map((followUp) => (
-                <FollowUpCard
-                  key={followUp.id}
-                  followUp={followUp}
-                  onOpen={openInquiry}
-                  onReopen={(id) => handleUpdateFollowUpStatus(id, "pending")}
-                  isUpdating={updatingFollowUpId === followUp.id}
-                />
-              ))}
+
+            <div className="grid gap-5 xl:grid-cols-3">
+              {renderFollowUpColumn({
+                title: "Vencidos",
+                description: "Requieren revisión inmediata.",
+                count: overdue.length,
+                tone: "overdue",
+                followUps: overdue,
+                emptyMessage: "No hay seguimientos vencidos.",
+              })}
+
+              {renderFollowUpColumn({
+                title: "Hoy",
+                description: "Tareas previstas para el día actual.",
+                count: today.length,
+                tone: "today",
+                followUps: today,
+                emptyMessage: "No hay seguimientos para hoy.",
+              })}
+
+              {renderFollowUpColumn({
+                title: "Próximos",
+                description: "Pendientes programados para más adelante.",
+                count: upcoming.length,
+                tone: "upcoming",
+                followUps: upcoming,
+                emptyMessage: "No hay seguimientos próximos.",
+              })}
             </div>
-          )}
-        </section>
+          </section>
+
+          <section className="mt-8">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-950">Historial</h2>
+                <p className="mt-1 text-sm text-slate-500">
+                  Seguimientos completados o cancelados.
+                </p>
+              </div>
+
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+                {historyFollowUps.length}
+              </div>
+            </div>
+
+            {historyFollowUps.length === 0 ? (
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+                Todavía no hay seguimientos completados o cancelados.
+              </div>
+            ) : (
+              <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+                {historyFollowUps.map((followUp) => {
+                  const completed = followUp.status === "completed";
+
+                  return (
+                    <article
+                      key={followUp.id}
+                      className="grid gap-3 px-4 py-4 md:grid-cols-[160px_1fr_220px_auto] md:items-center"
+                    >
+                      <div>
+                        <span
+                          className={
+                            completed
+                              ? "rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700"
+                              : "rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600"
+                          }
+                        >
+                          {completed ? "Completado" : "Cancelado"}
+                        </span>
+                        <div className="mt-2 text-xs text-slate-500">
+                          {followUp.dueAt}
+                        </div>
+                      </div>
+
+                      <div className="min-w-0">
+                        <h3 className="truncate text-sm font-bold text-slate-950">
+                          {followUp.title}
+                        </h3>
+                        <p className="mt-1 truncate text-xs text-slate-500">
+                          {followUp.customerName}
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                        {followUp.inquiryId ? "Caso asociado disponible" : "Sin caso asociado"}
+                      </div>
+
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        {followUp.inquiryId ? (
+                          <button
+                            type="button"
+                            onClick={() => openInquiry(followUp.inquiryId)}
+                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
+                          >
+                            Abrir caso
+                          </button>
+                        ) : null}
+
+                        <button
+                          type="button"
+                          disabled={updatingFollowUpId === followUp.id}
+                          onClick={() =>
+                            handleUpdateFollowUpStatus(followUp.id, "pending")
+                          }
+                          className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          <CheckCircle2 size={14} />
+                          Reabrir
+                        </button>
+                      </div>
+                    </article>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </>
       ) : null}
     </div>
   );
