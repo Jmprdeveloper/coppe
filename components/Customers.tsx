@@ -11,7 +11,9 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../lib/customerValidation";
+import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { normalizeSearchText } from "../lib/searchUtils";
+import { formatSourceChannel } from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
 import type { CustomerStatus } from "../types";
 
@@ -32,6 +34,26 @@ type CustomerRow = {
   status: string;
   last_interaction_at: string | null;
   created_at: string;
+};
+
+type CustomerWithActivity = CustomerRow & {
+  caseCount: number;
+  activeCaseCount: number;
+  latestSourceChannel: string | null;
+};
+
+type InquiryActivityRow = {
+  customer_id: string | null;
+  source_channel: string | null;
+  status: string | null;
+  created_at: string;
+};
+
+type CustomerActivitySummary = {
+  caseCount: number;
+  activeCaseCount: number;
+  latestSourceChannel: string | null;
+  latestActivityAt: string | null;
 };
 
 type CustomerStatusFilter = "all" | CustomerStatus;
@@ -75,10 +97,71 @@ function formatLastInteraction(value: string | null) {
   }).format(date);
 }
 
+function isActiveInquiryStatus(status: string | null) {
+  const normalizedStatus = normalizeInquiryStatus(status ?? "");
+
+  return (
+    normalizedStatus === "new" ||
+    normalizedStatus === "pending" ||
+    normalizedStatus === "waiting_customer"
+  );
+}
+
+function buildCustomerActivityMap(inquiries: InquiryActivityRow[]) {
+  const activityByCustomerId = new Map<string, CustomerActivitySummary>();
+
+  inquiries.forEach((inquiry) => {
+    if (!inquiry.customer_id) {
+      return;
+    }
+
+    const currentActivity = activityByCustomerId.get(inquiry.customer_id) ?? {
+      caseCount: 0,
+      activeCaseCount: 0,
+      latestSourceChannel: null,
+      latestActivityAt: null,
+    };
+
+    const nextActivity: CustomerActivitySummary = {
+      ...currentActivity,
+      caseCount: currentActivity.caseCount + 1,
+      activeCaseCount:
+        currentActivity.activeCaseCount +
+        (isActiveInquiryStatus(inquiry.status) ? 1 : 0),
+    };
+
+    if (
+      !nextActivity.latestActivityAt ||
+      inquiry.created_at.localeCompare(nextActivity.latestActivityAt) > 0
+    ) {
+      nextActivity.latestActivityAt = inquiry.created_at;
+      nextActivity.latestSourceChannel = inquiry.source_channel;
+    }
+
+    activityByCustomerId.set(inquiry.customer_id, nextActivity);
+  });
+
+  return activityByCustomerId;
+}
+
+function getCustomerActivity(
+  activityByCustomerId: Map<string, CustomerActivitySummary>,
+  customerId: string
+): CustomerActivitySummary {
+  return (
+    activityByCustomerId.get(customerId) ?? {
+      caseCount: 0,
+      activeCaseCount: 0,
+      latestSourceChannel: null,
+      latestActivityAt: null,
+    }
+  );
+}
+
 export function Customers({ openCustomer }: CustomersProps) {
   const supabase = useMemo(() => createClient(), []);
 
-  const [customers, setCustomers] = useState<CustomerRow[]>([]);
+  const [customers, setCustomers] = useState<CustomerWithActivity[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -127,7 +210,48 @@ export function Customers({ openCustomer }: CustomersProps) {
         return;
       }
 
-      setCustomers((data ?? []) as CustomerRow[]);
+      const customerRows = (data ?? []) as CustomerRow[];
+      const customerIds = customerRows.map((customer) => customer.id);
+
+      let activityByCustomerId = new Map<string, CustomerActivitySummary>();
+
+      if (customerIds.length > 0) {
+        const { data: inquiriesData, error: inquiriesError } = await supabase
+          .from("inquiries")
+          .select("customer_id, source_channel, status, created_at")
+          .in("customer_id", customerIds)
+          .order("created_at", { ascending: false });
+
+        if (inquiriesError) {
+          setErrorMessage(
+            `No se pudo cargar la actividad de los clientes: ${
+              inquiriesError.message || "sin detalle del error"
+            }`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        activityByCustomerId = buildCustomerActivityMap(
+          (inquiriesData ?? []) as InquiryActivityRow[]
+        );
+      }
+
+      setCustomers(
+        customerRows.map((customer) => {
+          const activity = getCustomerActivity(
+            activityByCustomerId,
+            customer.id
+          );
+
+          return {
+            ...customer,
+            caseCount: activity.caseCount,
+            activeCaseCount: activity.activeCaseCount,
+            latestSourceChannel: activity.latestSourceChannel,
+          };
+        })
+      );
       setIsLoading(false);
     }
 
@@ -304,7 +428,15 @@ export function Customers({ openCustomer }: CustomersProps) {
       return;
     }
 
-    setCustomers((currentCustomers) => [createdCustomer, ...currentCustomers]);
+    setCustomers((currentCustomers) => [
+      {
+        ...createdCustomer,
+        caseCount: 0,
+        activeCaseCount: 0,
+        latestSourceChannel: null,
+      },
+      ...currentCustomers,
+    ]);
     setCreatedCustomerId(createdCustomer.id);
     setSuccessMessage("Cliente creado correctamente.");
 
@@ -318,6 +450,9 @@ export function Customers({ openCustomer }: CustomersProps) {
 
   const filteredCustomers = customers.filter((customer) => {
     const normalizedStatus = normalizeCustomerStatus(customer.status);
+    const latestSourceChannel = customer.latestSourceChannel
+      ? formatSourceChannel(customer.latestSourceChannel)
+      : "";
 
     if (statusFilter !== "all" && normalizedStatus !== statusFilter) {
       return false;
@@ -330,7 +465,8 @@ export function Customers({ openCustomer }: CustomersProps) {
     return (
       normalizeSearchText(customer.name).includes(normalizedSearch) ||
       normalizeSearchText(customer.email).includes(normalizedSearch) ||
-      normalizeSearchText(customer.phone).includes(normalizedSearch)
+      normalizeSearchText(customer.phone).includes(normalizedSearch) ||
+      normalizeSearchText(latestSourceChannel).includes(normalizedSearch)
     );
   });
 
@@ -341,7 +477,7 @@ export function Customers({ openCustomer }: CustomersProps) {
     <div>
       <PageHeader
         title="Clientes"
-        description="Gestiona los clientes registrados, sus datos de contacto y los casos asociados."
+        description="Gestiona los clientes registrados, sus datos de contacto, actividad y casos asociados."
         action={
           <Button onClick={handleOpenCreateForm}>
             <Plus size={16} /> Nuevo cliente
@@ -467,7 +603,7 @@ export function Customers({ openCustomer }: CustomersProps) {
               }
             }}
             className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            placeholder="Buscar por nombre, email o teléfono..."
+            placeholder="Buscar por nombre, email, teléfono o último canal..."
           />
         </div>
 
@@ -549,44 +685,76 @@ export function Customers({ openCustomer }: CustomersProps) {
 
       {!isLoading && !errorMessage && filteredCustomers.length > 0 ? (
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filteredCustomers.map((customer) => (
-            <button
-              key={customer.id}
-              onClick={() => openCustomer(customer.id)}
-              className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-[#0F4C5C]/30 hover:shadow-md"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h3 className="font-bold text-slate-950">
-                    {customer.name}
-                  </h3>
+          {filteredCustomers.map((customer) => {
+            const latestSourceChannel = customer.latestSourceChannel
+              ? formatSourceChannel(customer.latestSourceChannel)
+              : "Sin canal todavía";
 
-                  <p className="mt-1 text-sm text-slate-500">
-                    {customer.email || "Sin email"}
-                  </p>
+            return (
+              <button
+                key={customer.id}
+                onClick={() => openCustomer(customer.id)}
+                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-[#0F4C5C]/30 hover:shadow-md"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <h3 className="truncate font-bold text-slate-950">
+                      {customer.name}
+                    </h3>
 
-                  <p className="text-sm text-slate-500">
-                    {customer.phone || "Sin teléfono"}
-                  </p>
+                    <p className="mt-1 truncate text-sm text-slate-500">
+                      {customer.email || "Sin email"}
+                    </p>
+
+                    <p className="truncate text-sm text-slate-500">
+                      {customer.phone || "Sin teléfono"}
+                    </p>
+                  </div>
+
+                  <StatusBadge
+                    status={normalizeCustomerStatus(customer.status)}
+                  />
                 </div>
 
-                <StatusBadge
-                  status={normalizeCustomerStatus(customer.status)}
-                />
-              </div>
+                <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="font-semibold text-slate-700">
+                      {customer.caseCount}
+                    </div>
+                    <div>
+                      {customer.caseCount === 1 ? "caso total" : "casos totales"}
+                    </div>
+                  </div>
 
-              <div className="mt-4 flex items-center justify-between gap-3 text-xs text-slate-500">
-                <span>
+                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                    <div className="font-semibold text-slate-700">
+                      {customer.activeCaseCount}
+                    </div>
+                    <div>
+                      {customer.activeCaseCount === 1
+                        ? "caso activo"
+                        : "casos activos"}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                    Último canal: {latestSourceChannel}
+                  </span>
+
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                    {(customer.language || "es").toUpperCase()}
+                  </span>
+                </div>
+
+                <div className="mt-3 text-xs text-slate-500">
                   Última interacción:{" "}
                   {formatLastInteraction(customer.last_interaction_at)}
-                </span>
-
-                <span className="rounded-full bg-slate-100 px-2 py-1 font-medium text-slate-600">
-                  {(customer.language || "es").toUpperCase()}
-                </span>
-              </div>
-            </button>
-          ))}
+                </div>
+              </button>
+            );
+          })}
         </div>
       ) : null}
     </div>
