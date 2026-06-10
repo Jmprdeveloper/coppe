@@ -752,7 +752,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           title="Nuevos casos"
           value={newCount}
           icon={Inbox}
-          tone="brand"
+          tone="info"
           caption="Recibidos sin revisar"
         />
 
@@ -760,7 +760,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           title="En seguimiento"
           value={pendingCount}
           icon={ClipboardList}
-          tone="neutral"
+          tone="warning"
           caption="Necesitan respuesta o revisión"
         />
 
@@ -768,7 +768,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           title="Esperando al cliente"
           value={waitingCustomerCount}
           icon={MessageSquareText}
-          tone="neutral"
+          tone="brand"
           caption="La empresa ya respondió"
         />
 
@@ -776,7 +776,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           title="Citas pendientes"
           value={appointmentsNeedAttention}
           icon={CalendarClock}
-          tone={appointmentsPendingClosure > 0 ? "warning" : "info"}
+          tone="info"
           caption={
             appointmentsPendingClosure > 0
               ? `${appointmentsPendingClosure} pendientes de cerrar`
@@ -855,7 +855,9 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
             tone="info"
           >
             {nextAppointments.length === 0 ? (
-              <EmptyColumnState>No hay citas internas pendientes.</EmptyColumnState>
+              <EmptyColumnState>
+                No hay citas internas pendientes.
+              </EmptyColumnState>
             ) : (
               nextAppointments.map((appointment) => (
                 <DashboardAppointmentCard
@@ -875,7 +877,9 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
             tone={urgentFollowUps > 0 ? "danger" : "success"}
           >
             {nextFollowUps.length === 0 ? (
-              <EmptyColumnState>No hay seguimientos pendientes.</EmptyColumnState>
+              <EmptyColumnState>
+                No hay seguimientos pendientes.
+              </EmptyColumnState>
             ) : (
               nextFollowUps.map((followUp) => (
                 <FollowUpCard
@@ -908,13 +912,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       >
         {hasChannelActivity ? (
           <div className="grid justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,260px))]">
-          {channelSummaries.map((channelSummary) => (
-            <ChannelSummaryCard
-              key={channelSummary.label}
-              channelSummary={channelSummary}
-            />
-          ))}
-        </div>
+            {channelSummaries.map((channelSummary) => (
+              <ChannelSummaryCard
+                key={channelSummary.label}
+                channelSummary={channelSummary}
+              />
+            ))}
+          </div>
         ) : (
           <EmptyColumnState>
             Todavía no hay actividad por canal. Cuando entren mensajes por
