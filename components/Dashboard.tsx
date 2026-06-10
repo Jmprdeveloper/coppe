@@ -1,18 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  AlertTriangle,
-  BarChart3,
-  CalendarCheck2,
   CalendarClock,
-  CheckCircle2,
   ClipboardList,
   Clock3,
   Inbox,
   MessageSquareText,
   Plus,
-  type LucideIcon,
 } from "lucide-react";
 
 import {
@@ -34,13 +29,17 @@ import {
   sourceChannelOptions,
 } from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
+import { type VisualTone, visualToneStyles } from "../lib/visualSystem";
 import type { Appointment, FollowUp, Inquiry, Priority } from "../types";
 
+import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
 import { CategoryBadge } from "./CategoryBadge";
 import { FollowUpCard } from "./FollowUpCard";
+import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
 import { PriorityBadge } from "./PriorityBadge";
+import { SectionCard } from "./SectionCard";
 import { StatusBadge } from "./StatusBadge";
 
 type DashboardProps = {
@@ -83,8 +82,6 @@ type ChannelSummary = {
   count: number;
   percentage: number;
 };
-
-type DashboardTheme = "amber" | "sky" | "emerald" | "slate" | "red" | "teal";
 
 function mapFollowUpRowToFollowUp(row: FollowUpRow): DashboardFollowUp {
   const status = normalizeFollowUpStatus(row.status);
@@ -207,171 +204,40 @@ function getMainChannelLabel(channelSummaries: ChannelSummary[]) {
   return `${mainChannel.label} · ${mainChannel.count}`;
 }
 
-function getThemeClasses(theme: DashboardTheme) {
-  if (theme === "red") {
-    return {
-      card: "border-slate-200 bg-white",
-      icon: "bg-rose-50 text-rose-600",
-      text: "text-slate-950",
-      muted: "text-slate-500",
-      column: "border-slate-200 bg-[#FBF8F8]",
-      columnHeader: "border border-rose-100 bg-white text-slate-950",
-      badge: "bg-rose-50 text-rose-700",
-      bar: "bg-rose-400",
-    };
+function formatDashboardDate(value: string) {
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return value;
   }
 
-  if (theme === "amber") {
-    return {
-      card: "border-slate-200 bg-white",
-      icon: "bg-stone-100 text-stone-600",
-      text: "text-slate-950",
-      muted: "text-slate-500",
-      column: "border-slate-200 bg-[#FAF9F5]",
-      columnHeader: "border border-stone-100 bg-white text-slate-950",
-      badge: "bg-stone-100 text-stone-700",
-      bar: "bg-stone-400",
-    };
-  }
-
-  if (theme === "sky") {
-    return {
-      card: "border-slate-200 bg-white",
-      icon: "bg-[#EAF4F6] text-[#0F4C5C]",
-      text: "text-slate-950",
-      muted: "text-slate-500",
-      column: "border-slate-200 bg-[#F6FAFB]",
-      columnHeader: "border border-cyan-100 bg-white text-slate-950",
-      badge: "bg-[#EAF4F6] text-[#0F4C5C]",
-      bar: "bg-[#0F4C5C]",
-    };
-  }
-
-  if (theme === "emerald") {
-    return {
-      card: "border-slate-200 bg-white",
-      icon: "bg-emerald-50 text-emerald-600",
-      text: "text-slate-950",
-      muted: "text-slate-500",
-      column: "border-slate-200 bg-[#F7FBF8]",
-      columnHeader: "border border-emerald-100 bg-white text-slate-950",
-      badge: "bg-emerald-50 text-emerald-700",
-      bar: "bg-emerald-400",
-    };
-  }
-
-  if (theme === "teal") {
-    return {
-      card: "border-slate-200 bg-white",
-      icon: "bg-[#EAF4F6] text-[#0F4C5C]",
-      text: "text-slate-950",
-      muted: "text-slate-500",
-      column: "border-slate-200 bg-[#F6FAFB]",
-      columnHeader: "border border-cyan-100 bg-white text-slate-950",
-      badge: "bg-[#EAF4F6] text-[#0F4C5C]",
-      bar: "bg-[#0F4C5C]",
-    };
-  }
-
-  return {
-    card: "border-slate-200 bg-white",
-    icon: "bg-slate-100 text-slate-600",
-    text: "text-slate-950",
-    muted: "text-slate-500",
-    column: "border-slate-200 bg-[#F8FAFA]",
-    columnHeader: "border border-slate-200 bg-white text-slate-950",
-    badge: "bg-slate-100 text-slate-700",
-    bar: "bg-slate-500",
-  };
+  return new Intl.DateTimeFormat("es-ES", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(date);
 }
 
-function DashboardMetricCard({
-  title,
-  value,
-  caption,
-  icon: Icon,
-  theme,
-}: {
-  title: string;
-  value: number;
-  caption: string;
-  icon: LucideIcon;
-  theme: DashboardTheme;
-}) {
-  const classes = getThemeClasses(theme);
+function getAppointmentTone(
+  appointment: DashboardAppointment,
+  currentTimeMs: number
+): VisualTone {
+  if (isAppointmentPendingClosure(appointment, currentTimeMs)) {
+    return "warning";
+  }
 
-  return (
-    <article
-      className={`rounded-2xl border p-4 shadow-sm transition hover:border-[#0F4C5C]/20 ${classes.card}`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {title}
-          </div>
+  if (appointment.status === "confirmed") {
+    return "success";
+  }
 
-          <div className={`mt-2 text-2xl font-bold ${classes.text}`}>
-            {value}
-          </div>
-        </div>
-
-        <div className={`rounded-2xl p-2.5 ${classes.icon}`}>
-          <Icon size={18} />
-        </div>
-      </div>
-
-      <div className={`mt-3 text-xs leading-5 ${classes.muted}`}>
-        {caption}
-      </div>
-    </article>
-  );
+  return "info";
 }
 
-function DashboardColumn({
-  title,
-  description,
-  count,
-  theme,
-  children,
-}: {
-  title: string;
-  description: string;
-  count: number;
-  theme: DashboardTheme;
-  children: ReactNode;
-}) {
-  const classes = getThemeClasses(theme);
-
+function EmptyColumnState({ children }: { children: React.ReactNode }) {
   return (
-    <section className={`rounded-3xl border p-3 shadow-sm ${classes.column}`}>
-      <div
-        className={`rounded-2xl px-4 py-3 ${classes.columnHeader}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h3 className="font-bold">{title}</h3>
-
-            <p className="mt-1 text-xs leading-5 opacity-80">
-              {description}
-            </p>
-          </div>
-
-          <span
-            className={`inline-flex min-w-7 items-center justify-center rounded-full px-2 py-1 text-xs font-bold shadow-sm ${classes.badge}`}
-          >
-            {count}
-          </span>
-        </div>
-      </div>
-
-      <div className="mt-3 space-y-3">{children}</div>
-    </section>
-  );
-}
-
-function EmptyColumnState({ children }: { children: ReactNode }) {
-  return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm leading-6 text-slate-600 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm leading-6 text-slate-600 shadow-sm shadow-slate-200/50">
       {children}
     </div>
   );
@@ -388,7 +254,7 @@ function DashboardInquiryCard({
     <button
       type="button"
       onClick={() => onOpen(inquiry.id)}
-      className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition hover:border-[#0F4C5C]/25 hover:shadow-md"
+      className="w-full rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm shadow-slate-200/50 transition hover:border-[#0F4C5C]/25 hover:shadow-md"
     >
       <div className="flex flex-wrap items-center gap-2">
         <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs font-semibold text-slate-600">
@@ -415,7 +281,7 @@ function DashboardInquiryCard({
       </p>
 
       <div className="mt-3 text-xs font-medium text-slate-400">
-        Última actividad: {inquiry.latestActivityAt}
+        Última actividad: {formatDashboardDate(inquiry.latestActivityAt)}
       </div>
     </button>
   );
@@ -434,24 +300,20 @@ function DashboardAppointmentCard({
     appointment,
     currentTimeMs
   );
+  const tone = getAppointmentTone(appointment, currentTimeMs);
+  const toneStyles = visualToneStyles[tone];
 
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <span
-              className={
-                pendingClosure
-                  ? "rounded-full border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-800"
-                  : "rounded-full border border-cyan-100 bg-[#EAF4F6] px-2.5 py-1 text-xs font-semibold text-[#0F4C5C]"
-              }
-            >
-              {pendingClosure
-                ? "Pendiente de cerrar"
-                : getAppointmentStatusLabel(appointment.status)}
-            </span>
-          </div>
+          <span
+            className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${toneStyles.badge}`}
+          >
+            {pendingClosure
+              ? "Pendiente de cerrar"
+              : getAppointmentStatusLabel(appointment.status)}
+          </span>
 
           <h4 className="mt-3 font-bold text-slate-950">
             {appointment.title}
@@ -474,7 +336,7 @@ function DashboardAppointmentCard({
       </div>
 
       {pendingClosure ? (
-        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/60 px-3 py-2 text-xs leading-5 text-amber-800">
           Esta cita ya ha pasado y sigue activa.
         </div>
       ) : null}
@@ -494,7 +356,7 @@ function ChannelSummaryCard({
   channelSummary: ChannelSummary;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
       <div className="flex items-start justify-between gap-3">
         <div>
           <div className="text-sm font-bold text-slate-950">
@@ -818,8 +680,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       }
 
       return b.createdAt.localeCompare(a.createdAt);
-    })
-    .slice(0, 4);
+    });
 
   const nextFollowUps = [...pendingFollowUps]
     .sort((a, b) => {
@@ -851,6 +712,7 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     })
     .slice(0, 4);
 
+  const visiblePriorityItems = priorityItems.slice(0, 4);
   const channelSummaries = buildChannelSummaries(inquiries);
   const mainChannelLabel = getMainChannelLabel(channelSummaries);
   const hasChannelActivity = channelSummaries.length > 0;
@@ -886,35 +748,35 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       ) : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <DashboardMetricCard
+        <MetricCard
           title="Nuevos casos"
           value={newCount}
           icon={Inbox}
-          theme="sky"
+          tone="brand"
           caption="Recibidos sin revisar"
         />
 
-        <DashboardMetricCard
+        <MetricCard
           title="En seguimiento"
           value={pendingCount}
           icon={ClipboardList}
-          theme="amber"
+          tone="neutral"
           caption="Necesitan respuesta o revisión"
         />
 
-        <DashboardMetricCard
+        <MetricCard
           title="Esperando al cliente"
           value={waitingCustomerCount}
           icon={MessageSquareText}
-          theme="slate"
+          tone="neutral"
           caption="La empresa ya respondió"
         />
 
-        <DashboardMetricCard
+        <MetricCard
           title="Citas pendientes"
           value={appointmentsNeedAttention}
           icon={CalendarClock}
-          theme={appointmentsPendingClosure > 0 ? "red" : "sky"}
+          tone={appointmentsPendingClosure > 0 ? "warning" : "info"}
           caption={
             appointmentsPendingClosure > 0
               ? `${appointmentsPendingClosure} pendientes de cerrar`
@@ -922,27 +784,20 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
           }
         />
 
-        <DashboardMetricCard
+        <MetricCard
           title="Seguimientos urgentes"
           value={urgentFollowUps}
           icon={Clock3}
-          theme={urgentFollowUps > 0 ? "red" : "emerald"}
+          tone={urgentFollowUps > 0 ? "danger" : "success"}
           caption="Vencidos o para hoy"
         />
       </div>
 
-      <section className="mt-6">
-        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">
-              Atención operativa
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Casos, citas y seguimientos que requieren revisión o acción.
-            </p>
-          </div>
-
+      <SectionCard
+        className="mt-6"
+        title="Atención operativa"
+        description="Casos, citas y seguimientos que requieren revisión o acción."
+        action={
           <div className="flex flex-wrap gap-2 text-sm">
             <button
               onClick={() => setActiveView("inquiries")}
@@ -969,21 +824,21 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
               Ver seguimientos
             </button>
           </div>
-        </div>
-
+        }
+      >
         <div className="grid gap-4 xl:grid-cols-3">
-          <DashboardColumn
+          <BoardColumn
             title="Casos a revisar"
             description="Entradas nuevas o en seguimiento."
             count={priorityItems.length}
-            theme="amber"
+            tone="warning"
           >
-            {priorityItems.length === 0 ? (
+            {visiblePriorityItems.length === 0 ? (
               <EmptyColumnState>
                 No hay casos que necesiten acción de la empresa.
               </EmptyColumnState>
             ) : (
-              priorityItems.map((inquiry) => (
+              visiblePriorityItems.map((inquiry) => (
                 <DashboardInquiryCard
                   key={inquiry.id}
                   inquiry={inquiry}
@@ -991,13 +846,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
                 />
               ))
             )}
-          </DashboardColumn>
+          </BoardColumn>
 
-          <DashboardColumn
+          <BoardColumn
             title="Citas internas"
             description="Validación, ejecución o cierre interno."
             count={nextAppointments.length}
-            theme="sky"
+            tone="info"
           >
             {nextAppointments.length === 0 ? (
               <EmptyColumnState>No hay citas internas pendientes.</EmptyColumnState>
@@ -1011,13 +866,13 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
                 />
               ))
             )}
-          </DashboardColumn>
+          </BoardColumn>
 
-          <DashboardColumn
+          <BoardColumn
             title="Seguimientos"
             description="Tareas pendientes para no perder casos."
-            count={nextFollowUps.length}
-            theme={urgentFollowUps > 0 ? "red" : "emerald"}
+            count={pendingFollowUps.length}
+            tone={urgentFollowUps > 0 ? "danger" : "success"}
           >
             {nextFollowUps.length === 0 ? (
               <EmptyColumnState>No hay seguimientos pendientes.</EmptyColumnState>
@@ -1037,46 +892,37 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
                 />
               ))
             )}
-          </DashboardColumn>
+          </BoardColumn>
         </div>
-      </section>
+      </SectionCard>
 
-      <section className="mt-6">
-        <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-slate-950">
-              Canales de entrada
-            </h2>
-
-            <p className="mt-1 text-sm text-slate-500">
-              Distribución de casos por canal registrado en el espacio activo.
-            </p>
-          </div>
-
+      <SectionCard
+        className="mt-6"
+        title="Canales de entrada"
+        description="Distribución de casos por canal registrado en el espacio activo."
+        action={
           <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
             Principal: {mainChannelLabel}
           </div>
+        }
+      >
+        {hasChannelActivity ? (
+          <div className="grid justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,260px))]">
+          {channelSummaries.map((channelSummary) => (
+            <ChannelSummaryCard
+              key={channelSummary.label}
+              channelSummary={channelSummary}
+            />
+          ))}
         </div>
-
-        <div className="rounded-3xl border border-slate-200 bg-[#F8FAFA] p-4 shadow-sm">
-          {hasChannelActivity ? (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-              {channelSummaries.map((channelSummary) => (
-                <ChannelSummaryCard
-                  key={channelSummary.label}
-                  channelSummary={channelSummary}
-                />
-              ))}
-            </div>
-          ) : (
-            <EmptyColumnState>
-              Todavía no hay actividad por canal. Cuando entren mensajes por
-              Formulario web, Chat web, WhatsApp u otros canales, aparecerán
-              aquí.
-            </EmptyColumnState>
-          )}
-        </div>
-      </section>
+        ) : (
+          <EmptyColumnState>
+            Todavía no hay actividad por canal. Cuando entren mensajes por
+            Formulario web, Chat web, WhatsApp u otros canales, aparecerán
+            aquí.
+          </EmptyColumnState>
+        )}
+      </SectionCard>
     </div>
   );
 }
