@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CalendarCheck2,
+  CheckCircle2,
+  Clock3,
+  History,
+  Plus,
+  RotateCcw,
+  Search,
+  X,
+} from "lucide-react";
 
 import {
   compareAppointmentsByScheduledAt,
@@ -42,6 +52,8 @@ type AppointmentStatusFilter =
   | "confirmed"
   | "completed"
   | "cancelled";
+
+type AppointmentColumnTone = "amber" | "blue" | "emerald";
 
 function getDefaultDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -87,9 +99,7 @@ function isActiveInquiryOption(inquiry: InquiryOptionRow) {
   const status = normalizeInquiryStatus(inquiry.status);
 
   return (
-    status === "new" ||
-    status === "pending" ||
-    status === "waiting_customer"
+    status === "new" || status === "pending" || status === "waiting_customer"
   );
 }
 
@@ -133,7 +143,7 @@ function buildInquiryLabel(inquiry: InquiryOptionRow | undefined) {
 
 function mapAppointmentRowToInternalAppointment(
   row: AppointmentRow,
-  inquiryById: Map<string, InquiryOptionRow>
+  inquiryById: Map<string, InquiryOptionRow>,
 ): InternalAppointment {
   const appointment = mapAppointmentRowToAppointment(row);
   const relatedInquiry = row.inquiry_id
@@ -152,7 +162,7 @@ function mapAppointmentRowToInternalAppointment(
 
 function matchesAppointmentSearch(
   appointment: InternalAppointment,
-  searchTerm: string
+  searchTerm: string,
 ) {
   const cleanSearchTerm = normalizeSearchText(searchTerm);
 
@@ -168,10 +178,158 @@ function matchesAppointmentSearch(
       appointment.inquiryLabel,
       appointment.inquiryStatus,
       appointment.notes,
-    ].join(" ")
+    ].join(" "),
   );
 
   return searchableContent.includes(cleanSearchTerm);
+}
+
+function getStatusBadgeClassName(
+  status: AppointmentStatus,
+  isPendingClosure = false,
+) {
+  if (isPendingClosure) {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  if (status === "proposed") {
+    return "border-sky-200 bg-sky-50 text-sky-700";
+  }
+
+  if (status === "confirmed") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "completed") {
+    return "border-teal-200 bg-teal-50 text-teal-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function AppointmentStatusBadge({
+  status,
+  isPendingClosure = false,
+}: {
+  status: AppointmentStatus;
+  isPendingClosure?: boolean;
+}) {
+  return (
+    <span
+      className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClassName(
+        status,
+        isPendingClosure,
+      )}`}
+    >
+      {isPendingClosure
+        ? "Pendiente de cerrar"
+        : getAppointmentStatusLabel(status)}
+    </span>
+  );
+}
+
+function getColumnClassName(tone: AppointmentColumnTone) {
+  if (tone === "amber") {
+    return "border-amber-200 bg-amber-50/60";
+  }
+
+  if (tone === "blue") {
+    return "border-sky-200 bg-sky-50/60";
+  }
+
+  return "border-emerald-200 bg-emerald-50/60";
+}
+
+function getColumnHeaderClassName(tone: AppointmentColumnTone) {
+  if (tone === "amber") {
+    return "bg-amber-100 text-amber-900";
+  }
+
+  if (tone === "blue") {
+    return "bg-sky-100 text-sky-900";
+  }
+
+  return "bg-emerald-100 text-emerald-900";
+}
+
+function getAppointmentCardClassName(
+  tone: AppointmentColumnTone,
+  isPendingClosure = false,
+) {
+  if (isPendingClosure || tone === "amber") {
+    return "border-amber-200 bg-white shadow-sm ring-1 ring-amber-100";
+  }
+
+  if (tone === "blue") {
+    return "border-sky-200 bg-white shadow-sm ring-1 ring-sky-100";
+  }
+
+  return "border-emerald-200 bg-white shadow-sm ring-1 ring-emerald-100";
+}
+
+function getHistoryStatusClassName(status: AppointmentStatus) {
+  if (status === "completed") {
+    return "border-teal-200 bg-teal-50 text-teal-700";
+  }
+
+  if (status === "cancelled") {
+    return "border-slate-200 bg-slate-50 text-slate-600";
+  }
+
+  return "border-slate-200 bg-white text-slate-600";
+}
+
+function MetricCard({
+  title,
+  value,
+  caption,
+  icon: Icon,
+  tone,
+}: {
+  title: string;
+  value: number;
+  caption: string;
+  icon: typeof Clock3;
+  tone: AppointmentColumnTone | "slate";
+}) {
+  const iconClassName =
+    tone === "amber"
+      ? "bg-amber-50 text-amber-700"
+      : tone === "blue"
+        ? "bg-sky-50 text-sky-700"
+        : tone === "emerald"
+          ? "bg-emerald-50 text-emerald-700"
+          : "bg-slate-100 text-slate-600";
+
+  const borderClassName =
+    tone === "amber"
+      ? "border-amber-200"
+      : tone === "blue"
+        ? "border-sky-200"
+        : tone === "emerald"
+          ? "border-emerald-200"
+          : "border-slate-200";
+
+  return (
+    <div
+      className={`rounded-2xl border ${borderClassName} bg-white p-4 shadow-sm`}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            {title}
+          </div>
+          <div className="mt-2 text-2xl font-bold text-slate-950">{value}</div>
+        </div>
+
+        <div className={`rounded-2xl p-2 ${iconClassName}`}>
+          <Icon size={17} />
+        </div>
+      </div>
+
+      <p className="mt-2 text-xs leading-5 text-slate-500">{caption}</p>
+    </div>
+  );
 }
 
 export function Appointments({ openInquiry }: AppointmentsProps) {
@@ -219,7 +377,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         setErrorMessage(
           `No se pudieron cargar los casos para la agenda interna: ${
             inquiriesError.message || "sin detalle del error"
-          }`
+          }`,
         );
         setIsLoading(false);
         return;
@@ -229,10 +387,12 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         []) as unknown as InquiryOptionRow[];
 
       const inquiryById = new Map(
-        mappedInquiries.map((inquiry) => [inquiry.id, inquiry])
+        mappedInquiries.map((inquiry) => [inquiry.id, inquiry]),
       );
 
-      const activeInquiryOptions = mappedInquiries.filter(isActiveInquiryOption);
+      const activeInquiryOptions = mappedInquiries.filter(
+        isActiveInquiryOption,
+      );
 
       const { data: appointmentsData, error: appointmentsError } =
         await supabase
@@ -249,7 +409,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               "notes",
               "created_at",
               "updated_at",
-            ].join(", ")
+            ].join(", "),
           )
           .order("scheduled_at", { ascending: true });
 
@@ -257,7 +417,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         setErrorMessage(
           `No se pudieron cargar las citas internas: ${
             appointmentsError.message || "sin detalle del error"
-          }`
+          }`,
         );
         setIsLoading(false);
         return;
@@ -267,7 +427,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         (appointmentsData ?? []) as unknown as AppointmentRow[]
       )
         .map((appointmentRow) =>
-          mapAppointmentRowToInternalAppointment(appointmentRow, inquiryById)
+          mapAppointmentRowToInternalAppointment(appointmentRow, inquiryById),
         )
         .sort(compareAppointmentsByScheduledAt);
 
@@ -292,11 +452,11 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   }, [supabase]);
 
   const selectedInquiry = inquiryOptions.find(
-    (inquiry) => inquiry.id === selectedInquiryId
+    (inquiry) => inquiry.id === selectedInquiryId,
   );
 
   const editingAppointment = appointments.find(
-    (appointment) => appointment.id === editingAppointmentId
+    (appointment) => appointment.id === editingAppointmentId,
   );
 
   const isEditing = Boolean(editingAppointment);
@@ -310,25 +470,46 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
   const currentTimeMs = Date.now();
 
+  const totalPendingClosureAppointments = appointments.filter((appointment) =>
+    isAppointmentPendingClosure(appointment, currentTimeMs),
+  );
+
+  const totalPendingConfirmationAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "proposed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs),
+  );
+
+  const totalConfirmedAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "confirmed" &&
+      !isAppointmentPendingClosure(appointment, currentTimeMs),
+  );
+
+  const totalHistoryAppointments = appointments.filter(
+    (appointment) =>
+      appointment.status === "completed" || appointment.status === "cancelled",
+  );
+
   const pendingClosureAppointments = filteredAppointments.filter(
-    (appointment) => isAppointmentPendingClosure(appointment, currentTimeMs)
+    (appointment) => isAppointmentPendingClosure(appointment, currentTimeMs),
   );
 
   const pendingConfirmationAppointments = filteredAppointments.filter(
     (appointment) =>
       appointment.status === "proposed" &&
-      !isAppointmentPendingClosure(appointment, currentTimeMs)
+      !isAppointmentPendingClosure(appointment, currentTimeMs),
   );
 
   const confirmedAppointments = filteredAppointments.filter(
     (appointment) =>
       appointment.status === "confirmed" &&
-      !isAppointmentPendingClosure(appointment, currentTimeMs)
+      !isAppointmentPendingClosure(appointment, currentTimeMs),
   );
 
   const historyAppointments = filteredAppointments.filter(
     (appointment) =>
-      appointment.status === "completed" || appointment.status === "cancelled"
+      appointment.status === "completed" || appointment.status === "cancelled",
   );
 
   const hasActiveFilters =
@@ -397,7 +578,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
     if (scheduledDate.getTime() < Date.now() - 60 * 1000) {
       setFormErrorMessage(
-        "No puedes guardar una cita interna en una fecha pasada."
+        "No puedes guardar una cita interna en una fecha pasada.",
       );
       return;
     }
@@ -427,7 +608,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             "notes",
             "created_at",
             "updated_at",
-          ].join(", ")
+          ].join(", "),
         )
         .single<AppointmentRow>();
 
@@ -437,17 +618,17 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         setFormErrorMessage(
           `No se pudo actualizar la cita interna: ${
             error?.message || "sin detalle del error"
-          }`
+          }`,
         );
         return;
       }
 
       const inquiryById = new Map(
-        inquiryOptions.map((inquiry) => [inquiry.id, inquiry])
+        inquiryOptions.map((inquiry) => [inquiry.id, inquiry]),
       );
       const mappedAppointment = mapAppointmentRowToInternalAppointment(
         data,
-        inquiryById
+        inquiryById,
       );
 
       setAppointments((currentAppointments) =>
@@ -455,9 +636,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           .map((appointment) =>
             appointment.id === editingAppointment.id
               ? mappedAppointment
-              : appointment
+              : appointment,
           )
-          .sort(compareAppointmentsByScheduledAt)
+          .sort(compareAppointmentsByScheduledAt),
       );
 
       setShowForm(false);
@@ -496,7 +677,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           "notes",
           "created_at",
           "updated_at",
-        ].join(", ")
+        ].join(", "),
       )
       .single<AppointmentRow>();
 
@@ -506,21 +687,23 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       setFormErrorMessage(
         `No se pudo crear la cita interna: ${
           error?.message || "sin detalle del error"
-        }`
+        }`,
       );
       return;
     }
 
     const inquiryById = new Map(
-      inquiryOptions.map((inquiry) => [inquiry.id, inquiry])
+      inquiryOptions.map((inquiry) => [inquiry.id, inquiry]),
     );
     const mappedAppointment = mapAppointmentRowToInternalAppointment(
       data,
-      inquiryById
+      inquiryById,
     );
 
     setAppointments((currentAppointments) =>
-      [...currentAppointments, mappedAppointment].sort(compareAppointmentsByScheduledAt)
+      [...currentAppointments, mappedAppointment].sort(
+        compareAppointmentsByScheduledAt,
+      ),
     );
 
     setShowForm(false);
@@ -530,7 +713,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
   const handleUpdateAppointmentStatus = async (
     appointmentId: string,
-    status: AppointmentStatus
+    status: AppointmentStatus,
   ) => {
     setErrorMessage("");
     setSuccessMessage("");
@@ -553,7 +736,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           "notes",
           "created_at",
           "updated_at",
-        ].join(", ")
+        ].join(", "),
       )
       .single<AppointmentRow>();
 
@@ -563,25 +746,25 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       setErrorMessage(
         `No se pudo actualizar la cita interna: ${
           error?.message || "sin detalle del error"
-        }`
+        }`,
       );
       return;
     }
 
     const inquiryById = new Map(
-      inquiryOptions.map((inquiry) => [inquiry.id, inquiry])
+      inquiryOptions.map((inquiry) => [inquiry.id, inquiry]),
     );
     const mappedAppointment = mapAppointmentRowToInternalAppointment(
       data,
-      inquiryById
+      inquiryById,
     );
 
     setAppointments((currentAppointments) =>
       currentAppointments
         .map((appointment) =>
-          appointment.id === appointmentId ? mappedAppointment : appointment
+          appointment.id === appointmentId ? mappedAppointment : appointment,
         )
-        .sort(compareAppointmentsByScheduledAt)
+        .sort(compareAppointmentsByScheduledAt),
     );
 
     if (status === "proposed") {
@@ -602,136 +785,248 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     setSuccessMessage("Cita interna cancelada correctamente.");
   };
 
-  const renderAppointmentCard = (
+  const renderActionButton = (
+    label: string,
+    onClick: () => void,
+    isUpdating: boolean,
+    variant: "primary" | "secondary" | "ghost" = "secondary",
+  ) => (
+    <Button variant={variant} onClick={onClick} disabled={isUpdating}>
+      {label}
+    </Button>
+  );
+
+  const renderActiveAppointmentCard = (
     appointment: InternalAppointment,
-    isHistory = false,
-    isPendingClosure = false
+    tone: AppointmentColumnTone,
+    isPendingClosure = false,
   ) => {
     const isUpdating = updatingAppointmentId === appointment.id;
 
     return (
       <article
         key={appointment.id}
-        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+        className={`rounded-2xl border p-4 ${getAppointmentCardClassName(
+          tone,
+          isPendingClosure,
+        )}`}
       >
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-950">
-              {appointment.title}
-            </h3>
-
-            <p className="mt-1 text-xs text-slate-500">
-              {appointment.scheduledAt} ·{" "}
-              {getAppointmentStatusLabel(appointment.status)}
-            </p>
-          </div>
+        <div className="flex items-start justify-between gap-3">
+          <AppointmentStatusBadge
+            status={appointment.status}
+            isPendingClosure={isPendingClosure}
+          />
 
           {appointment.inquiryId ? (
             <button
               type="button"
               onClick={() => openInquiry(appointment.inquiryId)}
-              className="text-left text-xs font-semibold text-[#0F4C5C] hover:underline md:text-right"
+              className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] transition hover:bg-slate-50"
             >
               Abrir caso
             </button>
           ) : null}
         </div>
 
+        <h3 className="mt-3 text-base font-bold text-slate-950">
+          {appointment.title}
+        </h3>
+
+        <div className="mt-1 text-sm font-medium text-slate-700">
+          {appointment.scheduledAt}
+        </div>
+
         {isPendingClosure ? (
           <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
-            Esta cita interna ya ha pasado y sigue activa. Revísala y márcala
-            como realizada o cancelada.
+            Ya ha pasado y sigue activa. Cierra la cita como realizada o
+            cancelada.
           </div>
         ) : null}
 
-        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-          <div className="font-semibold text-slate-700">Caso asociado</div>
-          <div>{appointment.inquiryLabel}</div>
-          <div className="mt-1 text-slate-500">
-            Estado del caso: {appointment.inquiryStatus}
+        <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="font-semibold uppercase tracking-wide text-slate-500">
+              Caso asociado
+            </div>
+            <div className="mt-1 line-clamp-2 font-medium text-slate-700">
+              {appointment.inquiryLabel}
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+            <div className="font-semibold uppercase tracking-wide text-slate-500">
+              Estado del caso
+            </div>
+            <div className="mt-1 font-medium text-slate-700">
+              {appointment.inquiryStatus}
+            </div>
           </div>
         </div>
 
         {appointment.notes ? (
-          <p className="mt-3 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+          <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
             {appointment.notes}
-          </p>
+          </div>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {!isHistory ? (
-            <Button
-              variant="secondary"
-              onClick={() => handleOpenEditForm(appointment)}
-              disabled={isUpdating}
-            >
-              Editar
-            </Button>
-          ) : null}
+        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
+          {renderActionButton(
+            "Editar",
+            () => handleOpenEditForm(appointment),
+            isUpdating,
+          )}
 
           {appointment.status === "proposed" ? (
             <>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  handleUpdateAppointmentStatus(appointment.id, "confirmed")
-                }
-                disabled={isUpdating}
-              >
-                Marcar como confirmada internamente
-              </Button>
-
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  handleUpdateAppointmentStatus(appointment.id, "cancelled")
-                }
-                disabled={isUpdating}
-              >
-                Cancelar
-              </Button>
+              {renderActionButton(
+                "Confirmar internamente",
+                () =>
+                  handleUpdateAppointmentStatus(appointment.id, "confirmed"),
+                isUpdating,
+                "primary",
+              )}
+              {renderActionButton(
+                "Cancelar",
+                () =>
+                  handleUpdateAppointmentStatus(appointment.id, "cancelled"),
+                isUpdating,
+                "ghost",
+              )}
             </>
           ) : null}
 
           {appointment.status === "confirmed" ? (
             <>
-              <Button
-                variant="secondary"
-                onClick={() =>
-                  handleUpdateAppointmentStatus(appointment.id, "completed")
-                }
-                disabled={isUpdating}
-              >
-                Completar
-              </Button>
-
-              <Button
-                variant="ghost"
-                onClick={() =>
-                  handleUpdateAppointmentStatus(appointment.id, "cancelled")
-                }
-                disabled={isUpdating}
-              >
-                Cancelar
-              </Button>
+              {renderActionButton(
+                "Marcar realizada",
+                () =>
+                  handleUpdateAppointmentStatus(appointment.id, "completed"),
+                isUpdating,
+                "primary",
+              )}
+              {renderActionButton(
+                "Cancelar",
+                () =>
+                  handleUpdateAppointmentStatus(appointment.id, "cancelled"),
+                isUpdating,
+                "ghost",
+              )}
             </>
-          ) : null}
-
-          {isHistory ? (
-            <Button
-              variant="secondary"
-              onClick={() =>
-                handleUpdateAppointmentStatus(appointment.id, "proposed")
-              }
-              disabled={isUpdating}
-            >
-              Reabrir como pendiente
-            </Button>
           ) : null}
         </div>
       </article>
     );
   };
+
+  const renderHistoryAppointmentRow = (appointment: InternalAppointment) => {
+    const isUpdating = updatingAppointmentId === appointment.id;
+
+    return (
+      <article
+        key={appointment.id}
+        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[160px_1fr_1fr_auto] lg:items-center"
+      >
+        <div>
+          <span
+            className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${getHistoryStatusClassName(
+              appointment.status,
+            )}`}
+          >
+            {getAppointmentStatusLabel(appointment.status)}
+          </span>
+          <div className="mt-2 text-xs font-medium text-slate-500">
+            {appointment.scheduledAt}
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <h3 className="font-semibold text-slate-950">{appointment.title}</h3>
+          {appointment.notes ? (
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+              {appointment.notes}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
+          <div className="font-semibold text-slate-700">Caso asociado</div>
+          <div className="line-clamp-1">{appointment.inquiryLabel}</div>
+          <div className="mt-1 text-slate-500">
+            Estado del caso: {appointment.inquiryStatus}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-2 lg:justify-end">
+          {appointment.inquiryId ? (
+            <Button
+              variant="secondary"
+              onClick={() => openInquiry(appointment.inquiryId)}
+              disabled={isUpdating}
+            >
+              Abrir caso
+            </Button>
+          ) : null}
+
+          <Button
+            variant="ghost"
+            onClick={() =>
+              handleUpdateAppointmentStatus(appointment.id, "proposed")
+            }
+            disabled={isUpdating}
+          >
+            Reabrir
+          </Button>
+        </div>
+      </article>
+    );
+  };
+
+  const renderAppointmentColumn = ({
+    title,
+    description,
+    count,
+    tone,
+    appointments: columnAppointments,
+    emptyMessage,
+    isPendingClosure = false,
+  }: {
+    title: string;
+    description: string;
+    count: number;
+    tone: AppointmentColumnTone;
+    appointments: InternalAppointment[];
+    emptyMessage: string;
+    isPendingClosure?: boolean;
+  }) => (
+    <section className={`rounded-3xl border p-4 ${getColumnClassName(tone)}`}>
+      <div
+        className={`rounded-2xl px-4 py-3 ${getColumnHeaderClassName(tone)}`}
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <h2 className="font-bold">{title}</h2>
+            <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
+          </div>
+
+          <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold">
+            {count}
+          </span>
+        </div>
+      </div>
+
+      <div className="mt-4 space-y-3">
+        {columnAppointments.length === 0 ? (
+          <div className="rounded-2xl border border-white/70 bg-white/75 p-4 text-sm leading-6 text-slate-600">
+            {emptyMessage}
+          </div>
+        ) : (
+          columnAppointments.map((appointment) =>
+            renderActiveAppointmentCard(appointment, tone, isPendingClosure),
+          )
+        )}
+      </div>
+    </section>
+  );
 
   return (
     <div>
@@ -745,16 +1040,53 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         }
       />
 
-      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <MetricCard
+          title="Pendientes de cerrar"
+          value={totalPendingClosureAppointments.length}
+          caption="Citas activas con fecha pasada"
+          icon={AlertTriangle}
+          tone="amber"
+        />
+
+        <MetricCard
+          title="Por confirmar"
+          value={totalPendingConfirmationAppointments.length}
+          caption="Citas internas todavía no validadas"
+          icon={Clock3}
+          tone="blue"
+        />
+
+        <MetricCard
+          title="Confirmadas"
+          value={totalConfirmedAppointments.length}
+          caption="Citas internas activas y programadas"
+          icon={CalendarCheck2}
+          tone="emerald"
+        />
+
+        <MetricCard
+          title="Historial"
+          value={totalHistoryAppointments.length}
+          caption="Realizadas o canceladas"
+          icon={History}
+          tone="slate"
+        />
+      </div>
+
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
           <label className="text-sm font-medium text-slate-700">
             Buscar cita
-            <input
-              value={searchTerm}
-              onChange={(event) => setSearchTerm(event.target.value)}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-              placeholder="Buscar por título, caso o notas..."
-            />
+            <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-[#0F4C5C]">
+              <Search size={16} className="shrink-0 text-slate-400" />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                placeholder="Buscar por título, caso o notas..."
+              />
+            </div>
           </label>
 
           <label className="text-sm font-medium text-slate-700">
@@ -790,7 +1122,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       </div>
 
       {showForm ? (
-        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-950">
@@ -910,92 +1242,94 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       ) : null}
 
       {errorMessage ? (
-        <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMessage}
         </div>
       ) : null}
 
       {successMessage ? (
-        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
           {successMessage}
         </div>
       ) : null}
 
       {isLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
           Cargando agenda interna...
         </div>
       ) : null}
 
       {!isLoading && !errorMessage ? (
-        <>
-          <section>
-            <h2 className="mb-3 text-lg font-bold text-slate-950">
-              Pendientes de cerrar
-            </h2>
-
-            {pendingClosureAppointments.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                {hasActiveFilters
-                  ? "No hay citas internas pendientes de cerrar que coincidan con los filtros."
-                  : "No hay citas internas activas con fecha pasada."}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {pendingClosureAppointments.map((appointment) =>
-                  renderAppointmentCard(appointment, false, true)
-                )}
-              </div>
-            )}
-          </section>
-
-          <div className="mt-6 grid gap-6 xl:grid-cols-2">
-            <section>
-              <h2 className="mb-3 text-lg font-bold text-slate-950">
-                Pendientes de confirmar
+        <section className="mt-6">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">
+                Agenda activa
               </h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Citas que todavía requieren validación, ejecución o cierre
+                interno.
+              </p>
+            </div>
 
-              {pendingConfirmationAppointments.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                  {hasActiveFilters
-                    ? "No hay citas internas pendientes que coincidan con los filtros."
-                    : "No hay citas internas pendientes de confirmar."}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {pendingConfirmationAppointments.map((appointment) =>
-                    renderAppointmentCard(appointment)
-                  )}
-                </div>
-              )}
-            </section>
-
-            <section>
-              <h2 className="mb-3 text-lg font-bold text-slate-950">
-                Confirmadas internamente
-              </h2>
-
-              {confirmedAppointments.length === 0 ? (
-                <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-                  {hasActiveFilters
-                    ? "No hay citas internas confirmadas que coincidan con los filtros."
-                    : "No hay citas internas confirmadas."}
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {confirmedAppointments.map((appointment) =>
-                    renderAppointmentCard(appointment)
-                  )}
-                </div>
-              )}
-            </section>
+            <div className="hidden items-center gap-2 text-xs text-slate-500 md:flex">
+              <CheckCircle2 size={15} />
+              No se envía ninguna confirmación automática al cliente.
+            </div>
           </div>
-        </>
+
+          <div className="grid gap-5 xl:grid-cols-3">
+            {renderAppointmentColumn({
+              title: "Pendientes de cerrar",
+              description: "Ya han pasado y siguen activas.",
+              count: pendingClosureAppointments.length,
+              tone: "amber",
+              appointments: pendingClosureAppointments,
+              emptyMessage: hasActiveFilters
+                ? "No hay citas pendientes de cerrar con estos filtros."
+                : "No hay citas activas con fecha pasada.",
+              isPendingClosure: true,
+            })}
+
+            {renderAppointmentColumn({
+              title: "Por confirmar",
+              description: "Citas creadas pero aún no validadas internamente.",
+              count: pendingConfirmationAppointments.length,
+              tone: "blue",
+              appointments: pendingConfirmationAppointments,
+              emptyMessage: hasActiveFilters
+                ? "No hay citas pendientes con estos filtros."
+                : "No hay citas pendientes de confirmar.",
+            })}
+
+            {renderAppointmentColumn({
+              title: "Confirmadas",
+              description: "Citas internas activas y programadas.",
+              count: confirmedAppointments.length,
+              tone: "emerald",
+              appointments: confirmedAppointments,
+              emptyMessage: hasActiveFilters
+                ? "No hay citas confirmadas con estos filtros."
+                : "No hay citas internas confirmadas.",
+            })}
+          </div>
+        </section>
       ) : null}
 
       {!isLoading && !errorMessage ? (
         <section className="mt-8">
-          <h2 className="mb-3 text-lg font-bold text-slate-950">Historial</h2>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="text-lg font-bold text-slate-950">Historial</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                Citas internas realizadas o canceladas, en formato compacto.
+              </p>
+            </div>
+
+            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+              {historyAppointments.length}
+            </span>
+          </div>
 
           {historyAppointments.length === 0 ? (
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -1005,9 +1339,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             </div>
           ) : (
             <div className="space-y-3">
-              {historyAppointments.map((appointment) =>
-                renderAppointmentCard(appointment, true)
-              )}
+              {historyAppointments.map(renderHistoryAppointmentRow)}
             </div>
           )}
         </section>
@@ -1015,5 +1347,3 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     </div>
   );
 }
-
-
