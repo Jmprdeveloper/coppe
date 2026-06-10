@@ -2,13 +2,16 @@
 
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Building2, Send } from "lucide-react";
+import { Building2, MessageCircle, Send } from "lucide-react";
 
 import { Button } from "./Button";
+
+type PublicSourceChannel = "Formulario web" | "Chat web";
 
 type PublicIntakeFormProps = {
   publicIntakeToken: string;
   companyName: string;
+  sourceChannel?: PublicSourceChannel;
 };
 
 type PublicIntakeResponse = {
@@ -26,6 +29,7 @@ const MAX_MESSAGE_LENGTH = 6000;
 export function PublicIntakeForm({
   publicIntakeToken,
   companyName,
+  sourceChannel = "Formulario web",
 }: PublicIntakeFormProps) {
   const [customerName, setCustomerName] = useState("");
   const [email, setEmail] = useState("");
@@ -36,6 +40,27 @@ export function PublicIntakeForm({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const isChatWeb = sourceChannel === "Chat web";
+  const HeaderIcon = isChatWeb ? MessageCircle : Building2;
+
+  const pageTitle = isChatWeb ? "Chat web" : "Formulario de contacto";
+  const headerDescription = isChatWeb
+    ? "Escribe tu mensaje y la empresa lo recibirá como un caso de Chat web en COPPE."
+    : "Envía tu mensaje y la empresa lo recibirá en su espacio de trabajo de COPPE.";
+  const messagePlaceholder = isChatWeb
+    ? "Escribe aquí tu consulta"
+    : "Escribe aquí tu mensaje";
+  const submitText = isChatWeb ? "Enviar consulta" : "Enviar mensaje";
+  const submittingText = isChatWeb
+    ? "Enviando consulta..."
+    : "Enviando mensaje...";
+  const successFallback = isChatWeb
+    ? "Consulta recibida correctamente. La empresa revisará tu mensaje."
+    : "Mensaje recibido correctamente. La empresa revisará tu solicitud.";
+  const footerText = isChatWeb
+    ? "Este chat está gestionado mediante COPPE."
+    : "Este formulario está gestionado mediante COPPE.";
 
   const resetFeedback = () => {
     setSuccessMessage("");
@@ -58,9 +83,7 @@ export function PublicIntakeForm({
       setPhone("");
       setMessage("");
       setCompanyWebsite("");
-      setSuccessMessage(
-        "Mensaje recibido correctamente. La empresa revisará tu solicitud."
-      );
+      setSuccessMessage(successFallback);
       return;
     }
 
@@ -122,6 +145,7 @@ export function PublicIntakeForm({
           phone: cleanPhone,
           message: cleanMessage,
           companyWebsite: cleanCompanyWebsite,
+          sourceChannel,
         }),
       });
 
@@ -140,10 +164,7 @@ export function PublicIntakeForm({
       setPhone("");
       setMessage("");
       setCompanyWebsite("");
-      setSuccessMessage(
-        payload.message ||
-          "Mensaje recibido correctamente. La empresa revisará tu solicitud."
-      );
+      setSuccessMessage(payload.message || successFallback);
     } catch {
       setErrorMessage(
         "No se pudo conectar con COPPE. Revisa tu conexión e inténtalo de nuevo."
@@ -160,12 +181,12 @@ export function PublicIntakeForm({
           <div className="bg-[#0F4C5C] px-6 py-7 text-white md:px-8">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
-                <Building2 size={22} />
+                <HeaderIcon size={22} />
               </div>
 
               <div>
                 <div className="text-sm font-medium text-white/75">
-                  Formulario de contacto
+                  {pageTitle}
                 </div>
                 <h1 className="text-xl font-bold tracking-tight md:text-2xl">
                   {companyName}
@@ -174,8 +195,7 @@ export function PublicIntakeForm({
             </div>
 
             <p className="mt-4 text-sm leading-6 text-white/80">
-              Envía tu mensaje y la empresa lo recibirá en su espacio de
-              trabajo de COPPE.
+              {headerDescription}
             </p>
           </div>
 
@@ -250,7 +270,7 @@ export function PublicIntakeForm({
                 }}
                 maxLength={MAX_MESSAGE_LENGTH}
                 className="mt-1 min-h-[150px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="Escribe aquí tu mensaje"
+                placeholder={messagePlaceholder}
               />
             </label>
 
@@ -272,11 +292,11 @@ export function PublicIntakeForm({
 
             <Button className="w-full" type="submit" disabled={isSubmitting}>
               <Send size={16} />
-              {isSubmitting ? "Enviando mensaje..." : "Enviar mensaje"}
+              {isSubmitting ? submittingText : submitText}
             </Button>
 
             <p className="text-center text-xs leading-5 text-slate-400">
-              Este formulario está gestionado mediante COPPE.
+              {footerText}
             </p>
           </form>
         </div>

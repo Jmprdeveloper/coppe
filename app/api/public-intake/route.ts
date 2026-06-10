@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
-import { getCustomerDatabaseErrorMessage } from "../../../lib/customerValidation";
 import {
+  getCustomerDatabaseErrorMessage,
   isValidEmail,
   isValidPhone,
   normalizePhoneForComparison,
@@ -9,6 +9,8 @@ import {
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../../../lib/inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "../../../lib/inquiryAnalysisService";
 import { createAdminClient } from "../../../lib/supabase/admin";
+
+type PublicSourceChannel = "Formulario web" | "Chat web";
 
 type PublicIntakeRequestBody = {
   publicIntakeToken?: string;
@@ -18,6 +20,7 @@ type PublicIntakeRequestBody = {
   phone?: string;
   message?: string;
   companyWebsite?: string;
+  sourceChannel?: string;
 };
 
 type PublicIntakeCompany = {
@@ -52,14 +55,49 @@ const MAX_CUSTOMER_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_PHONE_LENGTH = 40;
 
-function buildFallbackSubject(message: string) {
+function getStringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizePublicSourceChannel(
+  value: string | null | undefined
+): PublicSourceChannel {
+  if (value === "Chat web") {
+    return "Chat web";
+  }
+
+  return "Formulario web";
+}
+
+function getPublicSourceChannelText(sourceChannel: PublicSourceChannel) {
+  if (sourceChannel === "Chat web") {
+    return {
+      shortLabel: "chat web",
+      subjectFallback: "Nuevo mensaje recibido desde chat web",
+      summarySuffix: "a través del chat web.",
+      intent: "Mensaje recibido desde el chat web público.",
+    };
+  }
+
+  return {
+    shortLabel: "formulario web",
+    subjectFallback: "Nuevo mensaje recibido desde formulario web",
+    summarySuffix: "a través del formulario web.",
+    intent: "Mensaje recibido desde el formulario web público.",
+  };
+}
+
+function buildFallbackSubject(
+  message: string,
+  sourceChannel: PublicSourceChannel
+) {
   const firstLine = message
     .split("\n")
     .map((line) => line.trim())
     .find(Boolean);
 
   if (!firstLine) {
-    return "Nuevo mensaje recibido desde formulario web";
+    return getPublicSourceChannelText(sourceChannel).subjectFallback;
   }
 
   if (firstLine.length <= 80) {
@@ -72,27 +110,25 @@ function buildFallbackSubject(message: string) {
 function buildFallbackAnalysis(
   customerName: string,
   message: string,
-  company: PublicIntakeCompany
+  company: PublicIntakeCompany,
+  sourceChannel: PublicSourceChannel
 ): PublicIntakeAnalysis {
   const language = company.language === "en" ? "en" : "es";
-  const subject = buildFallbackSubject(message);
+  const sourceChannelText = getPublicSourceChannelText(sourceChannel);
+  const subject = buildFallbackSubject(message, sourceChannel);
 
   return {
     language,
     category: "general_info",
     priority: "medium",
-    summary: `${customerName} ha enviado un mensaje a través del formulario web.`,
-    intent: "Mensaje recibido desde el formulario web público.",
+    summary: `${customerName} ha enviado un mensaje ${sourceChannelText.summarySuffix}`,
+    intent: sourceChannelText.intent,
     missingInformation: [],
     recommendedAction:
       "Revisar el mensaje y responder al cliente desde el canal adecuado.",
     suggestedResponse: `Hola ${customerName}, gracias por contactar con ${company.name}. Hemos recibido tu mensaje y lo revisaremos lo antes posible.`,
     subject,
   };
-}
-
-function getStringValue(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
 }
 
 function buildAcceptedHoneypotResponse() {
@@ -108,13 +144,14 @@ function buildAcceptedHoneypotResponse() {
 async function createInboundEvent(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   companyId: string,
+  sourceChannel: PublicSourceChannel,
   rawPayload: Record<string, unknown>
 ) {
   const { data, error } = await supabaseAdmin
     .from("inbound_events")
     .insert({
       company_id: companyId,
-      source_channel: "Formulario web",
+      source_channel: sourceChannel,
       status: "received",
       raw_payload: rawPayload,
     })
@@ -258,10 +295,13 @@ export async function POST(request: Request) {
   const email = getStringValue(body.email).toLowerCase();
   const phone = getStringValue(body.phone);
   const message = getStringValue(body.message);
+  const sourceChannel = normalizePublicSourceChannel(
+    getStringValue(body.sourceChannel)
+  );
 
   if (!publicIntakeToken) {
     return NextResponse.json(
-      { error: "Falta el identificador público del formulario." },
+      { error: "Falta el identificador público." },
       { status: 400 }
     );
   }
@@ -349,7 +389,7 @@ export async function POST(request: Request) {
   if (companyError) {
     return NextResponse.json(
       {
-        error: `No se pudo cargar la empresa asociada al formulario: ${
+        error: `No se pudo cargar la empresa asociada: ${
           companyError.message || "sin detalle del error"
         }`,
       },
@@ -359,14 +399,14 @@ export async function POST(request: Request) {
 
   if (!company) {
     return NextResponse.json(
-      { error: "El formulario público no existe o ya no está disponible." },
+      { error: "El enlace público no existe o ya no está disponible." },
       { status: 404 }
     );
   }
 
   if (!company.public_intake_enabled) {
     return NextResponse.json(
-      { error: "Este formulario público no está activo en este momento." },
+      { error: "Este canal público no está activo en este momento." },
       { status: 403 }
     );
   }
@@ -374,14 +414,19 @@ export async function POST(request: Request) {
   let inboundEventId: string;
 
   try {
-    inboundEventId = await createInboundEvent(supabaseAdmin, company.id, {
-      publicIntakeToken,
-      customerName,
-      email,
-      phone,
-      message,
-      sourceChannel: "Formulario web",
-    });
+    inboundEventId = await createInboundEvent(
+      supabaseAdmin,
+      company.id,
+      sourceChannel,
+      {
+        publicIntakeToken,
+        customerName,
+        email,
+        phone,
+        message,
+        sourceChannel,
+      }
+    );
   } catch (error) {
     return NextResponse.json(
       {
@@ -488,7 +533,12 @@ export async function POST(request: Request) {
     customer = createdCustomer;
   }
 
-  let analysis = buildFallbackAnalysis(customerName, message, company);
+  let analysis = buildFallbackAnalysis(
+    customerName,
+    message,
+    company,
+    sourceChannel
+  );
 
   try {
     analysis = await analyzeInquiryForCompany({
@@ -507,7 +557,7 @@ export async function POST(request: Request) {
         company_id: company.id,
         customer_id: customer.id,
         customer_name: customer.name || customerName,
-        source_channel: "Formulario web",
+        source_channel: sourceChannel,
         subject: analysis.subject,
         original_message: message,
         ai_summary: analysis.summary,
@@ -545,7 +595,7 @@ export async function POST(request: Request) {
       direction: "inbound",
       author_type: "customer",
       body: message,
-      source_channel: "Formulario web",
+      source_channel: sourceChannel,
     });
 
   if (createMessageError) {
