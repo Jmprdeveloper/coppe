@@ -19,11 +19,15 @@ import {
 } from "../lib/followUpUtils";
 import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
+import type { VisualTone } from "../lib/visualSystem";
 import type { FollowUp } from "../types";
 
+import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
+import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
+import { SectionCard } from "./SectionCard";
 
 type FollowUpsProps = {
   openInquiry: (id: string) => void;
@@ -52,14 +56,6 @@ type InquiryOptionRow = {
 };
 
 type FollowUpColumnTone = "overdue" | "today" | "upcoming";
-
-type FollowUpMetricProps = {
-  title: string;
-  value: number;
-  caption: string;
-  tone: "red" | "amber" | "sky" | "slate";
-  icon: typeof AlertTriangle;
-};
 
 type FollowUpColumnProps = {
   title: string;
@@ -210,71 +206,16 @@ function formatInquiryStatus(status: string) {
   return "Estado no indicado";
 }
 
-function getMetricClasses(tone: FollowUpMetricProps["tone"]) {
-  if (tone === "red") {
-    return "border-red-200 bg-white shadow-sm shadow-red-100/70 text-red-700";
-  }
-
-  if (tone === "amber") {
-    return "border-amber-200 bg-white shadow-sm shadow-amber-100/70 text-amber-700";
-  }
-
-  if (tone === "sky") {
-    return "border-sky-200 bg-white shadow-sm shadow-sky-100/70 text-sky-700";
-  }
-
-  return "border-slate-200 bg-white shadow-sm shadow-slate-100/80 text-slate-600";
-}
-
-function getColumnClasses(tone: FollowUpColumnTone) {
+function getColumnTone(tone: FollowUpColumnTone): VisualTone {
   if (tone === "overdue") {
-    return {
-      wrapper: "border-red-200 bg-red-50/70",
-      header: "bg-red-100/80 text-red-900",
-      count: "bg-white text-red-700",
-    };
+    return "danger";
   }
 
   if (tone === "today") {
-    return {
-      wrapper: "border-amber-200 bg-amber-50/70",
-      header: "bg-amber-100/80 text-amber-900",
-      count: "bg-white text-amber-700",
-    };
+    return "warning";
   }
 
-  return {
-    wrapper: "border-sky-200 bg-sky-50/70",
-    header: "bg-sky-100/80 text-sky-900",
-    count: "bg-white text-sky-700",
-  };
-}
-
-function FollowUpMetric({
-  title,
-  value,
-  caption,
-  tone,
-  icon: Icon,
-}: FollowUpMetricProps) {
-  return (
-    <div className={`rounded-2xl border p-4 ${getMetricClasses(tone)}`}>
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {title}
-          </div>
-          <div className="mt-2 text-3xl font-bold text-slate-950">{value}</div>
-        </div>
-
-        <div className="rounded-full bg-slate-50 p-2">
-          <Icon size={17} />
-        </div>
-      </div>
-
-      <div className="mt-3 text-xs leading-5 text-slate-500">{caption}</div>
-    </div>
-  );
+  return "info";
 }
 
 export function FollowUps({ openInquiry }: FollowUpsProps) {
@@ -680,50 +621,32 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
     tone,
     followUps: columnFollowUps,
     emptyMessage,
-  }: FollowUpColumnProps) => {
-    const columnClasses = getColumnClasses(tone);
-
-    return (
-      <section className={`rounded-3xl border p-4 ${columnClasses.wrapper}`}>
-        <div className={`rounded-2xl px-4 py-3 ${columnClasses.header}`}>
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <h2 className="font-bold">{title}</h2>
-              <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
-            </div>
-
-            <span
-              className={`rounded-full px-2.5 py-1 text-xs font-bold ${columnClasses.count}`}
-            >
-              {count}
-            </span>
-          </div>
+  }: FollowUpColumnProps) => (
+    <BoardColumn
+      title={title}
+      description={description}
+      count={count}
+      tone={getColumnTone(tone)}
+    >
+      {columnFollowUps.length === 0 ? (
+        <div className="rounded-2xl bg-white/80 px-4 py-5 text-sm text-slate-600 shadow-sm">
+          {emptyMessage}
         </div>
-
-        <div className="mt-4 space-y-3">
-          {columnFollowUps.length === 0 ? (
-            <div className="rounded-2xl bg-white/80 px-4 py-5 text-sm text-slate-600 shadow-sm">
-              {emptyMessage}
-            </div>
-          ) : (
-            columnFollowUps.map((followUp) => (
-              <FollowUpCard
-                key={followUp.id}
-                followUp={followUp}
-                onOpen={openInquiry}
-                onEdit={handleOpenEditForm}
-                onComplete={(id) =>
-                  handleUpdateFollowUpStatus(id, "completed")
-                }
-                onCancel={(id) => handleUpdateFollowUpStatus(id, "cancelled")}
-                isUpdating={updatingFollowUpId === followUp.id}
-              />
-            ))
-          )}
-        </div>
-      </section>
-    );
-  };
+      ) : (
+        columnFollowUps.map((followUp) => (
+          <FollowUpCard
+            key={followUp.id}
+            followUp={followUp}
+            onOpen={openInquiry}
+            onEdit={handleOpenEditForm}
+            onComplete={(id) => handleUpdateFollowUpStatus(id, "completed")}
+            onCancel={(id) => handleUpdateFollowUpStatus(id, "cancelled")}
+            isUpdating={updatingFollowUpId === followUp.id}
+          />
+        ))
+      )}
+    </BoardColumn>
+  );
 
   return (
     <div>
@@ -738,40 +661,40 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       />
 
       <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <FollowUpMetric
+        <MetricCard
           title="Vencidos"
           value={allOverdueCount}
           caption="Tareas pendientes fuera de plazo"
-          tone="red"
+          tone="danger"
           icon={AlertTriangle}
         />
 
-        <FollowUpMetric
+        <MetricCard
           title="Hoy"
           value={allTodayCount}
           caption="Tareas programadas para hoy"
-          tone="amber"
+          tone="warning"
           icon={Clock3}
         />
 
-        <FollowUpMetric
+        <MetricCard
           title="Próximos"
           value={allUpcomingCount}
           caption="Pendientes con fecha futura"
-          tone="sky"
+          tone="info"
           icon={CalendarDays}
         />
 
-        <FollowUpMetric
+        <MetricCard
           title="Historial"
           value={allHistoryCount}
           caption="Completados o cancelados"
-          tone="slate"
+          tone="neutral"
           icon={History}
         />
       </div>
 
-      <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <SectionCard className="mb-5">
         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
           <label className="text-sm font-medium text-slate-700">
             Buscar seguimiento
@@ -796,25 +719,21 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         </div>
 
         <p className="mt-3 text-xs text-slate-500">
-          Mostrando {filteredFollowUps.length} de {followUps.length} seguimientos.
+          Mostrando {filteredFollowUps.length} de {followUps.length}{" "}
+          seguimientos.
         </p>
-      </div>
+      </SectionCard>
 
       {showCreateForm ? (
-        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">
-                {isEditing ? "Editar seguimiento" : "Crear seguimiento"}
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {isEditing
-                  ? "Actualiza el título o la fecha de este seguimiento."
-                  : "Asocia una tarea pendiente a un caso existente."}
-              </p>
-            </div>
-
+        <SectionCard
+          className="mb-5"
+          title={isEditing ? "Editar seguimiento" : "Crear seguimiento"}
+          description={
+            isEditing
+              ? "Actualiza el título o la fecha de este seguimiento."
+              : "Asocia una tarea pendiente a un caso existente."
+          }
+          action={
             <button
               type="button"
               onClick={handleCancelCreateForm}
@@ -823,8 +742,8 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             >
               <X size={18} />
             </button>
-          </div>
-
+          }
+        >
           <div className="grid gap-4 md:grid-cols-2">
             {isEditing ? (
               <div className="text-sm font-medium text-slate-700 md:col-span-2">
@@ -857,7 +776,8 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                   ) : (
                     inquiryOptions.map((inquiry) => (
                       <option key={inquiry.id} value={inquiry.id}>
-                        {inquiry.customer_name} · {inquiry.subject || "Sin asunto"} ·{" "}
+                        {inquiry.customer_name} ·{" "}
+                        {inquiry.subject || "Sin asunto"} ·{" "}
                         {formatInquiryStatus(inquiry.status)}
                       </option>
                     ))
@@ -912,7 +832,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
               Cancelar
             </Button>
           </div>
-        </div>
+        </SectionCard>
       ) : null}
 
       {errorMessage ? (
@@ -1035,7 +955,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                       </div>
 
                       <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                        {followUp.inquiryId ? "Caso asociado disponible" : "Sin caso asociado"}
+                        {followUp.inquiryId
+                          ? "Caso asociado disponible"
+                          : "Sin caso asociado"}
                       </div>
 
                       <div className="flex flex-wrap gap-2 md:justify-end">
