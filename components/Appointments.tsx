@@ -8,7 +8,6 @@ import {
   Clock3,
   History,
   Plus,
-  RotateCcw,
   Search,
   X,
 } from "lucide-react";
@@ -24,8 +23,11 @@ import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
 import type { Appointment, AppointmentStatus } from "../types";
 
+import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
+import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
+import { SectionCard } from "./SectionCard";
 
 type AppointmentsProps = {
   openInquiry: (id: string) => void;
@@ -53,7 +55,7 @@ type AppointmentStatusFilter =
   | "completed"
   | "cancelled";
 
-type AppointmentColumnTone = "amber" | "blue" | "emerald";
+type AppointmentColumnTone = "warning" | "info" | "success";
 
 function getDefaultDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -228,39 +230,15 @@ function AppointmentStatusBadge({
   );
 }
 
-function getColumnClassName(tone: AppointmentColumnTone) {
-  if (tone === "amber") {
-    return "border-amber-200 bg-amber-50/60";
-  }
-
-  if (tone === "blue") {
-    return "border-sky-200 bg-sky-50/60";
-  }
-
-  return "border-emerald-200 bg-emerald-50/60";
-}
-
-function getColumnHeaderClassName(tone: AppointmentColumnTone) {
-  if (tone === "amber") {
-    return "bg-amber-100 text-amber-900";
-  }
-
-  if (tone === "blue") {
-    return "bg-sky-100 text-sky-900";
-  }
-
-  return "bg-emerald-100 text-emerald-900";
-}
-
 function getAppointmentCardClassName(
   tone: AppointmentColumnTone,
   isPendingClosure = false,
 ) {
-  if (isPendingClosure || tone === "amber") {
+  if (isPendingClosure || tone === "warning") {
     return "border-amber-200 bg-white shadow-sm ring-1 ring-amber-100";
   }
 
-  if (tone === "blue") {
+  if (tone === "info") {
     return "border-sky-200 bg-white shadow-sm ring-1 ring-sky-100";
   }
 
@@ -269,7 +247,7 @@ function getAppointmentCardClassName(
 
 function getHistoryStatusClassName(status: AppointmentStatus) {
   if (status === "completed") {
-    return "border-teal-200 bg-teal-50 text-teal-700";
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
   }
 
   if (status === "cancelled") {
@@ -277,59 +255,6 @@ function getHistoryStatusClassName(status: AppointmentStatus) {
   }
 
   return "border-slate-200 bg-white text-slate-600";
-}
-
-function MetricCard({
-  title,
-  value,
-  caption,
-  icon: Icon,
-  tone,
-}: {
-  title: string;
-  value: number;
-  caption: string;
-  icon: typeof Clock3;
-  tone: AppointmentColumnTone | "slate";
-}) {
-  const iconClassName =
-    tone === "amber"
-      ? "bg-amber-50 text-amber-700"
-      : tone === "blue"
-        ? "bg-sky-50 text-sky-700"
-        : tone === "emerald"
-          ? "bg-emerald-50 text-emerald-700"
-          : "bg-slate-100 text-slate-600";
-
-  const borderClassName =
-    tone === "amber"
-      ? "border-amber-200"
-      : tone === "blue"
-        ? "border-sky-200"
-        : tone === "emerald"
-          ? "border-emerald-200"
-          : "border-slate-200";
-
-  return (
-    <div
-      className={`rounded-2xl border ${borderClassName} bg-white p-4 shadow-sm`}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-            {title}
-          </div>
-          <div className="mt-2 text-2xl font-bold text-slate-950">{value}</div>
-        </div>
-
-        <div className={`rounded-2xl p-2 ${iconClassName}`}>
-          <Icon size={17} />
-        </div>
-      </div>
-
-      <p className="mt-2 text-xs leading-5 text-slate-500">{caption}</p>
-    </div>
-  );
 }
 
 export function Appointments({ openInquiry }: AppointmentsProps) {
@@ -998,34 +923,22 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     emptyMessage: string;
     isPendingClosure?: boolean;
   }) => (
-    <section className={`rounded-3xl border p-4 ${getColumnClassName(tone)}`}>
-      <div
-        className={`rounded-2xl px-4 py-3 ${getColumnHeaderClassName(tone)}`}
-      >
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <h2 className="font-bold">{title}</h2>
-            <p className="mt-1 text-xs leading-5 opacity-80">{description}</p>
-          </div>
-
-          <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold">
-            {count}
-          </span>
+    <BoardColumn
+      title={title}
+      description={description}
+      count={count}
+      tone={tone}
+    >
+      {columnAppointments.length === 0 ? (
+        <div className="rounded-2xl border border-white/70 bg-white/75 p-4 text-sm leading-6 text-slate-600 shadow-sm">
+          {emptyMessage}
         </div>
-      </div>
-
-      <div className="mt-4 space-y-3">
-        {columnAppointments.length === 0 ? (
-          <div className="rounded-2xl border border-white/70 bg-white/75 p-4 text-sm leading-6 text-slate-600">
-            {emptyMessage}
-          </div>
-        ) : (
-          columnAppointments.map((appointment) =>
-            renderActiveAppointmentCard(appointment, tone, isPendingClosure),
-          )
-        )}
-      </div>
-    </section>
+      ) : (
+        columnAppointments.map((appointment) =>
+          renderActiveAppointmentCard(appointment, tone, isPendingClosure),
+        )
+      )}
+    </BoardColumn>
   );
 
   return (
@@ -1046,7 +959,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           value={totalPendingClosureAppointments.length}
           caption="Citas activas con fecha pasada"
           icon={AlertTriangle}
-          tone="amber"
+          tone="warning"
         />
 
         <MetricCard
@@ -1054,7 +967,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           value={totalPendingConfirmationAppointments.length}
           caption="Citas internas todavía no validadas"
           icon={Clock3}
-          tone="blue"
+          tone="info"
         />
 
         <MetricCard
@@ -1062,7 +975,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           value={totalConfirmedAppointments.length}
           caption="Citas internas activas y programadas"
           icon={CalendarCheck2}
-          tone="emerald"
+          tone="success"
         />
 
         <MetricCard
@@ -1070,11 +983,11 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           value={totalHistoryAppointments.length}
           caption="Realizadas o canceladas"
           icon={History}
-          tone="slate"
+          tone="neutral"
         />
       </div>
 
-      <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+      <SectionCard className="mt-5">
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
           <label className="text-sm font-medium text-slate-700">
             Buscar cita
@@ -1119,10 +1032,10 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           Mostrando {filteredAppointments.length} de {appointments.length} citas
           internas.
         </p>
-      </div>
+      </SectionCard>
 
       {showForm ? (
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <SectionCard className="mt-5">
           <div className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 className="text-lg font-bold text-slate-950">
@@ -1238,7 +1151,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               Cancelar
             </Button>
           </div>
-        </div>
+        </SectionCard>
       ) : null}
 
       {errorMessage ? (
@@ -1283,7 +1196,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               title: "Pendientes de cerrar",
               description: "Ya han pasado y siguen activas.",
               count: pendingClosureAppointments.length,
-              tone: "amber",
+              tone: "warning",
               appointments: pendingClosureAppointments,
               emptyMessage: hasActiveFilters
                 ? "No hay citas pendientes de cerrar con estos filtros."
@@ -1295,7 +1208,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               title: "Por confirmar",
               description: "Citas creadas pero aún no validadas internamente.",
               count: pendingConfirmationAppointments.length,
-              tone: "blue",
+              tone: "info",
               appointments: pendingConfirmationAppointments,
               emptyMessage: hasActiveFilters
                 ? "No hay citas pendientes con estos filtros."
@@ -1306,7 +1219,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               title: "Confirmadas",
               description: "Citas internas activas y programadas.",
               count: confirmedAppointments.length,
-              tone: "emerald",
+              tone: "success",
               appointments: confirmedAppointments,
               emptyMessage: hasActiveFilters
                 ? "No hay citas confirmadas con estos filtros."
