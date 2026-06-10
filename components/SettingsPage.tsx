@@ -64,6 +64,136 @@ function createPublicIntakeToken() {
   return crypto.randomUUID();
 }
 
+type ChannelStatus = "active" | "inactive" | "not_configured";
+
+function getChannelStatusLabel(status: ChannelStatus) {
+  if (status === "active") {
+    return "Activo";
+  }
+
+  if (status === "inactive") {
+    return "Desactivado";
+  }
+
+  return "No configurado";
+}
+
+function getChannelStatusClassName(status: ChannelStatus) {
+  if (status === "active") {
+    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  }
+
+  if (status === "inactive") {
+    return "border-amber-200 bg-amber-50 text-amber-700";
+  }
+
+  return "border-slate-200 bg-slate-50 text-slate-600";
+}
+
+function ChannelStatusPill({ status }: { status: ChannelStatus }) {
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getChannelStatusClassName(
+        status
+      )}`}
+    >
+      {getChannelStatusLabel(status)}
+    </span>
+  );
+}
+
+type ChannelAccent = "form" | "chat" | "whatsapp";
+
+type ChannelOverviewCardProps = {
+  title: string;
+  description: string;
+  status: ChannelStatus;
+  detail: string;
+  detailLabel: string;
+  accent: ChannelAccent;
+  shortCode: string;
+};
+
+function getChannelAccentClassName(accent: ChannelAccent) {
+  if (accent === "form") {
+    return {
+      card: "border-cyan-200 bg-cyan-50/50 shadow-cyan-100/60",
+      bar: "bg-cyan-600",
+      icon: "bg-cyan-700 text-white",
+      detail: "border-cyan-100 bg-white text-cyan-950",
+    };
+  }
+
+  if (accent === "chat") {
+    return {
+      card: "border-violet-200 bg-violet-50/50 shadow-violet-100/60",
+      bar: "bg-violet-600",
+      icon: "bg-violet-700 text-white",
+      detail: "border-violet-100 bg-white text-violet-950",
+    };
+  }
+
+  return {
+    card: "border-emerald-200 bg-emerald-50/50 shadow-emerald-100/60",
+    bar: "bg-emerald-600",
+    icon: "bg-emerald-700 text-white",
+    detail: "border-emerald-100 bg-white text-emerald-950",
+  };
+}
+
+function ChannelOverviewCard({
+  title,
+  description,
+  status,
+  detail,
+  detailLabel,
+  accent,
+  shortCode,
+}: ChannelOverviewCardProps) {
+  const accentClassName = getChannelAccentClassName(accent);
+
+  return (
+    <article
+      className={`overflow-hidden rounded-3xl border shadow-md ${accentClassName.card}`}
+    >
+      <div className={`h-2 ${accentClassName.bar}`} />
+
+      <div className="p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div
+              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-black tracking-wide ${accentClassName.icon}`}
+            >
+              {shortCode}
+            </div>
+
+            <div>
+              <h3 className="text-base font-bold text-slate-950">{title}</h3>
+              <p className="mt-1 text-sm leading-5 text-slate-600">
+                {description}
+              </p>
+            </div>
+          </div>
+
+          <ChannelStatusPill status={status} />
+        </div>
+
+        <div
+          className={`mt-5 rounded-2xl border px-4 py-3 ${accentClassName.detail}`}
+        >
+          <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
+            {detailLabel}
+          </div>
+
+          <div className="mt-1 break-all text-xs font-semibold leading-5">
+            {detail}
+          </div>
+        </div>
+      </div>
+    </article>
+  );
+}
+
 export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -236,11 +366,27 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     ? `${publicFormOrigin}/api/inbound-whatsapp`
     : "";
 
-  const whatsAppStatusLabel = whatsAppPhoneNumberId
+
+
+  const publicIntakeChannelStatus: ChannelStatus = publicIntakeEnabled
+    ? "active"
+    : "inactive";
+
+  const publicChatChannelStatus: ChannelStatus = publicChatEnabled
+    ? "active"
+    : "inactive";
+
+  const whatsAppChannelStatus: ChannelStatus = whatsAppPhoneNumberId
     ? whatsAppEnabled
-      ? "Activo"
-      : "Configurado pero desactivado"
-    : "No configurado";
+      ? "active"
+      : "inactive"
+    : "not_configured";
+
+  const activeChannelCount = [
+    publicIntakeChannelStatus,
+    publicChatChannelStatus,
+    whatsAppChannelStatus,
+  ].filter((channelStatus) => channelStatus === "active").length;
 
   const handleCopyPublicIntakeUrl = async () => {
     setCopyMessage("");
@@ -440,6 +586,110 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       nextEnabled
         ? "Chat web activado correctamente."
         : "Chat web desactivado correctamente."
+    );
+  };
+
+  const handleToggleWhatsAppEnabled = async () => {
+    setWhatsAppMessage("");
+    setWhatsAppErrorMessage("");
+    setWhatsAppCopyMessage("");
+    setWhatsAppCopyErrorMessage("");
+
+    if (!canEditCompanySettings) {
+      setWhatsAppErrorMessage(
+        "Solo un usuario owner puede activar o desactivar el canal WhatsApp."
+      );
+      return;
+    }
+
+    if (!companyId) {
+      setWhatsAppErrorMessage(
+        "No se puede actualizar WhatsApp porque no hay empresa cargada."
+      );
+      return;
+    }
+
+    const cleanPhoneNumberId = whatsAppPhoneNumberId.trim();
+    const cleanDisplayPhoneNumber = whatsAppDisplayPhoneNumber.trim();
+
+    if (!cleanPhoneNumberId) {
+      setWhatsAppErrorMessage(
+        "Introduce el Phone number ID de Meta antes de activar WhatsApp."
+      );
+      return;
+    }
+
+    if (cleanPhoneNumberId.length > 120) {
+      setWhatsAppErrorMessage(
+        "El Phone number ID no puede superar los 120 caracteres."
+      );
+      return;
+    }
+
+    if (cleanDisplayPhoneNumber.length > 40) {
+      setWhatsAppErrorMessage(
+        "El número visible no puede superar los 40 caracteres."
+      );
+      return;
+    }
+
+    const nextEnabled = !whatsAppEnabled;
+
+    if (
+      !nextEnabled &&
+      !window.confirm(
+        "¿Seguro que quieres desactivar WhatsApp? COPPE rechazará nuevos mensajes entrantes para este número."
+      )
+    ) {
+      return;
+    }
+
+    setIsSavingWhatsAppChannel(true);
+
+    const query = whatsAppChannelId
+      ? supabase
+          .from("inbound_whatsapp_channels")
+          .update({
+            phone_number_id: cleanPhoneNumberId,
+            display_phone_number: cleanDisplayPhoneNumber || null,
+            enabled: nextEnabled,
+          })
+          .eq("id", whatsAppChannelId)
+          .select("id, phone_number_id, display_phone_number, enabled")
+          .single<InboundWhatsAppChannelSettingsRow>()
+      : supabase
+          .from("inbound_whatsapp_channels")
+          .insert({
+            company_id: companyId,
+            phone_number_id: cleanPhoneNumberId,
+            display_phone_number: cleanDisplayPhoneNumber || null,
+            provider: "meta",
+            enabled: nextEnabled,
+          })
+          .select("id, phone_number_id, display_phone_number, enabled")
+          .single<InboundWhatsAppChannelSettingsRow>();
+
+    const { data, error } = await query;
+
+    setIsSavingWhatsAppChannel(false);
+
+    if (error || !data) {
+      setWhatsAppErrorMessage(
+        `No se pudo actualizar WhatsApp: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setWhatsAppChannelId(data.id);
+    setWhatsAppPhoneNumberId(data.phone_number_id);
+    setWhatsAppDisplayPhoneNumber(data.display_phone_number ?? "");
+    setWhatsAppEnabled(Boolean(data.enabled));
+    setWhatsAppMessage(
+      nextEnabled
+        ? "Canal WhatsApp activado correctamente."
+        : "Canal WhatsApp desactivado correctamente."
     );
   };
 
@@ -682,7 +932,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     <div>
       <PageHeader
         title="Configuración"
-        description="Ajusta los datos de tu empresa, canales y preferencias del asistente."
+        description="Administra los datos de empresa, equipo, canales de entrada y preferencias del asistente."
       />
 
       {isLoading ? (
@@ -690,7 +940,73 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
           Cargando configuración de empresa...
         </div>
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+        <div className="space-y-5">
+          <section className="rounded-3xl border border-slate-300 bg-white p-6 shadow-sm">
+            <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">
+                    Estado de canales
+                  </h2>
+
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    Vista rápida de los canales de entrada conectados a COPPE.
+                    Cada tarjeta usa un color propio para que puedas distinguir
+                    rápidamente qué canal estás revisando.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-[#0F4C5C]/20 bg-white px-5 py-4 text-sm shadow-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Canales activos
+                  </div>
+
+                  <div className="mt-1 text-3xl font-black text-[#0F4C5C]">
+                    {activeChannelCount}/3
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-4 lg:grid-cols-3">
+              <ChannelOverviewCard
+                title="Formulario web"
+                description="Recibe solicitudes estructuradas desde una página de contacto pública."
+                status={publicIntakeChannelStatus}
+                detail={publicIntakeUrl || "Enlace no disponible"}
+                detailLabel="Enlace público"
+                accent="form"
+                shortCode="FW"
+              />
+
+              <ChannelOverviewCard
+                title="Chat web"
+                description="Capta consultas con una experiencia visual tipo conversación."
+                status={publicChatChannelStatus}
+                detail={publicChatUrl || "Enlace no disponible"}
+                detailLabel="Enlace público"
+                accent="chat"
+                shortCode="CW"
+              />
+
+              <ChannelOverviewCard
+                title="WhatsApp"
+                description="Entrada automática desde WhatsApp Business Cloud API."
+                status={whatsAppChannelStatus}
+                detail={
+                  whatsAppPhoneNumberId
+                    ? `Phone number ID: ${whatsAppPhoneNumberId}`
+                    : "Añade el Phone number ID para activar este canal"
+                }
+                detailLabel="Configuración"
+                accent="whatsapp"
+                shortCode="WA"
+              />
+            </div>
+          </section>
+
+          <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+            <div className="space-y-5">
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-slate-950">
               Información de empresa
@@ -786,9 +1102,347 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               {isSaving ? "Guardando..." : "Guardar cambios"}
             </Button>
           </div>
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <h2 className="text-lg font-bold text-slate-950">
+                    Canales de entrada
+                  </h2>
 
-          <div className="space-y-5">
-            <TeamSettingsCard />
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Gestiona desde un mismo bloque los enlaces públicos y el
+                    canal WhatsApp. Todos los canales usan el mismo patrón:
+                    estado, configuración y acciones.
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Activos
+                  </div>
+                  <div className="mt-1 font-bold text-slate-950">
+                    {activeChannelCount}/3
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-5 space-y-4">
+                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Formulario web
+                      </div>
+                      <h3 className="mt-1 font-semibold text-slate-950">
+                        Solicitudes estructuradas desde una página pública
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Útil para webs de empresa, landing pages o enlaces de
+                        contacto donde el cliente deja sus datos y mensaje.
+                      </p>
+                    </div>
+
+                    <ChannelStatusPill status={publicIntakeChannelStatus} />
+                  </div>
+
+                  <label className="mt-4 block text-sm font-medium text-slate-700">
+                    Enlace público
+                    <input
+                      value={publicIntakeUrl || "Enlace no disponible"}
+                      readOnly
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
+                    />
+                  </label>
+
+                  {copyErrorMessage ? (
+                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {copyErrorMessage}
+                    </div>
+                  ) : null}
+
+                  {copyMessage ? (
+                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {copyMessage}
+                    </div>
+                  ) : null}
+
+                  {!publicIntakeEnabled ? (
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      El enlace existe, pero no aceptará nuevos mensajes mientras
+                      el formulario web esté desactivado.
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant="secondary"
+                      onClick={handleCopyPublicIntakeUrl}
+                      disabled={!publicIntakeUrl || isUpdatingPublicChannels}
+                    >
+                      Copiar enlace
+                    </Button>
+
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant={publicIntakeEnabled ? "secondary" : "primary"}
+                      onClick={handleTogglePublicIntakeEnabled}
+                      disabled={
+                        isUpdatingPublicChannels ||
+                        !publicIntakeToken ||
+                        !canEditCompanySettings
+                      }
+                    >
+                      {isUpdatingPublicIntake
+                        ? "Actualizando..."
+                        : publicIntakeEnabled
+                          ? "Desactivar"
+                          : "Activar"}
+                    </Button>
+                  </div>
+                </article>
+
+                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        Chat web
+                      </div>
+                      <h3 className="mt-1 font-semibold text-slate-950">
+                        Experiencia tipo chat para captar consultas web
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Canal visual pensado para recibir mensajes desde una
+                        página pública o futuras integraciones embebidas.
+                      </p>
+                    </div>
+
+                    <ChannelStatusPill status={publicChatChannelStatus} />
+                  </div>
+
+                  <label className="mt-4 block text-sm font-medium text-slate-700">
+                    Enlace público
+                    <input
+                      value={publicChatUrl || "Enlace no disponible"}
+                      readOnly
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
+                    />
+                  </label>
+
+                  {publicChatCopyErrorMessage ? (
+                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {publicChatCopyErrorMessage}
+                    </div>
+                  ) : null}
+
+                  {publicChatCopyMessage ? (
+                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {publicChatCopyMessage}
+                    </div>
+                  ) : null}
+
+                  {!publicChatEnabled ? (
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      El enlace existe, pero no aceptará nuevos mensajes mientras
+                      el chat web esté desactivado.
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant="secondary"
+                      onClick={handleCopyPublicChatUrl}
+                      disabled={!publicChatUrl || isUpdatingPublicChannels}
+                    >
+                      Copiar enlace
+                    </Button>
+
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant={publicChatEnabled ? "secondary" : "primary"}
+                      onClick={handleTogglePublicChatEnabled}
+                      disabled={
+                        isUpdatingPublicChannels ||
+                        !publicIntakeToken ||
+                        !canEditCompanySettings
+                      }
+                    >
+                      {isUpdatingPublicChat
+                        ? "Actualizando..."
+                        : publicChatEnabled
+                          ? "Desactivar"
+                          : "Activar"}
+                    </Button>
+                  </div>
+                </article>
+
+                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                        WhatsApp
+                      </div>
+                      <h3 className="mt-1 font-semibold text-slate-950">
+                        Entrada automática desde WhatsApp Business Cloud API
+                      </h3>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        Los mensajes entrantes de Meta crearán casos con el canal
+                        WhatsApp. La activación usa el mismo patrón que el resto
+                        de canales.
+                      </p>
+                    </div>
+
+                    <ChannelStatusPill status={whatsAppChannelStatus} />
+                  </div>
+
+                  <div className="mt-4 grid gap-4 md:grid-cols-2">
+                    <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                      URL del webhook
+                      <input
+                        value={whatsAppWebhookUrl || "URL no disponible"}
+                        readOnly
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
+                      />
+                    </label>
+
+                    <label className="block text-sm font-medium text-slate-700">
+                      Phone number ID de Meta
+                      <input
+                        value={whatsAppPhoneNumberId}
+                        disabled={!canEditCompanySettings}
+                        onChange={(event) => {
+                          setWhatsAppPhoneNumberId(event.target.value);
+                          setWhatsAppMessage("");
+                          setWhatsAppErrorMessage("");
+                        }}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                        placeholder="Ej. 123456789012345"
+                      />
+                    </label>
+
+                    <label className="block text-sm font-medium text-slate-700">
+                      Número visible
+                      <input
+                        value={whatsAppDisplayPhoneNumber}
+                        disabled={!canEditCompanySettings}
+                        onChange={(event) => {
+                          setWhatsAppDisplayPhoneNumber(event.target.value);
+                          setWhatsAppMessage("");
+                          setWhatsAppErrorMessage("");
+                        }}
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                        placeholder="Ej. +34 600 000 000"
+                      />
+                    </label>
+                  </div>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    El token de verificación de Meta debe coincidir con
+                    WHATSAPP_WEBHOOK_VERIFY_TOKEN. El envío de respuestas por
+                    WhatsApp queda para una fase posterior.
+                  </p>
+
+                  {whatsAppErrorMessage ? (
+                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {whatsAppErrorMessage}
+                    </div>
+                  ) : null}
+
+                  {whatsAppMessage ? (
+                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {whatsAppMessage}
+                    </div>
+                  ) : null}
+
+                  {whatsAppCopyErrorMessage ? (
+                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                      {whatsAppCopyErrorMessage}
+                    </div>
+                  ) : null}
+
+                  {whatsAppCopyMessage ? (
+                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                      {whatsAppCopyMessage}
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant="secondary"
+                      onClick={handleCopyWhatsAppWebhookUrl}
+                      disabled={!whatsAppWebhookUrl}
+                    >
+                      Copiar URL webhook
+                    </Button>
+
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant="secondary"
+                      onClick={handleSaveWhatsAppChannel}
+                      disabled={isSavingWhatsAppChannel || !canEditCompanySettings}
+                    >
+                      {isSavingWhatsAppChannel
+                        ? "Guardando..."
+                        : "Guardar configuración"}
+                    </Button>
+
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant={whatsAppEnabled ? "secondary" : "primary"}
+                      onClick={handleToggleWhatsAppEnabled}
+                      disabled={isSavingWhatsAppChannel || !canEditCompanySettings}
+                    >
+                      {isSavingWhatsAppChannel
+                        ? "Actualizando..."
+                        : whatsAppEnabled
+                          ? "Desactivar"
+                          : "Activar"}
+                    </Button>
+                  </div>
+                </article>
+              </div>
+
+              {publicIntakeErrorMessage ? (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {publicIntakeErrorMessage}
+                </div>
+              ) : null}
+
+              {publicIntakeMessage ? (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                  {publicIntakeMessage}
+                </div>
+              ) : null}
+
+              <div className="mt-5 border-t border-slate-200 pt-4">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs leading-5 text-slate-500">
+                    Si regeneras los enlaces, tanto el enlace del formulario
+                    como el enlace del chat cambiarán. Los estados de cada canal
+                    se mantendrán.
+                  </p>
+
+                  <Button
+                    className="w-full sm:w-auto"
+                    variant="ghost"
+                    onClick={handleRegeneratePublicIntakeToken}
+                    disabled={
+                      isUpdatingPublicChannels ||
+                      !companyId ||
+                      !canEditCompanySettings
+                    }
+                  >
+                    Regenerar enlaces públicos
+                  </Button>
+                </div>
+              </div>
+            </div>
+            </div>
+
+            <aside className="space-y-5">
+              <TeamSettingsCard />
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-slate-950">
@@ -843,344 +1497,6 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">
-                Canales públicos
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Comparte estos enlaces para recibir mensajes desde el formulario
-                web o desde el chat web. Cada canal puede activarse o
-                desactivarse por separado.
-              </p>
-
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Formulario web
-                  </div>
-
-                  <div className="mt-1 font-medium text-slate-800">
-                    {publicIntakeEnabled ? "Activo" : "Desactivado"}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Chat web
-                  </div>
-
-                  <div className="mt-1 font-medium text-slate-800">
-                    {publicChatEnabled ? "Activo" : "Desactivado"}
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="font-semibold text-slate-950">
-                  Formulario web
-                </h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Página pública para recibir solicitudes estructuradas desde un
-                  enlace de contacto.
-                </p>
-
-                <label className="mt-3 block text-sm font-medium text-slate-700">
-                  Enlace del formulario
-                  <input
-                    value={publicIntakeUrl || "Enlace no disponible"}
-                    readOnly
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
-                  />
-                </label>
-
-                {copyErrorMessage ? (
-                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {copyErrorMessage}
-                  </div>
-                ) : null}
-
-                {copyMessage ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {copyMessage}
-                  </div>
-                ) : null}
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <Button
-                    className="w-full"
-                    onClick={handleCopyPublicIntakeUrl}
-                    disabled={!publicIntakeUrl || isUpdatingPublicChannels}
-                  >
-                    Copiar enlace
-                  </Button>
-
-                  <Button
-                    className="w-full"
-                    variant={publicIntakeEnabled ? "secondary" : "primary"}
-                    onClick={handleTogglePublicIntakeEnabled}
-                    disabled={
-                      isUpdatingPublicChannels ||
-                      !publicIntakeToken ||
-                      !canEditCompanySettings
-                    }
-                  >
-                    {isUpdatingPublicIntake
-                      ? "Actualizando..."
-                      : publicIntakeEnabled
-                        ? "Desactivar"
-                        : "Activar"}
-                  </Button>
-                </div>
-
-                {!publicIntakeEnabled ? (
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    El enlace existe, pero no aceptará nuevos mensajes mientras
-                    el formulario web esté desactivado.
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
-                <h3 className="font-semibold text-slate-950">Chat web</h3>
-
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Experiencia visual tipo chat para recibir consultas desde una
-                  página pública o desde futuras integraciones embebidas.
-                </p>
-
-                <label className="mt-3 block text-sm font-medium text-slate-700">
-                  Enlace del chat
-                  <input
-                    value={publicChatUrl || "Enlace no disponible"}
-                    readOnly
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
-                  />
-                </label>
-
-                {publicChatCopyErrorMessage ? (
-                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {publicChatCopyErrorMessage}
-                  </div>
-                ) : null}
-
-                {publicChatCopyMessage ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {publicChatCopyMessage}
-                  </div>
-                ) : null}
-
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <Button
-                    className="w-full"
-                    onClick={handleCopyPublicChatUrl}
-                    disabled={!publicChatUrl || isUpdatingPublicChannels}
-                  >
-                    Copiar enlace
-                  </Button>
-
-                  <Button
-                    className="w-full"
-                    variant={publicChatEnabled ? "secondary" : "primary"}
-                    onClick={handleTogglePublicChatEnabled}
-                    disabled={
-                      isUpdatingPublicChannels ||
-                      !publicIntakeToken ||
-                      !canEditCompanySettings
-                    }
-                  >
-                    {isUpdatingPublicChat
-                      ? "Actualizando..."
-                      : publicChatEnabled
-                        ? "Desactivar"
-                        : "Activar"}
-                  </Button>
-                </div>
-
-                {!publicChatEnabled ? (
-                  <p className="mt-3 text-xs leading-5 text-slate-500">
-                    El enlace existe, pero no aceptará nuevos mensajes mientras
-                    el chat web esté desactivado.
-                  </p>
-                ) : null}
-              </div>
-
-              {publicIntakeErrorMessage ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {publicIntakeErrorMessage}
-                </div>
-              ) : null}
-
-              {publicIntakeMessage ? (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {publicIntakeMessage}
-                </div>
-              ) : null}
-
-              <Button
-                className="mt-4 w-full"
-                variant="ghost"
-                onClick={handleRegeneratePublicIntakeToken}
-                disabled={
-                  isUpdatingPublicChannels ||
-                  !companyId ||
-                  !canEditCompanySettings
-                }
-              >
-                Regenerar enlaces públicos
-              </Button>
-
-              <p className="mt-3 text-xs leading-5 text-slate-500">
-                Si regeneras los enlaces, tanto el enlace del formulario como el
-                enlace del chat cambiarán. Los estados activo/desactivado de
-                cada canal se mantendrán.
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">
-                Canal WhatsApp
-              </h2>
-
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Configura la recepción automática de mensajes desde WhatsApp
-                Business Cloud API. Los mensajes entrantes crearán casos con el
-                canal WhatsApp.
-              </p>
-
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Estado
-                </div>
-
-                <div className="mt-1 font-medium text-slate-800">
-                  {whatsAppStatusLabel}
-                </div>
-              </div>
-
-              <label className="mt-4 block text-sm font-medium text-slate-700">
-                URL del webhook
-                <input
-                  value={whatsAppWebhookUrl || "URL no disponible"}
-                  readOnly
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
-                />
-              </label>
-
-              <p className="mt-2 text-xs leading-5 text-slate-500">
-                Usa esta URL en Meta como webhook de WhatsApp. El token de
-                verificación debe coincidir con la variable de entorno
-                WHATSAPP_WEBHOOK_VERIFY_TOKEN.
-              </p>
-
-              <label className="mt-4 block text-sm font-medium text-slate-700">
-                Phone number ID de Meta
-                <input
-                  value={whatsAppPhoneNumberId}
-                  disabled={!canEditCompanySettings}
-                  onChange={(event) => {
-                    setWhatsAppPhoneNumberId(event.target.value);
-                    setWhatsAppMessage("");
-                    setWhatsAppErrorMessage("");
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  placeholder="Ej. 123456789012345"
-                />
-              </label>
-
-              <label className="mt-4 block text-sm font-medium text-slate-700">
-                Número visible
-                <input
-                  value={whatsAppDisplayPhoneNumber}
-                  disabled={!canEditCompanySettings}
-                  onChange={(event) => {
-                    setWhatsAppDisplayPhoneNumber(event.target.value);
-                    setWhatsAppMessage("");
-                    setWhatsAppErrorMessage("");
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  placeholder="Ej. +34 600 000 000"
-                />
-              </label>
-
-              <label className="mt-4 flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                <input
-                  type="checkbox"
-                  checked={whatsAppEnabled}
-                  disabled={!canEditCompanySettings}
-                  onChange={(event) => {
-                    setWhatsAppEnabled(event.target.checked);
-                    setWhatsAppMessage("");
-                    setWhatsAppErrorMessage("");
-                  }}
-                  className="mt-1"
-                />
-
-                <span>
-                  <span className="font-semibold text-slate-800">
-                    Canal activo
-                  </span>
-
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    Si está desactivado, COPPE rechazará nuevos mensajes
-                    entrantes para este número.
-                  </span>
-                </span>
-              </label>
-
-              {whatsAppErrorMessage ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {whatsAppErrorMessage}
-                </div>
-              ) : null}
-
-              {whatsAppMessage ? (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {whatsAppMessage}
-                </div>
-              ) : null}
-
-              {whatsAppCopyErrorMessage ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {whatsAppCopyErrorMessage}
-                </div>
-              ) : null}
-
-              {whatsAppCopyMessage ? (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {whatsAppCopyMessage}
-                </div>
-              ) : null}
-
-              <div className="mt-4 space-y-2">
-                <Button
-                  className="w-full"
-                  variant="secondary"
-                  onClick={handleCopyWhatsAppWebhookUrl}
-                  disabled={!whatsAppWebhookUrl}
-                >
-                  Copiar URL webhook
-                </Button>
-
-                <Button
-                  className="w-full"
-                  onClick={handleSaveWhatsAppChannel}
-                  disabled={isSavingWhatsAppChannel || !canEditCompanySettings}
-                >
-                  {isSavingWhatsAppChannel
-                    ? "Guardando WhatsApp..."
-                    : "Guardar WhatsApp"}
-                </Button>
-              </div>
-
-              <p className="mt-3 text-xs leading-5 text-slate-500">
-                Esta configuración solo guarda el canal entrante. El envío de
-                respuestas por WhatsApp y las plantillas de Meta quedan para una
-                fase posterior.
-              </p>
-            </div>
-
             <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-6 text-slate-600 shadow-sm">
               <h3 className="font-bold text-slate-950">
                 Cómo se aplican estos ajustes
@@ -1196,6 +1512,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 servicio, estilo de comunicación o idioma principal.
               </p>
             </div>
+            </aside>
           </div>
         </div>
       )}
