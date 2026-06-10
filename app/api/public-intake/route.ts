@@ -31,6 +31,7 @@ type PublicIntakeCompany = {
   tone: string | null;
   language: string | null;
   public_intake_enabled: boolean;
+  public_chat_enabled: boolean;
 };
 
 type PublicIntakeAnalysis = Awaited<ReturnType<typeof analyzeInquiryForCompany>>;
@@ -381,7 +382,7 @@ export async function POST(request: Request) {
   const { data: company, error: companyError } = await supabaseAdmin
     .from("companies")
     .select(
-      "id, name, sector, description, tone, language, public_intake_enabled"
+      "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled"
     )
     .eq("public_intake_token", publicIntakeToken)
     .maybeSingle<PublicIntakeCompany>();
@@ -404,9 +405,16 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!company.public_intake_enabled) {
+  if (sourceChannel === "Formulario web" && !company.public_intake_enabled) {
     return NextResponse.json(
-      { error: "Este canal público no está activo en este momento." },
+      { error: "El formulario web público no está activo en este momento." },
+      { status: 403 }
+    );
+  }
+
+  if (sourceChannel === "Chat web" && !company.public_chat_enabled) {
+    return NextResponse.json(
+      { error: "El chat web público no está activo en este momento." },
       { status: 403 }
     );
   }

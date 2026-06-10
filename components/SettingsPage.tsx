@@ -29,6 +29,7 @@ type SettingsPageProps = {
 type PublicIntakeSettingsRow = {
   public_intake_token: string | null;
   public_intake_enabled: boolean | null;
+  public_chat_enabled: boolean | null;
 };
 
 type InboundWhatsAppChannelSettingsRow = {
@@ -79,12 +80,17 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
   const [publicIntakeToken, setPublicIntakeToken] = useState("");
   const [publicIntakeEnabled, setPublicIntakeEnabled] = useState(false);
+  const [publicChatEnabled, setPublicChatEnabled] = useState(false);
   const [publicFormOrigin, setPublicFormOrigin] = useState("");
   const [isUpdatingPublicIntake, setIsUpdatingPublicIntake] = useState(false);
+  const [isUpdatingPublicChat, setIsUpdatingPublicChat] = useState(false);
   const [publicIntakeMessage, setPublicIntakeMessage] = useState("");
   const [publicIntakeErrorMessage, setPublicIntakeErrorMessage] = useState("");
   const [copyMessage, setCopyMessage] = useState("");
   const [copyErrorMessage, setCopyErrorMessage] = useState("");
+  const [publicChatCopyMessage, setPublicChatCopyMessage] = useState("");
+  const [publicChatCopyErrorMessage, setPublicChatCopyErrorMessage] =
+    useState("");
 
   const [whatsAppChannelId, setWhatsAppChannelId] = useState("");
   const [whatsAppPhoneNumberId, setWhatsAppPhoneNumberId] = useState("");
@@ -103,6 +109,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [errorMessage, setErrorMessage] = useState("");
 
   const canEditCompanySettings = canManageCompanySettings(currentCompany);
+  const isUpdatingPublicChannels =
+    isUpdatingPublicIntake || isUpdatingPublicChat;
 
   useEffect(() => {
     setPublicFormOrigin(window.location.origin);
@@ -118,6 +126,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setPublicIntakeErrorMessage("");
       setCopyMessage("");
       setCopyErrorMessage("");
+      setPublicChatCopyMessage("");
+      setPublicChatCopyErrorMessage("");
       setWhatsAppMessage("");
       setWhatsAppErrorMessage("");
       setWhatsAppCopyMessage("");
@@ -126,6 +136,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setWhatsAppPhoneNumberId("");
       setWhatsAppDisplayPhoneNumber("");
       setWhatsAppEnabled(false);
+      setPublicChatEnabled(false);
 
       const { data, error } = await getCurrentCompany(supabase);
 
@@ -150,13 +161,15 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       const { data: publicIntakeSettings, error: publicIntakeSettingsError } =
         await supabase
           .from("companies")
-          .select("public_intake_token, public_intake_enabled")
+          .select(
+            "public_intake_token, public_intake_enabled, public_chat_enabled"
+          )
           .eq("id", data.id)
           .maybeSingle<PublicIntakeSettingsRow>();
 
       if (publicIntakeSettingsError) {
         setErrorMessage(
-          `No se pudo cargar la configuración del formulario público: ${
+          `No se pudo cargar la configuración de los canales públicos: ${
             publicIntakeSettingsError.message || "sin detalle del error"
           }`
         );
@@ -194,6 +207,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setPublicIntakeEnabled(
         Boolean(publicIntakeSettings?.public_intake_enabled)
       );
+      setPublicChatEnabled(Boolean(publicIntakeSettings?.public_chat_enabled));
       setWhatsAppChannelId(whatsAppChannelSettings?.id ?? "");
       setWhatsAppPhoneNumberId(
         whatsAppChannelSettings?.phone_number_id ?? ""
@@ -213,6 +227,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       ? `${publicFormOrigin}/contacto/${publicIntakeToken}`
       : "";
 
+  const publicChatUrl =
+    publicFormOrigin && publicIntakeToken
+      ? `${publicFormOrigin}/chat/${publicIntakeToken}`
+      : "";
+
   const whatsAppWebhookUrl = publicFormOrigin
     ? `${publicFormOrigin}/api/inbound-whatsapp`
     : "";
@@ -226,19 +245,44 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const handleCopyPublicIntakeUrl = async () => {
     setCopyMessage("");
     setCopyErrorMessage("");
+    setPublicChatCopyMessage("");
+    setPublicChatCopyErrorMessage("");
     setPublicIntakeMessage("");
     setPublicIntakeErrorMessage("");
 
     if (!publicIntakeUrl) {
-      setCopyErrorMessage("No hay ningún enlace público disponible.");
+      setCopyErrorMessage("No hay ningún enlace del formulario disponible.");
       return;
     }
 
     try {
       await navigator.clipboard.writeText(publicIntakeUrl);
-      setCopyMessage("Enlace copiado correctamente.");
+      setCopyMessage("Enlace del formulario copiado correctamente.");
     } catch {
       setCopyErrorMessage(
+        "No se pudo copiar el enlace. Puedes seleccionarlo y copiarlo manualmente."
+      );
+    }
+  };
+
+  const handleCopyPublicChatUrl = async () => {
+    setPublicChatCopyMessage("");
+    setPublicChatCopyErrorMessage("");
+    setCopyMessage("");
+    setCopyErrorMessage("");
+    setPublicIntakeMessage("");
+    setPublicIntakeErrorMessage("");
+
+    if (!publicChatUrl) {
+      setPublicChatCopyErrorMessage("No hay ningún enlace de chat disponible.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(publicChatUrl);
+      setPublicChatCopyMessage("Enlace del chat copiado correctamente.");
+    } catch {
+      setPublicChatCopyErrorMessage(
         "No se pudo copiar el enlace. Puedes seleccionarlo y copiarlo manualmente."
       );
     }
@@ -270,6 +314,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeErrorMessage("");
     setCopyMessage("");
     setCopyErrorMessage("");
+    setPublicChatCopyMessage("");
+    setPublicChatCopyErrorMessage("");
 
     if (!canEditCompanySettings) {
       setPublicIntakeErrorMessage(
@@ -280,7 +326,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
     if (!companyId) {
       setPublicIntakeErrorMessage(
-        "No se puede actualizar el formulario porque no hay empresa cargada."
+        "No se puede actualizar el formulario web porque no hay empresa cargada."
       );
       return;
     }
@@ -290,7 +336,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     if (
       !nextEnabled &&
       !window.confirm(
-        "¿Seguro que quieres desactivar el formulario web público? El enlace dejará de estar disponible para nuevos mensajes."
+        "¿Seguro que quieres desactivar el formulario web público? El enlace del formulario dejará de aceptar nuevos mensajes."
       )
     ) {
       return;
@@ -304,14 +350,16 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         public_intake_enabled: nextEnabled,
       })
       .eq("id", companyId)
-      .select("public_intake_token, public_intake_enabled")
+      .select(
+        "public_intake_token, public_intake_enabled, public_chat_enabled"
+      )
       .single<PublicIntakeSettingsRow>();
 
     setIsUpdatingPublicIntake(false);
 
     if (error || !data) {
       setPublicIntakeErrorMessage(
-        `No se pudo actualizar el formulario público: ${
+        `No se pudo actualizar el formulario web: ${
           error?.message || "sin detalle del error"
         }`
       );
@@ -320,10 +368,78 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
     setPublicIntakeToken(data.public_intake_token ?? publicIntakeToken);
     setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
+    setPublicChatEnabled(Boolean(data.public_chat_enabled));
     setPublicIntakeMessage(
       nextEnabled
-        ? "Formulario web público activado correctamente."
-        : "Formulario web público desactivado correctamente."
+        ? "Formulario web activado correctamente."
+        : "Formulario web desactivado correctamente."
+    );
+  };
+
+  const handleTogglePublicChatEnabled = async () => {
+    setPublicIntakeMessage("");
+    setPublicIntakeErrorMessage("");
+    setCopyMessage("");
+    setCopyErrorMessage("");
+    setPublicChatCopyMessage("");
+    setPublicChatCopyErrorMessage("");
+
+    if (!canEditCompanySettings) {
+      setPublicIntakeErrorMessage(
+        "Solo un usuario owner puede modificar el chat web público."
+      );
+      return;
+    }
+
+    if (!companyId) {
+      setPublicIntakeErrorMessage(
+        "No se puede actualizar el chat web porque no hay empresa cargada."
+      );
+      return;
+    }
+
+    const nextEnabled = !publicChatEnabled;
+
+    if (
+      !nextEnabled &&
+      !window.confirm(
+        "¿Seguro que quieres desactivar el chat web público? El enlace del chat dejará de aceptar nuevos mensajes."
+      )
+    ) {
+      return;
+    }
+
+    setIsUpdatingPublicChat(true);
+
+    const { data, error } = await supabase
+      .from("companies")
+      .update({
+        public_chat_enabled: nextEnabled,
+      })
+      .eq("id", companyId)
+      .select(
+        "public_intake_token, public_intake_enabled, public_chat_enabled"
+      )
+      .single<PublicIntakeSettingsRow>();
+
+    setIsUpdatingPublicChat(false);
+
+    if (error || !data) {
+      setPublicIntakeErrorMessage(
+        `No se pudo actualizar el chat web: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setPublicIntakeToken(data.public_intake_token ?? publicIntakeToken);
+    setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
+    setPublicChatEnabled(Boolean(data.public_chat_enabled));
+    setPublicIntakeMessage(
+      nextEnabled
+        ? "Chat web activado correctamente."
+        : "Chat web desactivado correctamente."
     );
   };
 
@@ -332,24 +448,26 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeErrorMessage("");
     setCopyMessage("");
     setCopyErrorMessage("");
+    setPublicChatCopyMessage("");
+    setPublicChatCopyErrorMessage("");
 
     if (!canEditCompanySettings) {
       setPublicIntakeErrorMessage(
-        "Solo un usuario owner puede regenerar el enlace del formulario web público."
+        "Solo un usuario owner puede regenerar los enlaces públicos."
       );
       return;
     }
 
     if (!companyId) {
       setPublicIntakeErrorMessage(
-        "No se puede regenerar el enlace porque no hay empresa cargada."
+        "No se pueden regenerar los enlaces porque no hay empresa cargada."
       );
       return;
     }
 
     if (
       !window.confirm(
-        "¿Seguro que quieres regenerar el enlace público? El enlace anterior dejará de funcionar."
+        "¿Seguro que quieres regenerar los enlaces públicos? Los enlaces anteriores del formulario y del chat dejarán de funcionar."
       )
     ) {
       return;
@@ -365,14 +483,16 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         public_intake_token: nextToken,
       })
       .eq("id", companyId)
-      .select("public_intake_token, public_intake_enabled")
+      .select(
+        "public_intake_token, public_intake_enabled, public_chat_enabled"
+      )
       .single<PublicIntakeSettingsRow>();
 
     setIsUpdatingPublicIntake(false);
 
     if (error || !data?.public_intake_token) {
       setPublicIntakeErrorMessage(
-        `No se pudo regenerar el enlace público: ${
+        `No se pudieron regenerar los enlaces públicos: ${
           error?.message || "sin detalle del error"
         }`
       );
@@ -381,8 +501,9 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
     setPublicIntakeToken(data.public_intake_token);
     setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
+    setPublicChatEnabled(Boolean(data.public_chat_enabled));
     setPublicIntakeMessage(
-      "Enlace público regenerado correctamente. El enlace anterior ya no funcionará."
+      "Enlaces públicos regenerados correctamente. Los enlaces anteriores ya no funcionarán."
     );
   };
 
@@ -482,6 +603,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeErrorMessage("");
     setCopyMessage("");
     setCopyErrorMessage("");
+    setPublicChatCopyMessage("");
+    setPublicChatCopyErrorMessage("");
     setWhatsAppMessage("");
     setWhatsAppErrorMessage("");
     setWhatsAppCopyMessage("");
@@ -722,33 +845,166 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
             <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
               <h2 className="text-lg font-bold text-slate-950">
-                Formulario web público
+                Canales públicos
               </h2>
 
               <p className="mt-2 text-sm leading-6 text-slate-500">
-                Comparte este enlace para recibir mensajes desde un formulario
-                público. Los mensajes crearán casos automáticamente con el canal
-                Formulario web.
+                Comparte estos enlaces para recibir mensajes desde el formulario
+                web o desde el chat web. Cada canal puede activarse o
+                desactivarse por separado.
               </p>
 
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Estado
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Formulario web
+                  </div>
+
+                  <div className="mt-1 font-medium text-slate-800">
+                    {publicIntakeEnabled ? "Activo" : "Desactivado"}
+                  </div>
                 </div>
 
-                <div className="mt-1 font-medium text-slate-800">
-                  {publicIntakeEnabled ? "Activo" : "Desactivado"}
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    Chat web
+                  </div>
+
+                  <div className="mt-1 font-medium text-slate-800">
+                    {publicChatEnabled ? "Activo" : "Desactivado"}
+                  </div>
                 </div>
               </div>
 
-              <label className="mt-4 block text-sm font-medium text-slate-700">
-                Enlace público
-                <input
-                  value={publicIntakeUrl || "Enlace no disponible"}
-                  readOnly
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
-                />
-              </label>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="font-semibold text-slate-950">
+                  Formulario web
+                </h3>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Página pública para recibir solicitudes estructuradas desde un
+                  enlace de contacto.
+                </p>
+
+                <label className="mt-3 block text-sm font-medium text-slate-700">
+                  Enlace del formulario
+                  <input
+                    value={publicIntakeUrl || "Enlace no disponible"}
+                    readOnly
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                  />
+                </label>
+
+                {copyErrorMessage ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {copyErrorMessage}
+                  </div>
+                ) : null}
+
+                {copyMessage ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {copyMessage}
+                  </div>
+                ) : null}
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <Button
+                    className="w-full"
+                    onClick={handleCopyPublicIntakeUrl}
+                    disabled={!publicIntakeUrl || isUpdatingPublicChannels}
+                  >
+                    Copiar enlace
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    variant={publicIntakeEnabled ? "secondary" : "primary"}
+                    onClick={handleTogglePublicIntakeEnabled}
+                    disabled={
+                      isUpdatingPublicChannels ||
+                      !publicIntakeToken ||
+                      !canEditCompanySettings
+                    }
+                  >
+                    {isUpdatingPublicIntake
+                      ? "Actualizando..."
+                      : publicIntakeEnabled
+                        ? "Desactivar"
+                        : "Activar"}
+                  </Button>
+                </div>
+
+                {!publicIntakeEnabled ? (
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    El enlace existe, pero no aceptará nuevos mensajes mientras
+                    el formulario web esté desactivado.
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <h3 className="font-semibold text-slate-950">Chat web</h3>
+
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Experiencia visual tipo chat para recibir consultas desde una
+                  página pública o desde futuras integraciones embebidas.
+                </p>
+
+                <label className="mt-3 block text-sm font-medium text-slate-700">
+                  Enlace del chat
+                  <input
+                    value={publicChatUrl || "Enlace no disponible"}
+                    readOnly
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                  />
+                </label>
+
+                {publicChatCopyErrorMessage ? (
+                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {publicChatCopyErrorMessage}
+                  </div>
+                ) : null}
+
+                {publicChatCopyMessage ? (
+                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {publicChatCopyMessage}
+                  </div>
+                ) : null}
+
+                <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                  <Button
+                    className="w-full"
+                    onClick={handleCopyPublicChatUrl}
+                    disabled={!publicChatUrl || isUpdatingPublicChannels}
+                  >
+                    Copiar enlace
+                  </Button>
+
+                  <Button
+                    className="w-full"
+                    variant={publicChatEnabled ? "secondary" : "primary"}
+                    onClick={handleTogglePublicChatEnabled}
+                    disabled={
+                      isUpdatingPublicChannels ||
+                      !publicIntakeToken ||
+                      !canEditCompanySettings
+                    }
+                  >
+                    {isUpdatingPublicChat
+                      ? "Actualizando..."
+                      : publicChatEnabled
+                        ? "Desactivar"
+                        : "Activar"}
+                  </Button>
+                </div>
+
+                {!publicChatEnabled ? (
+                  <p className="mt-3 text-xs leading-5 text-slate-500">
+                    El enlace existe, pero no aceptará nuevos mensajes mientras
+                    el chat web esté desactivado.
+                  </p>
+                ) : null}
+              </div>
 
               {publicIntakeErrorMessage ? (
                 <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -762,70 +1018,23 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 </div>
               ) : null}
 
-              {copyErrorMessage ? (
-                <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {copyErrorMessage}
-                </div>
-              ) : null}
-
-              {copyMessage ? (
-                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {copyMessage}
-                </div>
-              ) : null}
-
-              <div className="mt-4 space-y-2">
-                <Button
-                  className="w-full"
-                  onClick={handleCopyPublicIntakeUrl}
-                  disabled={!publicIntakeUrl || isUpdatingPublicIntake}
-                >
-                  Copiar enlace
-                </Button>
-
-                <div className="grid gap-2 sm:grid-cols-2">
-                  <Button
-                    className="w-full"
-                    variant={publicIntakeEnabled ? "secondary" : "primary"}
-                    onClick={handleTogglePublicIntakeEnabled}
-                    disabled={
-                      isUpdatingPublicIntake ||
-                      !publicIntakeToken ||
-                      !canEditCompanySettings
-                    }
-                  >
-                    {isUpdatingPublicIntake
-                      ? "Actualizando..."
-                      : publicIntakeEnabled
-                        ? "Desactivar"
-                        : "Activar"}
-                  </Button>
-
-                  <Button
-                    className="w-full"
-                    variant="ghost"
-                    onClick={handleRegeneratePublicIntakeToken}
-                    disabled={
-                      isUpdatingPublicIntake ||
-                      !companyId ||
-                      !canEditCompanySettings
-                    }
-                  >
-                    Regenerar enlace
-                  </Button>
-                </div>
-              </div>
-
-              {!publicIntakeEnabled ? (
-                <p className="mt-3 text-xs leading-5 text-slate-500">
-                  El enlace existe, pero no aceptará nuevos mensajes mientras el
-                  formulario esté desactivado.
-                </p>
-              ) : null}
+              <Button
+                className="mt-4 w-full"
+                variant="ghost"
+                onClick={handleRegeneratePublicIntakeToken}
+                disabled={
+                  isUpdatingPublicChannels ||
+                  !companyId ||
+                  !canEditCompanySettings
+                }
+              >
+                Regenerar enlaces públicos
+              </Button>
 
               <p className="mt-3 text-xs leading-5 text-slate-500">
-                Si regeneras el enlace, el enlace anterior dejará de funcionar
-                y tendrás que compartir el nuevo.
+                Si regeneras los enlaces, tanto el enlace del formulario como el
+                enlace del chat cambiarán. Los estados activo/desactivado de
+                cada canal se mantendrán.
               </p>
             </div>
 
@@ -957,9 +1166,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 <Button
                   className="w-full"
                   onClick={handleSaveWhatsAppChannel}
-                  disabled={
-                    isSavingWhatsAppChannel || !canEditCompanySettings
-                  }
+                  disabled={isSavingWhatsAppChannel || !canEditCompanySettings}
                 >
                   {isSavingWhatsAppChannel
                     ? "Guardando WhatsApp..."

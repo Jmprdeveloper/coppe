@@ -12,7 +12,7 @@ type PublicChatPageProps = {
 type PublicChatCompany = {
   id: string;
   name: string;
-  public_intake_enabled: boolean;
+  public_chat_enabled: boolean;
 };
 
 export default async function PublicChatPage({ params }: PublicChatPageProps) {
@@ -27,11 +27,11 @@ export default async function PublicChatPage({ params }: PublicChatPageProps) {
 
   const { data: company, error } = await supabaseAdmin
     .from("companies")
-    .select("id, name, public_intake_enabled")
+    .select("id, name, public_chat_enabled")
     .eq("public_intake_token", cleanToken)
     .maybeSingle<PublicChatCompany>();
 
-  if (error || !company || !company.public_intake_enabled) {
+  if (error || !company || !company.public_chat_enabled) {
     notFound();
   }
 
