@@ -252,6 +252,19 @@ function NoteCard({ note }: { note: InternalNoteRow }) {
   );
 }
 
+function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
+  );
+}
+
 export function CustomerDetail({
   customerId,
   setActiveView,
@@ -914,6 +927,13 @@ export function CustomerDetail({
         >
           ← Volver a clientes
         </button>
+
+        <PageHeader
+          title="Detalle de cliente"
+          description="Cargando información, actividad y métricas del cliente."
+        />
+
+        <MetricCardsSkeleton />
 
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
           Cargando cliente...

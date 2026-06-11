@@ -1,6 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  Building2,
+  FileText,
+  MessageCircle,
+  MessageSquareText,
+  RadioTower,
+} from "lucide-react";
 
 import {
   companySectorOptions,
@@ -9,9 +16,10 @@ import {
 import { canManageCompanySettings } from "../lib/companyPermissions";
 import { getCurrentCompany, type CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
-
 import { Button } from "./Button";
+import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
+import { SectionCard } from "./SectionCard";
 import { TeamSettingsCard } from "./TeamSettingsCard";
 
 type ToneOption =
@@ -39,6 +47,16 @@ type InboundWhatsAppChannelSettingsRow = {
   enabled: boolean;
 };
 
+type ChannelStatus = "active" | "inactive" | "not_configured";
+
+type ChannelSettingsCardProps = {
+  title: string;
+  description: string;
+  status: ChannelStatus;
+  children: ReactNode;
+  actions?: ReactNode;
+};
+
 function normalizeTone(value: string | null | undefined): ToneOption {
   if (
     value === "profesional y cercano" ||
@@ -63,8 +81,6 @@ function normalizeLanguage(value: string | null | undefined): LanguageOption {
 function createPublicIntakeToken() {
   return crypto.randomUUID();
 }
-
-type ChannelStatus = "active" | "inactive" | "not_configured";
 
 function getChannelStatusLabel(status: ChannelStatus) {
   if (status === "active") {
@@ -102,95 +118,48 @@ function ChannelStatusPill({ status }: { status: ChannelStatus }) {
   );
 }
 
-type ChannelAccent = "form" | "chat" | "whatsapp";
-
-type ChannelOverviewCardProps = {
-  title: string;
-  description: string;
-  status: ChannelStatus;
-  detail: string;
-  detailLabel: string;
-  accent: ChannelAccent;
-  shortCode: string;
-};
-
-function getChannelAccentClassName(accent: ChannelAccent) {
-  if (accent === "form") {
-    return {
-      card: "border-cyan-200 bg-cyan-50/50 shadow-cyan-100/60",
-      bar: "bg-cyan-600",
-      icon: "bg-cyan-700 text-white",
-      detail: "border-cyan-100 bg-white text-cyan-950",
-    };
-  }
-
-  if (accent === "chat") {
-    return {
-      card: "border-violet-200 bg-violet-50/50 shadow-violet-100/60",
-      bar: "bg-violet-600",
-      icon: "bg-violet-700 text-white",
-      detail: "border-violet-100 bg-white text-violet-950",
-    };
-  }
-
-  return {
-    card: "border-emerald-200 bg-emerald-50/50 shadow-emerald-100/60",
-    bar: "bg-emerald-600",
-    icon: "bg-emerald-700 text-white",
-    detail: "border-emerald-100 bg-white text-emerald-950",
-  };
-}
-
-function ChannelOverviewCard({
+function ChannelSettingsCard({
   title,
   description,
   status,
-  detail,
-  detailLabel,
-  accent,
-  shortCode,
-}: ChannelOverviewCardProps) {
-  const accentClassName = getChannelAccentClassName(accent);
-
+  children,
+  actions,
+}: ChannelSettingsCardProps) {
   return (
-    <article
-      className={`overflow-hidden rounded-3xl border shadow-md ${accentClassName.card}`}
-    >
-      <div className={`h-2 ${accentClassName.bar}`} />
+    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="font-bold text-slate-950">{title}</h3>
 
-      <div className="p-5">
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <div
-              className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl text-xs font-black tracking-wide ${accentClassName.icon}`}
-            >
-              {shortCode}
-            </div>
-
-            <div>
-              <h3 className="text-base font-bold text-slate-950">{title}</h3>
-              <p className="mt-1 text-sm leading-5 text-slate-600">
-                {description}
-              </p>
-            </div>
-          </div>
-
-          <ChannelStatusPill status={status} />
+          <p className="mt-1 text-sm leading-6 text-slate-500">
+            {description}
+          </p>
         </div>
 
-        <div
-          className={`mt-5 rounded-2xl border px-4 py-3 ${accentClassName.detail}`}
-        >
-          <div className="text-[11px] font-bold uppercase tracking-wide text-slate-500">
-            {detailLabel}
-          </div>
-
-          <div className="mt-1 break-all text-xs font-semibold leading-5">
-            {detail}
-          </div>
-        </div>
+        <ChannelStatusPill status={status} />
       </div>
+
+      <div className="mt-4">{children}</div>
+
+      {actions ? (
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+          {actions}
+        </div>
+      ) : null}
     </article>
+  );
+}
+
+function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
   );
 }
 
@@ -365,8 +334,6 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const whatsAppWebhookUrl = publicFormOrigin
     ? `${publicFormOrigin}/api/inbound-whatsapp`
     : "";
-
-
 
   const publicIntakeChannelStatus: ChannelStatus = publicIntakeEnabled
     ? "active"
@@ -936,582 +903,506 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       />
 
       {isLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando configuración de empresa...
+        <div className="space-y-5">
+          <MetricCardsSkeleton />
+
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+            Cargando configuración de empresa...
+          </div>
         </div>
       ) : (
         <div className="space-y-5">
-          <section className="rounded-3xl border border-slate-300 bg-white p-6 shadow-sm">
-            <div className="rounded-3xl border border-slate-200 bg-slate-50 px-5 py-5">
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">
-                    Estado de canales
-                  </h2>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard
+              title="Empresa"
+              value={name || "Sin nombre"}
+              caption={sector || "Sector no indicado"}
+              icon={Building2}
+              tone="brand"
+            />
 
-                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
-                    Vista rápida de los canales de entrada conectados a COPPE.
-                    Cada tarjeta usa un color propio para que puedas distinguir
-                    rápidamente qué canal estás revisando.
-                  </p>
-                </div>
+            <MetricCard
+              title="Canales activos"
+              value={`${activeChannelCount}/3`}
+              caption="Formulario, chat y WhatsApp"
+              icon={RadioTower}
+              tone="info"
+            />
 
-                <div className="rounded-2xl border border-[#0F4C5C]/20 bg-white px-5 py-4 text-sm shadow-sm">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Canales activos
-                  </div>
+            <MetricCard
+              title="Formulario web"
+              value={getChannelStatusLabel(publicIntakeChannelStatus)}
+              caption="Página pública de contacto"
+              icon={FileText}
+              tone="warning"
+            />
 
-                  <div className="mt-1 text-3xl font-black text-[#0F4C5C]">
-                    {activeChannelCount}/3
-                  </div>
-                </div>
-              </div>
-            </div>
+            <MetricCard
+              title="Chat web"
+              value={getChannelStatusLabel(publicChatChannelStatus)}
+              caption="Experiencia tipo conversación"
+              icon={MessageSquareText}
+              tone="neutral"
+            />
 
-            <div className="mt-5 grid gap-4 lg:grid-cols-3">
-              <ChannelOverviewCard
-                title="Formulario web"
-                description="Recibe solicitudes estructuradas desde una página de contacto pública."
-                status={publicIntakeChannelStatus}
-                detail={publicIntakeUrl || "Enlace no disponible"}
-                detailLabel="Enlace público"
-                accent="form"
-                shortCode="FW"
-              />
-
-              <ChannelOverviewCard
-                title="Chat web"
-                description="Capta consultas con una experiencia visual tipo conversación."
-                status={publicChatChannelStatus}
-                detail={publicChatUrl || "Enlace no disponible"}
-                detailLabel="Enlace público"
-                accent="chat"
-                shortCode="CW"
-              />
-
-              <ChannelOverviewCard
-                title="WhatsApp"
-                description="Entrada automática desde WhatsApp Business Cloud API."
-                status={whatsAppChannelStatus}
-                detail={
-                  whatsAppPhoneNumberId
-                    ? `Phone number ID: ${whatsAppPhoneNumberId}`
-                    : "Añade el Phone number ID para activar este canal"
-                }
-                detailLabel="Configuración"
-                accent="whatsapp"
-                shortCode="WA"
-              />
-            </div>
-          </section>
+            <MetricCard
+              title="WhatsApp"
+              value={getChannelStatusLabel(whatsAppChannelStatus)}
+              caption={
+                whatsAppPhoneNumberId
+                  ? "Business Cloud API"
+                  : "Pendiente de configurar"
+              }
+              icon={MessageCircle}
+              tone="success"
+            />
+          </div>
 
           <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
             <div className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">
-              Información de empresa
-            </h2>
+              <SectionCard
+                title="Información de empresa"
+                description="Estos datos ayudan a COPPE a contextualizar los mensajes, casos y respuestas de la empresa."
+              >
+                {!canEditCompanySettings ? (
+                  <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                    Tu usuario puede consultar esta configuración, pero solo un
+                    usuario owner puede modificarla.
+                  </div>
+                ) : null}
 
-            <p className="mt-2 text-sm leading-6 text-slate-500">
-              Estos datos ayudan a COPPE a contextualizar los mensajes, casos y
-              respuestas de la empresa, y a preparar respuestas más adecuadas
-              para tu actividad.
-            </p>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <label className="text-sm font-medium text-slate-700">
+                    Nombre de empresa
+                    <input
+                      value={name}
+                      disabled={!canEditCompanySettings}
+                      onChange={(event) => {
+                        setName(event.target.value);
+                        setMessage("");
+                        setErrorMessage("");
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      placeholder="Introduce el nombre de la empresa"
+                    />
+                  </label>
 
-            {!canEditCompanySettings ? (
-              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-                Tu usuario puede consultar esta configuración, pero solo un
-                usuario owner puede modificarla.
-              </div>
-            ) : null}
+                  <label className="text-sm font-medium text-slate-700">
+                    Sector
+                    <select
+                      value={sector}
+                      disabled={!canEditCompanySettings}
+                      onChange={(event) => {
+                        setSector(event.target.value);
+                        setMessage("");
+                        setErrorMessage("");
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="">Selecciona un sector</option>
 
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-700">
-                Nombre de empresa
-                <input
-                  value={name}
-                  disabled={!canEditCompanySettings}
-                  onChange={(event) => {
-                    setName(event.target.value);
-                    setMessage("");
-                    setErrorMessage("");
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  placeholder="Introduce el nombre de la empresa"
-                />
-              </label>
+                      {companySectorOptions.map((companySectorOption) => (
+                        <option
+                          key={companySectorOption}
+                          value={companySectorOption}
+                        >
+                          {companySectorOption}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
 
-              <label className="text-sm font-medium text-slate-700">
-                Sector
-                <select
-                  value={sector}
-                  disabled={!canEditCompanySettings}
-                  onChange={(event) => {
-                    setSector(event.target.value);
-                    setMessage("");
-                    setErrorMessage("");
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                  <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                    Descripción
+                    <textarea
+                      value={description}
+                      disabled={!canEditCompanySettings}
+                      onChange={(event) => {
+                        setDescription(event.target.value);
+                        setMessage("");
+                        setErrorMessage("");
+                      }}
+                      className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                      placeholder="Describe brevemente qué hace la empresa y qué tipo de mensajes o casos recibe de sus clientes."
+                    />
+                  </label>
+                </div>
+
+                {errorMessage ? (
+                  <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {errorMessage}
+                  </div>
+                ) : null}
+
+                {message ? (
+                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {message}
+                  </div>
+                ) : null}
+
+                <Button
+                  className="mt-5"
+                  onClick={handleSave}
+                  disabled={isSaving || isLoading || !canEditCompanySettings}
                 >
-                  <option value="">Selecciona un sector</option>
+                  {isSaving ? "Guardando..." : "Guardar cambios"}
+                </Button>
+              </SectionCard>
 
-                  {companySectorOptions.map((companySectorOption) => (
-                    <option
-                      key={companySectorOption}
-                      value={companySectorOption}
-                    >
-                      {companySectorOption}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-700 md:col-span-2">
-                Descripción
-                <textarea
-                  value={description}
-                  disabled={!canEditCompanySettings}
-                  onChange={(event) => {
-                    setDescription(event.target.value);
-                    setMessage("");
-                    setErrorMessage("");
-                  }}
-                  className="mt-1 min-h-[120px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  placeholder="Describe brevemente qué hace la empresa y qué tipo de mensajes o casos recibe de sus clientes."
-                />
-              </label>
-            </div>
-
-            {errorMessage ? (
-              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {errorMessage}
-              </div>
-            ) : null}
-
-            {message ? (
-              <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {message}
-              </div>
-            ) : null}
-
-            <Button
-              className="mt-5"
-              onClick={handleSave}
-              disabled={isSaving || isLoading || !canEditCompanySettings}
-            >
-              {isSaving ? "Guardando..." : "Guardar cambios"}
-            </Button>
-          </div>
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-lg font-bold text-slate-950">
-                    Canales de entrada
-                  </h2>
-
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Gestiona desde un mismo bloque los enlaces públicos y el
-                    canal WhatsApp. Todos los canales usan el mismo patrón:
-                    estado, configuración y acciones.
-                  </p>
-                </div>
-
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Activos
+              <SectionCard
+                title="Canales de entrada"
+                description="Gestiona los enlaces públicos y el canal WhatsApp. Las tarjetas son blancas; el estado se muestra en badges y acciones."
+                action={
+                  <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
+                    Activos: {activeChannelCount}/3
                   </div>
-                  <div className="mt-1 font-bold text-slate-950">
-                    {activeChannelCount}/3
-                  </div>
-                </div>
-              </div>
+                }
+              >
+                <div className="space-y-4">
+                  <ChannelSettingsCard
+                    title="Formulario web"
+                    description="Recibe solicitudes estructuradas desde una página de contacto pública."
+                    status={publicIntakeChannelStatus}
+                    actions={
+                      <>
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleCopyPublicIntakeUrl}
+                          disabled={!publicIntakeUrl || isUpdatingPublicChannels}
+                        >
+                          Copiar enlace
+                        </Button>
 
-              <div className="mt-5 space-y-4">
-                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Formulario web
-                      </div>
-                      <h3 className="mt-1 font-semibold text-slate-950">
-                        Solicitudes estructuradas desde una página pública
-                      </h3>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Útil para webs de empresa, landing pages o enlaces de
-                        contacto donde el cliente deja sus datos y mensaje.
-                      </p>
-                    </div>
-
-                    <ChannelStatusPill status={publicIntakeChannelStatus} />
-                  </div>
-
-                  <label className="mt-4 block text-sm font-medium text-slate-700">
-                    Enlace público
-                    <input
-                      value={publicIntakeUrl || "Enlace no disponible"}
-                      readOnly
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
-                    />
-                  </label>
-
-                  {copyErrorMessage ? (
-                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {copyErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {copyMessage ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {copyMessage}
-                    </div>
-                  ) : null}
-
-                  {!publicIntakeEnabled ? (
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      El enlace existe, pero no aceptará nuevos mensajes mientras
-                      el formulario web esté desactivado.
-                    </p>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant="secondary"
-                      onClick={handleCopyPublicIntakeUrl}
-                      disabled={!publicIntakeUrl || isUpdatingPublicChannels}
-                    >
-                      Copiar enlace
-                    </Button>
-
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant={publicIntakeEnabled ? "secondary" : "primary"}
-                      onClick={handleTogglePublicIntakeEnabled}
-                      disabled={
-                        isUpdatingPublicChannels ||
-                        !publicIntakeToken ||
-                        !canEditCompanySettings
-                      }
-                    >
-                      {isUpdatingPublicIntake
-                        ? "Actualizando..."
-                        : publicIntakeEnabled
-                          ? "Desactivar"
-                          : "Activar"}
-                    </Button>
-                  </div>
-                </article>
-
-                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Chat web
-                      </div>
-                      <h3 className="mt-1 font-semibold text-slate-950">
-                        Experiencia tipo chat para captar consultas web
-                      </h3>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Canal visual pensado para recibir mensajes desde una
-                        página pública o futuras integraciones embebidas.
-                      </p>
-                    </div>
-
-                    <ChannelStatusPill status={publicChatChannelStatus} />
-                  </div>
-
-                  <label className="mt-4 block text-sm font-medium text-slate-700">
-                    Enlace público
-                    <input
-                      value={publicChatUrl || "Enlace no disponible"}
-                      readOnly
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
-                    />
-                  </label>
-
-                  {publicChatCopyErrorMessage ? (
-                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {publicChatCopyErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {publicChatCopyMessage ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {publicChatCopyMessage}
-                    </div>
-                  ) : null}
-
-                  {!publicChatEnabled ? (
-                    <p className="mt-3 text-xs leading-5 text-slate-500">
-                      El enlace existe, pero no aceptará nuevos mensajes mientras
-                      el chat web esté desactivado.
-                    </p>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant="secondary"
-                      onClick={handleCopyPublicChatUrl}
-                      disabled={!publicChatUrl || isUpdatingPublicChannels}
-                    >
-                      Copiar enlace
-                    </Button>
-
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant={publicChatEnabled ? "secondary" : "primary"}
-                      onClick={handleTogglePublicChatEnabled}
-                      disabled={
-                        isUpdatingPublicChannels ||
-                        !publicIntakeToken ||
-                        !canEditCompanySettings
-                      }
-                    >
-                      {isUpdatingPublicChat
-                        ? "Actualizando..."
-                        : publicChatEnabled
-                          ? "Desactivar"
-                          : "Activar"}
-                    </Button>
-                  </div>
-                </article>
-
-                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        WhatsApp
-                      </div>
-                      <h3 className="mt-1 font-semibold text-slate-950">
-                        Entrada automática desde WhatsApp Business Cloud API
-                      </h3>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        Los mensajes entrantes de Meta crearán casos con el canal
-                        WhatsApp. La activación usa el mismo patrón que el resto
-                        de canales.
-                      </p>
-                    </div>
-
-                    <ChannelStatusPill status={whatsAppChannelStatus} />
-                  </div>
-
-                  <div className="mt-4 grid gap-4 md:grid-cols-2">
-                    <label className="block text-sm font-medium text-slate-700 md:col-span-2">
-                      URL del webhook
-                      <input
-                        value={whatsAppWebhookUrl || "URL no disponible"}
-                        readOnly
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none"
-                      />
-                    </label>
-
-                    <label className="block text-sm font-medium text-slate-700">
-                      Phone number ID de Meta
-                      <input
-                        value={whatsAppPhoneNumberId}
-                        disabled={!canEditCompanySettings}
-                        onChange={(event) => {
-                          setWhatsAppPhoneNumberId(event.target.value);
-                          setWhatsAppMessage("");
-                          setWhatsAppErrorMessage("");
-                        }}
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                        placeholder="Ej. 123456789012345"
-                      />
-                    </label>
-
-                    <label className="block text-sm font-medium text-slate-700">
-                      Número visible
-                      <input
-                        value={whatsAppDisplayPhoneNumber}
-                        disabled={!canEditCompanySettings}
-                        onChange={(event) => {
-                          setWhatsAppDisplayPhoneNumber(event.target.value);
-                          setWhatsAppMessage("");
-                          setWhatsAppErrorMessage("");
-                        }}
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                        placeholder="Ej. +34 600 000 000"
-                      />
-                    </label>
-                  </div>
-
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    El token de verificación de Meta debe coincidir con
-                    WHATSAPP_WEBHOOK_VERIFY_TOKEN. El envío de respuestas por
-                    WhatsApp queda para una fase posterior.
-                  </p>
-
-                  {whatsAppErrorMessage ? (
-                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {whatsAppErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {whatsAppMessage ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {whatsAppMessage}
-                    </div>
-                  ) : null}
-
-                  {whatsAppCopyErrorMessage ? (
-                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {whatsAppCopyErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {whatsAppCopyMessage ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {whatsAppCopyMessage}
-                    </div>
-                  ) : null}
-
-                  <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant="secondary"
-                      onClick={handleCopyWhatsAppWebhookUrl}
-                      disabled={!whatsAppWebhookUrl}
-                    >
-                      Copiar URL webhook
-                    </Button>
-
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant="secondary"
-                      onClick={handleSaveWhatsAppChannel}
-                      disabled={isSavingWhatsAppChannel || !canEditCompanySettings}
-                    >
-                      {isSavingWhatsAppChannel
-                        ? "Guardando..."
-                        : "Guardar configuración"}
-                    </Button>
-
-                    <Button
-                      className="w-full sm:w-auto"
-                      variant={whatsAppEnabled ? "secondary" : "primary"}
-                      onClick={handleToggleWhatsAppEnabled}
-                      disabled={isSavingWhatsAppChannel || !canEditCompanySettings}
-                    >
-                      {isSavingWhatsAppChannel
-                        ? "Actualizando..."
-                        : whatsAppEnabled
-                          ? "Desactivar"
-                          : "Activar"}
-                    </Button>
-                  </div>
-                </article>
-              </div>
-
-              {publicIntakeErrorMessage ? (
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  {publicIntakeErrorMessage}
-                </div>
-              ) : null}
-
-              {publicIntakeMessage ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                  {publicIntakeMessage}
-                </div>
-              ) : null}
-
-              <div className="mt-5 border-t border-slate-200 pt-4">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                  <p className="text-xs leading-5 text-slate-500">
-                    Si regeneras los enlaces, tanto el enlace del formulario
-                    como el enlace del chat cambiarán. Los estados de cada canal
-                    se mantendrán.
-                  </p>
-
-                  <Button
-                    className="w-full sm:w-auto"
-                    variant="ghost"
-                    onClick={handleRegeneratePublicIntakeToken}
-                    disabled={
-                      isUpdatingPublicChannels ||
-                      !companyId ||
-                      !canEditCompanySettings
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant={publicIntakeEnabled ? "secondary" : "primary"}
+                          onClick={handleTogglePublicIntakeEnabled}
+                          disabled={
+                            isUpdatingPublicChannels ||
+                            !publicIntakeToken ||
+                            !canEditCompanySettings
+                          }
+                        >
+                          {isUpdatingPublicIntake
+                            ? "Actualizando..."
+                            : publicIntakeEnabled
+                              ? "Desactivar"
+                              : "Activar"}
+                        </Button>
+                      </>
                     }
                   >
-                    Regenerar enlaces públicos
-                  </Button>
+                    <label className="block text-sm font-medium text-slate-700">
+                      Enlace público
+                      <input
+                        value={publicIntakeUrl || "Enlace no disponible"}
+                        readOnly
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                      />
+                    </label>
+
+                    {copyErrorMessage ? (
+                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {copyErrorMessage}
+                      </div>
+                    ) : null}
+
+                    {copyMessage ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {copyMessage}
+                      </div>
+                    ) : null}
+
+                    {!publicIntakeEnabled ? (
+                      <p className="mt-3 text-xs leading-5 text-slate-500">
+                        El enlace existe, pero no aceptará nuevos mensajes
+                        mientras el formulario web esté desactivado.
+                      </p>
+                    ) : null}
+                  </ChannelSettingsCard>
+
+                  <ChannelSettingsCard
+                    title="Chat web"
+                    description="Capta consultas desde una experiencia visual tipo conversación."
+                    status={publicChatChannelStatus}
+                    actions={
+                      <>
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleCopyPublicChatUrl}
+                          disabled={!publicChatUrl || isUpdatingPublicChannels}
+                        >
+                          Copiar enlace
+                        </Button>
+
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant={publicChatEnabled ? "secondary" : "primary"}
+                          onClick={handleTogglePublicChatEnabled}
+                          disabled={
+                            isUpdatingPublicChannels ||
+                            !publicIntakeToken ||
+                            !canEditCompanySettings
+                          }
+                        >
+                          {isUpdatingPublicChat
+                            ? "Actualizando..."
+                            : publicChatEnabled
+                              ? "Desactivar"
+                              : "Activar"}
+                        </Button>
+                      </>
+                    }
+                  >
+                    <label className="block text-sm font-medium text-slate-700">
+                      Enlace público
+                      <input
+                        value={publicChatUrl || "Enlace no disponible"}
+                        readOnly
+                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                      />
+                    </label>
+
+                    {publicChatCopyErrorMessage ? (
+                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {publicChatCopyErrorMessage}
+                      </div>
+                    ) : null}
+
+                    {publicChatCopyMessage ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {publicChatCopyMessage}
+                      </div>
+                    ) : null}
+
+                    {!publicChatEnabled ? (
+                      <p className="mt-3 text-xs leading-5 text-slate-500">
+                        El enlace existe, pero no aceptará nuevos mensajes
+                        mientras el chat web esté desactivado.
+                      </p>
+                    ) : null}
+                  </ChannelSettingsCard>
+
+                  <ChannelSettingsCard
+                    title="WhatsApp"
+                    description="Entrada automática desde WhatsApp Business Cloud API."
+                    status={whatsAppChannelStatus}
+                    actions={
+                      <>
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleCopyWhatsAppWebhookUrl}
+                          disabled={!whatsAppWebhookUrl}
+                        >
+                          Copiar URL webhook
+                        </Button>
+
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleSaveWhatsAppChannel}
+                          disabled={
+                            isSavingWhatsAppChannel || !canEditCompanySettings
+                          }
+                        >
+                          {isSavingWhatsAppChannel
+                            ? "Guardando..."
+                            : "Guardar configuración"}
+                        </Button>
+
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant={whatsAppEnabled ? "secondary" : "primary"}
+                          onClick={handleToggleWhatsAppEnabled}
+                          disabled={
+                            isSavingWhatsAppChannel || !canEditCompanySettings
+                          }
+                        >
+                          {isSavingWhatsAppChannel
+                            ? "Actualizando..."
+                            : whatsAppEnabled
+                              ? "Desactivar"
+                              : "Activar"}
+                        </Button>
+                      </>
+                    }
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                        URL del webhook
+                        <input
+                          value={whatsAppWebhookUrl || "URL no disponible"}
+                          readOnly
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Phone number ID de Meta
+                        <input
+                          value={whatsAppPhoneNumberId}
+                          disabled={!canEditCompanySettings}
+                          onChange={(event) => {
+                            setWhatsAppPhoneNumberId(event.target.value);
+                            setWhatsAppMessage("");
+                            setWhatsAppErrorMessage("");
+                          }}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                          placeholder="Ej. 123456789012345"
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Número visible
+                        <input
+                          value={whatsAppDisplayPhoneNumber}
+                          disabled={!canEditCompanySettings}
+                          onChange={(event) => {
+                            setWhatsAppDisplayPhoneNumber(event.target.value);
+                            setWhatsAppMessage("");
+                            setWhatsAppErrorMessage("");
+                          }}
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                          placeholder="Ej. +34 600 000 000"
+                        />
+                      </label>
+                    </div>
+
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      El token de verificación de Meta debe coincidir con
+                      WHATSAPP_WEBHOOK_VERIFY_TOKEN. El envío de respuestas por
+                      WhatsApp queda para una fase posterior.
+                    </p>
+
+                    {whatsAppErrorMessage ? (
+                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {whatsAppErrorMessage}
+                      </div>
+                    ) : null}
+
+                    {whatsAppMessage ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {whatsAppMessage}
+                      </div>
+                    ) : null}
+
+                    {whatsAppCopyErrorMessage ? (
+                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {whatsAppCopyErrorMessage}
+                      </div>
+                    ) : null}
+
+                    {whatsAppCopyMessage ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {whatsAppCopyMessage}
+                      </div>
+                    ) : null}
+                  </ChannelSettingsCard>
                 </div>
-              </div>
-            </div>
+
+                {publicIntakeErrorMessage ? (
+                  <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {publicIntakeErrorMessage}
+                  </div>
+                ) : null}
+
+                {publicIntakeMessage ? (
+                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    {publicIntakeMessage}
+                  </div>
+                ) : null}
+
+                <div className="mt-5 border-t border-slate-200 pt-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-xs leading-5 text-slate-500">
+                      Si regeneras los enlaces, tanto el enlace del formulario
+                      como el enlace del chat cambiarán. Los estados de cada
+                      canal se mantendrán.
+                    </p>
+
+                    <Button
+                      className="w-full sm:w-auto"
+                      variant="ghost"
+                      onClick={handleRegeneratePublicIntakeToken}
+                      disabled={
+                        isUpdatingPublicChannels ||
+                        !companyId ||
+                        !canEditCompanySettings
+                      }
+                    >
+                      Regenerar enlaces públicos
+                    </Button>
+                  </div>
+                </div>
+              </SectionCard>
             </div>
 
             <aside className="space-y-5">
               <TeamSettingsCard />
 
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-slate-950">
-                Preferencias del asistente
-              </h2>
+              <SectionCard
+                title="Preferencias del asistente"
+                description="Define el tono y el idioma principal que COPPE usará como base al preparar respuestas."
+              >
+                <div className="space-y-4">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Tono
+                    <select
+                      value={tone}
+                      disabled={!canEditCompanySettings}
+                      onChange={(event) => {
+                        setTone(normalizeTone(event.target.value));
+                        setMessage("");
+                        setErrorMessage("");
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="profesional y cercano">
+                        Profesional y cercano
+                      </option>
+                      <option value="formal">Formal</option>
+                      <option value="directo">Directo</option>
+                      <option value="amable y detallado">
+                        Amable y detallado
+                      </option>
+                    </select>
+                  </label>
 
-              <p className="mt-2 text-sm leading-6 text-slate-500">
-                Define el tono y el idioma principal que COPPE usará como base
-                al preparar respuestas.
-              </p>
+                  <label className="block text-sm font-medium text-slate-700">
+                    Idioma principal
+                    <select
+                      value={language}
+                      disabled={!canEditCompanySettings}
+                      onChange={(event) => {
+                        setLanguage(normalizeLanguage(event.target.value));
+                        setMessage("");
+                        setErrorMessage("");
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                    >
+                      <option value="es">Español</option>
+                      <option value="en">Inglés</option>
+                    </select>
+                  </label>
+                </div>
+              </SectionCard>
 
-              <div className="mt-5 space-y-4">
-                <label className="block text-sm font-medium text-slate-700">
-                  Tono
-                  <select
-                    value={tone}
-                    disabled={!canEditCompanySettings}
-                    onChange={(event) => {
-                      setTone(normalizeTone(event.target.value));
-                      setMessage("");
-                      setErrorMessage("");
-                    }}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  >
-                    <option value="profesional y cercano">
-                      Profesional y cercano
-                    </option>
-                    <option value="formal">Formal</option>
-                    <option value="directo">Directo</option>
-                    <option value="amable y detallado">
-                      Amable y detallado
-                    </option>
-                  </select>
-                </label>
+              <SectionCard title="Cómo se aplican estos ajustes">
+                <div className="space-y-3 text-sm leading-6 text-slate-600">
+                  <p>
+                    La información de empresa se usa para contextualizar nuevos
+                    casos, recomendaciones internas y borradores de respuesta.
+                  </p>
 
-                <label className="block text-sm font-medium text-slate-700">
-                  Idioma principal
-                  <select
-                    value={language}
-                    disabled={!canEditCompanySettings}
-                    onChange={(event) => {
-                      setLanguage(normalizeLanguage(event.target.value));
-                      setMessage("");
-                      setErrorMessage("");
-                    }}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
-                  >
-                    <option value="es">Español</option>
-                    <option value="en">Inglés</option>
-                  </select>
-                </label>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm leading-6 text-slate-600 shadow-sm">
-              <h3 className="font-bold text-slate-950">
-                Cómo se aplican estos ajustes
-              </h3>
-
-              <p className="mt-2">
-                La información de empresa se usa para contextualizar nuevos
-                casos, recomendaciones internas y borradores de respuesta.
-              </p>
-
-              <p className="mt-3">
-                Puedes modificar estos datos cuando cambie tu actividad,
-                servicio, estilo de comunicación o idioma principal.
-              </p>
-            </div>
+                  <p>
+                    Puedes modificar estos datos cuando cambie tu actividad,
+                    servicio, estilo de comunicación o idioma principal.
+                  </p>
+                </div>
+              </SectionCard>
             </aside>
           </div>
         </div>

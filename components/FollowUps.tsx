@@ -218,6 +218,19 @@ function getColumnTone(tone: FollowUpColumnTone): VisualTone {
   return "info";
 }
 
+function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
+  );
+}
+
 export function FollowUps({ openInquiry }: FollowUpsProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -660,39 +673,43 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         }
       />
 
-      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Vencidos"
-          value={allOverdueCount}
-          caption="Tareas pendientes fuera de plazo"
-          tone="danger"
-          icon={AlertTriangle}
-        />
+      {isLoading ? (
+        <MetricCardsSkeleton />
+      ) : (
+        <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Vencidos"
+            value={allOverdueCount}
+            caption="Tareas pendientes fuera de plazo"
+            tone="danger"
+            icon={AlertTriangle}
+          />
 
-        <MetricCard
-          title="Hoy"
-          value={allTodayCount}
-          caption="Tareas programadas para hoy"
-          tone="warning"
-          icon={Clock3}
-        />
+          <MetricCard
+            title="Hoy"
+            value={allTodayCount}
+            caption="Tareas programadas para hoy"
+            tone="warning"
+            icon={Clock3}
+          />
 
-        <MetricCard
-          title="Próximos"
-          value={allUpcomingCount}
-          caption="Pendientes con fecha futura"
-          tone="info"
-          icon={CalendarDays}
-        />
+          <MetricCard
+            title="Próximos"
+            value={allUpcomingCount}
+            caption="Pendientes con fecha futura"
+            tone="info"
+            icon={CalendarDays}
+          />
 
-        <MetricCard
-          title="Historial"
-          value={allHistoryCount}
-          caption="Completados o cancelados"
-          tone="neutral"
-          icon={History}
-        />
-      </div>
+          <MetricCard
+            title="Historial"
+            value={allHistoryCount}
+            caption="Completados o cancelados"
+            tone="neutral"
+            icon={History}
+          />
+        </div>
+      )}
 
       <SectionCard className="mb-5">
         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">

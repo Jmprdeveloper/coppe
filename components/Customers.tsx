@@ -173,6 +173,19 @@ function formatCustomerLanguage(language: string | null) {
   return (language || "es").toUpperCase();
 }
 
+function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
+  );
+}
+
 export function Customers({ openCustomer }: CustomersProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -514,47 +527,51 @@ export function Customers({ openCustomer }: CustomersProps) {
         }
       />
 
-      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          title="Clientes totales"
-          value={totalCustomers}
-          caption="Registrados en el espacio activo"
-          icon={Users}
-          tone="brand"
-        />
+      {isLoading ? (
+        <MetricCardsSkeleton />
+      ) : (
+        <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <MetricCard
+            title="Clientes totales"
+            value={totalCustomers}
+            caption="Registrados en el espacio activo"
+            icon={Users}
+            tone="brand"
+          />
 
-        <MetricCard
-          title="Activos"
-          value={activeCustomers}
-          caption="Disponibles para nuevos casos"
-          icon={UserCheck}
-          tone="success"
-        />
+          <MetricCard
+            title="Activos"
+            value={activeCustomers}
+            caption="Disponibles para nuevos casos"
+            icon={UserCheck}
+            tone="success"
+          />
 
-        <MetricCard
-          title="Nuevos"
-          value={newCustomers}
-          caption="Clientes recién incorporados"
-          icon={UserPlus}
-          tone="info"
-        />
+          <MetricCard
+            title="Nuevos"
+            value={newCustomers}
+            caption="Clientes recién incorporados"
+            icon={UserPlus}
+            tone="info"
+          />
 
-        <MetricCard
-          title="Con casos activos"
-          value={customersWithActiveCases}
-          caption="Requieren atención operativa"
-          icon={ClipboardList}
-          tone={customersWithActiveCases > 0 ? "warning" : "neutral"}
-        />
+          <MetricCard
+            title="Con casos activos"
+            value={customersWithActiveCases}
+            caption="Requieren atención operativa"
+            icon={ClipboardList}
+            tone={customersWithActiveCases > 0 ? "warning" : "neutral"}
+          />
 
-        <MetricCard
-          title="Archivados"
-          value={archivedCustomers}
-          caption="Fuera de la operativa diaria"
-          icon={Archive}
-          tone="neutral"
-        />
-      </div>
+          <MetricCard
+            title="Archivados"
+            value={archivedCustomers}
+            caption="Fuera de la operativa diaria"
+            icon={Archive}
+            tone="neutral"
+          />
+        </div>
+      )}
 
       {showCreateForm ? (
         <SectionCard

@@ -257,6 +257,19 @@ function getHistoryStatusClassName(status: AppointmentStatus) {
   return "border-slate-200 bg-white text-slate-600";
 }
 
+function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
+  );
+}
+
 export function Appointments({ openInquiry }: AppointmentsProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -953,39 +966,43 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Pendientes de cerrar"
-          value={totalPendingClosureAppointments.length}
-          caption="Citas activas con fecha pasada"
-          icon={AlertTriangle}
-          tone="warning"
-        />
+      {isLoading ? (
+        <MetricCardsSkeleton />
+      ) : (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Pendientes de cerrar"
+            value={totalPendingClosureAppointments.length}
+            caption="Citas activas con fecha pasada"
+            icon={AlertTriangle}
+            tone="warning"
+          />
 
-        <MetricCard
-          title="Por confirmar"
-          value={totalPendingConfirmationAppointments.length}
-          caption="Citas internas todavía no validadas"
-          icon={Clock3}
-          tone="info"
-        />
+          <MetricCard
+            title="Por confirmar"
+            value={totalPendingConfirmationAppointments.length}
+            caption="Citas internas todavía no validadas"
+            icon={Clock3}
+            tone="info"
+          />
 
-        <MetricCard
-          title="Confirmadas"
-          value={totalConfirmedAppointments.length}
-          caption="Citas internas activas y programadas"
-          icon={CalendarCheck2}
-          tone="success"
-        />
+          <MetricCard
+            title="Confirmadas"
+            value={totalConfirmedAppointments.length}
+            caption="Citas internas activas y programadas"
+            icon={CalendarCheck2}
+            tone="success"
+          />
 
-        <MetricCard
-          title="Historial"
-          value={totalHistoryAppointments.length}
-          caption="Realizadas o canceladas"
-          icon={History}
-          tone="neutral"
-        />
-      </div>
+          <MetricCard
+            title="Historial"
+            value={totalHistoryAppointments.length}
+            caption="Realizadas o canceladas"
+            icon={History}
+            tone="neutral"
+          />
+        </div>
+      )}
 
       <SectionCard className="mt-5">
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">

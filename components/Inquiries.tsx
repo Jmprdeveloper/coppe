@@ -147,6 +147,19 @@ function EmptyColumnState({ children }: { children: string }) {
   );
 }
 
+function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
+  return (
+    <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
+  );
+}
+
 function HistoryInquiryRow({
   inquiry,
   openInquiry,
@@ -357,39 +370,43 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
         }
       />
 
-      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard
-          title="Nuevos"
-          value={newCount}
-          caption="Entradas sin revisar"
-          icon={Inbox}
-          tone="info"
-        />
+      {isLoading ? (
+        <MetricCardsSkeleton />
+      ) : (
+        <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <MetricCard
+            title="Nuevos"
+            value={newCount}
+            caption="Entradas sin revisar"
+            icon={Inbox}
+            tone="info"
+          />
 
-        <MetricCard
-          title="En seguimiento"
-          value={pendingCount}
-          caption="Necesitan respuesta o revisión"
-          icon={ClipboardList}
-          tone="warning"
-        />
+          <MetricCard
+            title="En seguimiento"
+            value={pendingCount}
+            caption="Necesitan respuesta o revisión"
+            icon={ClipboardList}
+            tone="warning"
+          />
 
-        <MetricCard
-          title="Esperando cliente"
-          value={waitingCustomerCount}
-          caption="La empresa ya respondió"
-          icon={MessageSquareText}
-          tone="brand"
-        />
+          <MetricCard
+            title="Esperando cliente"
+            value={waitingCustomerCount}
+            caption="La empresa ya respondió"
+            icon={MessageSquareText}
+            tone="brand"
+          />
 
-        <MetricCard
-          title="Alta prioridad"
-          value={highPriorityActiveCount}
-          caption="Casos activos marcados como urgentes"
-          icon={AlertTriangle}
-          tone={highPriorityActiveCount > 0 ? "danger" : "neutral"}
-        />
-      </div>
+          <MetricCard
+            title="Alta prioridad"
+            value={highPriorityActiveCount}
+            caption="Casos activos marcados como urgentes"
+            icon={AlertTriangle}
+            tone={highPriorityActiveCount > 0 ? "danger" : "neutral"}
+          />
+        </div>
+      )}
 
       <SectionCard
         title="Buscar y filtrar casos"

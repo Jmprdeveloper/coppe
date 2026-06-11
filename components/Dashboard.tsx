@@ -385,6 +385,69 @@ function ChannelSummaryCard({
   );
 }
 
+function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      {Array.from({ length: count }).map((_, index) => (
+        <div
+          key={index}
+          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+        />
+      ))}
+    </div>
+  );
+}
+
+function DashboardLoadingSkeleton() {
+  return (
+    <>
+      <MetricCardsSkeleton />
+
+      <SectionCard
+        className="mt-6"
+        title="Atención operativa"
+        description="Cargando casos, citas y seguimientos..."
+      >
+        <div className="grid gap-4 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, columnIndex) => (
+            <div
+              key={columnIndex}
+              className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60"
+            >
+              <div className="mb-4 h-[76px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80" />
+
+              <div className="space-y-3">
+                {Array.from({ length: 2 }).map((__, cardIndex) => (
+                  <div
+                    key={cardIndex}
+                    className="h-[132px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/70"
+                  />
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </SectionCard>
+
+      <SectionCard
+        className="mt-6"
+        title="Canales de entrada"
+        description="Cargando distribución por canal..."
+      >
+        <div className="grid justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,260px))]">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div
+              key={index}
+              className="h-[104px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/70 shadow-sm shadow-slate-200/50"
+            />
+          ))}
+        </div>
+      </SectionCard>
+    </>
+  );
+}
+
+
 export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -742,191 +805,191 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
       ) : null}
 
       {isLoading ? (
-        <div className="mb-4 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
-          Cargando dashboard...
-        </div>
-      ) : null}
+        <DashboardLoadingSkeleton />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <MetricCard
+              title="Nuevos casos"
+              value={newCount}
+              icon={Inbox}
+              tone="info"
+              caption="Recibidos sin revisar"
+            />
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <MetricCard
-          title="Nuevos casos"
-          value={newCount}
-          icon={Inbox}
-          tone="info"
-          caption="Recibidos sin revisar"
-        />
+            <MetricCard
+              title="En seguimiento"
+              value={pendingCount}
+              icon={ClipboardList}
+              tone="warning"
+              caption="Necesitan respuesta o revisión"
+            />
 
-        <MetricCard
-          title="En seguimiento"
-          value={pendingCount}
-          icon={ClipboardList}
-          tone="warning"
-          caption="Necesitan respuesta o revisión"
-        />
+            <MetricCard
+              title="Esperando al cliente"
+              value={waitingCustomerCount}
+              icon={MessageSquareText}
+              tone="brand"
+              caption="La empresa ya respondió"
+            />
 
-        <MetricCard
-          title="Esperando al cliente"
-          value={waitingCustomerCount}
-          icon={MessageSquareText}
-          tone="brand"
-          caption="La empresa ya respondió"
-        />
+            <MetricCard
+              title="Citas pendientes"
+              value={appointmentsNeedAttention}
+              icon={CalendarClock}
+              tone="info"
+              caption={
+                appointmentsPendingClosure > 0
+                  ? `${appointmentsPendingClosure} pendientes de cerrar`
+                  : "Pendientes de validación interna"
+              }
+            />
 
-        <MetricCard
-          title="Citas pendientes"
-          value={appointmentsNeedAttention}
-          icon={CalendarClock}
-          tone="info"
-          caption={
-            appointmentsPendingClosure > 0
-              ? `${appointmentsPendingClosure} pendientes de cerrar`
-              : "Pendientes de validación interna"
-          }
-        />
-
-        <MetricCard
-          title="Seguimientos urgentes"
-          value={urgentFollowUps}
-          icon={Clock3}
-          tone={urgentFollowUps > 0 ? "danger" : "success"}
-          caption="Vencidos o para hoy"
-        />
-      </div>
-
-      <SectionCard
-        className="mt-6"
-        title="Atención operativa"
-        description="Casos, citas y seguimientos que requieren revisión o acción."
-        action={
-          <div className="flex flex-wrap gap-2 text-sm">
-            <button
-              onClick={() => setActiveView("inquiries")}
-              className="font-semibold text-[#0F4C5C] hover:underline"
-            >
-              Ver casos
-            </button>
-
-            <span className="text-slate-300">·</span>
-
-            <button
-              onClick={() => setActiveView("appointments")}
-              className="font-semibold text-[#0F4C5C] hover:underline"
-            >
-              Ver agenda
-            </button>
-
-            <span className="text-slate-300">·</span>
-
-            <button
-              onClick={() => setActiveView("followups")}
-              className="font-semibold text-[#0F4C5C] hover:underline"
-            >
-              Ver seguimientos
-            </button>
+            <MetricCard
+              title="Seguimientos urgentes"
+              value={urgentFollowUps}
+              icon={Clock3}
+              tone={urgentFollowUps > 0 ? "danger" : "success"}
+              caption="Vencidos o para hoy"
+            />
           </div>
-        }
-      >
-        <div className="grid gap-4 xl:grid-cols-3">
-          <BoardColumn
-            title="Casos a revisar"
-            description="Entradas nuevas o en seguimiento."
-            count={priorityItems.length}
-            tone="warning"
-          >
-            {visiblePriorityItems.length === 0 ? (
-              <EmptyColumnState>
-                No hay casos que necesiten acción de la empresa.
-              </EmptyColumnState>
-            ) : (
-              visiblePriorityItems.map((inquiry) => (
-                <DashboardInquiryCard
-                  key={inquiry.id}
-                  inquiry={inquiry}
-                  onOpen={openInquiry}
-                />
-              ))
-            )}
-          </BoardColumn>
 
-          <BoardColumn
-            title="Citas internas"
-            description="Validación, ejecución o cierre interno."
-            count={nextAppointments.length}
-            tone="info"
-          >
-            {nextAppointments.length === 0 ? (
-              <EmptyColumnState>
-                No hay citas internas pendientes.
-              </EmptyColumnState>
-            ) : (
-              nextAppointments.map((appointment) => (
-                <DashboardAppointmentCard
-                  key={appointment.id}
-                  appointment={appointment}
-                  currentTimeMs={currentTimeMs}
-                  openInquiry={openInquiry}
-                />
-              ))
-            )}
-          </BoardColumn>
+          <SectionCard
+            className="mt-6"
+            title="Atención operativa"
+            description="Casos, citas y seguimientos que requieren revisión o acción."
+            action={
+              <div className="flex flex-wrap gap-2 text-sm">
+                <button
+                  onClick={() => setActiveView("inquiries")}
+                  className="font-semibold text-[#0F4C5C] hover:underline"
+                >
+                  Ver casos
+                </button>
 
-          <BoardColumn
-            title="Seguimientos"
-            description="Tareas pendientes para no perder casos."
-            count={pendingFollowUps.length}
-            tone={urgentFollowUps > 0 ? "danger" : "success"}
-          >
-            {nextFollowUps.length === 0 ? (
-              <EmptyColumnState>
-                No hay seguimientos pendientes.
-              </EmptyColumnState>
-            ) : (
-              nextFollowUps.map((followUp) => (
-                <FollowUpCard
-                  key={followUp.id}
-                  followUp={followUp}
-                  onOpen={openInquiry}
-                  onComplete={(id) =>
-                    handleUpdateFollowUpStatus(id, "completed")
-                  }
-                  onCancel={(id) =>
-                    handleUpdateFollowUpStatus(id, "cancelled")
-                  }
-                  isUpdating={updatingFollowUpId === followUp.id}
-                />
-              ))
-            )}
-          </BoardColumn>
-        </div>
-      </SectionCard>
+                <span className="text-slate-300">·</span>
 
-      <SectionCard
-        className="mt-6"
-        title="Canales de entrada"
-        description="Distribución de casos por canal registrado en el espacio activo."
-        action={
-          <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
-            Principal: {mainChannelLabel}
-          </div>
-        }
-      >
-        {hasChannelActivity ? (
-          <div className="grid justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,260px))]">
-            {channelSummaries.map((channelSummary) => (
-              <ChannelSummaryCard
-                key={channelSummary.label}
-                channelSummary={channelSummary}
-              />
-            ))}
-          </div>
-        ) : (
-          <EmptyColumnState>
-            Todavía no hay actividad por canal. Cuando entren mensajes por
-            Formulario web, Chat web, WhatsApp u otros canales, aparecerán
-            aquí.
-          </EmptyColumnState>
-        )}
-      </SectionCard>
+                <button
+                  onClick={() => setActiveView("appointments")}
+                  className="font-semibold text-[#0F4C5C] hover:underline"
+                >
+                  Ver agenda
+                </button>
+
+                <span className="text-slate-300">·</span>
+
+                <button
+                  onClick={() => setActiveView("followups")}
+                  className="font-semibold text-[#0F4C5C] hover:underline"
+                >
+                  Ver seguimientos
+                </button>
+              </div>
+            }
+          >
+            <div className="grid gap-4 xl:grid-cols-3">
+              <BoardColumn
+                title="Casos a revisar"
+                description="Entradas nuevas o en seguimiento."
+                count={priorityItems.length}
+                tone="warning"
+              >
+                {visiblePriorityItems.length === 0 ? (
+                  <EmptyColumnState>
+                    No hay casos que necesiten acción de la empresa.
+                  </EmptyColumnState>
+                ) : (
+                  visiblePriorityItems.map((inquiry) => (
+                    <DashboardInquiryCard
+                      key={inquiry.id}
+                      inquiry={inquiry}
+                      onOpen={openInquiry}
+                    />
+                  ))
+                )}
+              </BoardColumn>
+
+              <BoardColumn
+                title="Citas internas"
+                description="Validación, ejecución o cierre interno."
+                count={nextAppointments.length}
+                tone="info"
+              >
+                {nextAppointments.length === 0 ? (
+                  <EmptyColumnState>
+                    No hay citas internas pendientes.
+                  </EmptyColumnState>
+                ) : (
+                  nextAppointments.map((appointment) => (
+                    <DashboardAppointmentCard
+                      key={appointment.id}
+                      appointment={appointment}
+                      currentTimeMs={currentTimeMs}
+                      openInquiry={openInquiry}
+                    />
+                  ))
+                )}
+              </BoardColumn>
+
+              <BoardColumn
+                title="Seguimientos"
+                description="Tareas pendientes para no perder casos."
+                count={pendingFollowUps.length}
+                tone={urgentFollowUps > 0 ? "danger" : "success"}
+              >
+                {nextFollowUps.length === 0 ? (
+                  <EmptyColumnState>
+                    No hay seguimientos pendientes.
+                  </EmptyColumnState>
+                ) : (
+                  nextFollowUps.map((followUp) => (
+                    <FollowUpCard
+                      key={followUp.id}
+                      followUp={followUp}
+                      onOpen={openInquiry}
+                      onComplete={(id) =>
+                        handleUpdateFollowUpStatus(id, "completed")
+                      }
+                      onCancel={(id) =>
+                        handleUpdateFollowUpStatus(id, "cancelled")
+                      }
+                      isUpdating={updatingFollowUpId === followUp.id}
+                    />
+                  ))
+                )}
+              </BoardColumn>
+            </div>
+          </SectionCard>
+
+          <SectionCard
+            className="mt-6"
+            title="Canales de entrada"
+            description="Distribución de casos por canal registrado en el espacio activo."
+            action={
+              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
+                Principal: {mainChannelLabel}
+              </div>
+            }
+          >
+            {hasChannelActivity ? (
+              <div className="grid justify-center gap-3 [grid-template-columns:repeat(auto-fit,minmax(220px,260px))]">
+                {channelSummaries.map((channelSummary) => (
+                  <ChannelSummaryCard
+                    key={channelSummary.label}
+                    channelSummary={channelSummary}
+                  />
+                ))}
+              </div>
+            ) : (
+              <EmptyColumnState>
+                Todavía no hay actividad por canal. Cuando entren mensajes por
+                Formulario web, Chat web, WhatsApp u otros canales, aparecerán
+                aquí.
+              </EmptyColumnState>
+            )}
+          </SectionCard>
+        </>
+      )}
     </div>
   );
 }
