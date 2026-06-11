@@ -169,161 +169,8 @@ function getCustomerActivity(
   );
 }
 
-type CustomerCardVisualClasses = {
-  wrapper: string;
-  channelBadge: string;
-  metricBox: string;
-  languageBadge: string;
-};
-
-function getCustomerCardVisualClasses(
-  customer: CustomerWithActivity
-): CustomerCardVisualClasses {
-  const normalizedStatus = normalizeCustomerStatus(customer.status);
-
-  if (normalizedStatus === "archived") {
-    return {
-      wrapper: "border-slate-200 ring-1 ring-slate-100",
-      channelBadge: "border-slate-200 bg-slate-50 text-slate-600",
-      metricBox: "bg-slate-50/80",
-      languageBadge: "bg-slate-100 text-slate-600",
-    };
-  }
-
-  if (normalizedStatus === "inactive") {
-    return {
-      wrapper: "border-amber-200 ring-1 ring-amber-100",
-      channelBadge: "border-amber-200 bg-amber-50 text-amber-700",
-      metricBox: "bg-amber-50/60",
-      languageBadge: "bg-amber-50 text-amber-700",
-    };
-  }
-
-  const channel = formatSourceChannel(customer.latestSourceChannel);
-
-  if (channel === "WhatsApp") {
-    return {
-      wrapper: "border-emerald-200 ring-1 ring-emerald-100",
-      channelBadge: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      metricBox: "bg-emerald-50/60",
-      languageBadge: "bg-emerald-50 text-emerald-700",
-    };
-  }
-
-  if (channel === "Chat web") {
-    return {
-      wrapper: "border-sky-200 ring-1 ring-sky-100",
-      channelBadge: "border-sky-200 bg-sky-50 text-sky-700",
-      metricBox: "bg-sky-50/60",
-      languageBadge: "bg-sky-50 text-sky-700",
-    };
-  }
-
-  if (channel === "Formulario web") {
-    return {
-      wrapper: "border-[#0F4C5C]/25 ring-1 ring-[#0F4C5C]/10",
-      channelBadge: "border-[#0F4C5C]/20 bg-[#0F4C5C]/[0.06] text-[#0F4C5C]",
-      metricBox: "bg-[#0F4C5C]/[0.045]",
-      languageBadge: "bg-[#0F4C5C]/[0.06] text-[#0F4C5C]",
-    };
-  }
-
-  if (channel === "Email") {
-    return {
-      wrapper: "border-amber-200 ring-1 ring-amber-100",
-      channelBadge: "border-amber-200 bg-amber-50 text-amber-700",
-      metricBox: "bg-amber-50/60",
-      languageBadge: "bg-amber-50 text-amber-700",
-    };
-  }
-
-  if (channel === "Teléfono") {
-    return {
-      wrapper: "border-purple-200 ring-1 ring-purple-100",
-      channelBadge: "border-purple-200 bg-purple-50 text-purple-700",
-      metricBox: "bg-purple-50/60",
-      languageBadge: "bg-purple-50 text-purple-700",
-    };
-  }
-
-  if (channel === "SMS") {
-    return {
-      wrapper: "border-indigo-200 ring-1 ring-indigo-100",
-      channelBadge: "border-indigo-200 bg-indigo-50 text-indigo-700",
-      metricBox: "bg-indigo-50/60",
-      languageBadge: "bg-indigo-50 text-indigo-700",
-    };
-  }
-
-  if (channel === "Instagram") {
-    return {
-      wrapper: "border-pink-200 ring-1 ring-pink-100",
-      channelBadge: "border-pink-200 bg-pink-50 text-pink-700",
-      metricBox: "bg-pink-50/60",
-      languageBadge: "bg-pink-50 text-pink-700",
-    };
-  }
-
-  if (channel === "Facebook") {
-    return {
-      wrapper: "border-blue-200 ring-1 ring-blue-100",
-      channelBadge: "border-blue-200 bg-blue-50 text-blue-700",
-      metricBox: "bg-blue-50/60",
-      languageBadge: "bg-blue-50 text-blue-700",
-    };
-  }
-
-  if (channel === "Perfil de Empresa de Google") {
-    return {
-      wrapper: "border-lime-200 ring-1 ring-lime-100",
-      channelBadge: "border-lime-200 bg-lime-50 text-lime-700",
-      metricBox: "bg-lime-50/60",
-      languageBadge: "bg-lime-50 text-lime-700",
-    };
-  }
-
-  if (channel === "Presencial") {
-    return {
-      wrapper: "border-orange-200 ring-1 ring-orange-100",
-      channelBadge: "border-orange-200 bg-orange-50 text-orange-700",
-      metricBox: "bg-orange-50/60",
-      languageBadge: "bg-orange-50 text-orange-700",
-    };
-  }
-
-  if (channel === "Portal externo") {
-    return {
-      wrapper: "border-cyan-200 ring-1 ring-cyan-100",
-      channelBadge: "border-cyan-200 bg-cyan-50 text-cyan-700",
-      metricBox: "bg-cyan-50/60",
-      languageBadge: "bg-cyan-50 text-cyan-700",
-    };
-  }
-
-  if (normalizedStatus === "active") {
-    return {
-      wrapper: "border-emerald-200 ring-1 ring-emerald-100",
-      channelBadge: "border-emerald-200 bg-emerald-50 text-emerald-700",
-      metricBox: "bg-emerald-50/60",
-      languageBadge: "bg-emerald-50 text-emerald-700",
-    };
-  }
-
-  if (normalizedStatus === "new") {
-    return {
-      wrapper: "border-sky-200 ring-1 ring-sky-100",
-      channelBadge: "border-sky-200 bg-sky-50 text-sky-700",
-      metricBox: "bg-sky-50/60",
-      languageBadge: "bg-sky-50 text-sky-700",
-    };
-  }
-
-  return {
-    wrapper: "border-slate-200 ring-1 ring-slate-100",
-    channelBadge: "border-slate-200 bg-slate-50 text-slate-600",
-    metricBox: "bg-slate-50/80",
-    languageBadge: "bg-slate-100 text-slate-600",
-  };
+function formatCustomerLanguage(language: string | null) {
+  return (language || "es").toUpperCase();
 }
 
 export function Customers({ openCustomer }: CustomersProps) {
@@ -667,7 +514,6 @@ export function Customers({ openCustomer }: CustomersProps) {
         }
       />
 
-
       <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard
           title="Clientes totales"
@@ -711,18 +557,11 @@ export function Customers({ openCustomer }: CustomersProps) {
       </div>
 
       {showCreateForm ? (
-        <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">
-                Nuevo cliente
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Crea un cliente para asociarle casos, notas y seguimientos.
-              </p>
-            </div>
-
+        <SectionCard
+          title="Nuevo cliente"
+          description="Crea un cliente para asociarle casos, notas y seguimientos."
+          className="mb-5"
+          action={
             <button
               type="button"
               onClick={handleCloseCreateForm}
@@ -731,8 +570,8 @@ export function Customers({ openCustomer }: CustomersProps) {
             >
               <X size={18} />
             </button>
-          </div>
-
+          }
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <label className="text-sm font-medium text-slate-700">
               Nombre
@@ -812,7 +651,7 @@ export function Customers({ openCustomer }: CustomersProps) {
               Cancelar
             </Button>
           </div>
-        </div>
+        </SectionCard>
       ) : null}
 
       <SectionCard
@@ -930,81 +769,78 @@ export function Customers({ openCustomer }: CustomersProps) {
           }
         >
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {filteredCustomers.map((customer) => {
-            const latestSourceChannel = customer.latestSourceChannel
-              ? formatSourceChannel(customer.latestSourceChannel)
-              : "Sin canal todavía";
-            const customerVisualClasses = getCustomerCardVisualClasses(customer);
+            {filteredCustomers.map((customer) => {
+              const latestSourceChannel = customer.latestSourceChannel
+                ? formatSourceChannel(customer.latestSourceChannel)
+                : "Sin canal todavía";
 
-            return (
-              <button
-                key={customer.id}
-                onClick={() => openCustomer(customer.id)}
-                className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-[#0F4C5C]/30 hover:shadow-md ${customerVisualClasses.wrapper}`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <h3 className="truncate font-bold text-slate-950">
-                      {customer.name}
-                    </h3>
+              return (
+                <button
+                  key={customer.id}
+                  onClick={() => openCustomer(customer.id)}
+                  className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm shadow-slate-200/50 transition hover:border-[#0F4C5C]/30 hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <h3 className="truncate font-bold text-slate-950">
+                        {customer.name}
+                      </h3>
 
-                    <p className="mt-1 truncate text-sm text-slate-500">
-                      {customer.email || "Sin email"}
-                    </p>
+                      <p className="mt-1 truncate text-sm text-slate-500">
+                        {customer.email || "Sin email"}
+                      </p>
 
-                    <p className="truncate text-sm text-slate-500">
-                      {customer.phone || "Sin teléfono"}
-                    </p>
+                      <p className="truncate text-sm text-slate-500">
+                        {customer.phone || "Sin teléfono"}
+                      </p>
+                    </div>
+
+                    <StatusBadge
+                      status={normalizeCustomerStatus(customer.status)}
+                    />
                   </div>
 
-                  <StatusBadge
-                    status={normalizeCustomerStatus(customer.status)}
-                  />
-                </div>
+                  <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="font-semibold text-slate-700">
+                        {customer.caseCount}
+                      </div>
+                      <div>
+                        {customer.caseCount === 1
+                          ? "caso total"
+                          : "casos totales"}
+                      </div>
+                    </div>
 
-                <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
-                  <div className={`rounded-xl px-3 py-2 ${customerVisualClasses.metricBox}`}>
-                    <div className="font-semibold text-slate-700">
-                      {customer.caseCount}
-                    </div>
-                    <div>
-                      {customer.caseCount === 1 ? "caso total" : "casos totales"}
-                    </div>
-                  </div>
-
-                  <div className={`rounded-xl px-3 py-2 ${customerVisualClasses.metricBox}`}>
-                    <div className="font-semibold text-slate-700">
-                      {customer.activeCaseCount}
-                    </div>
-                    <div>
-                      {customer.activeCaseCount === 1
-                        ? "caso activo"
-                        : "casos activos"}
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
+                      <div className="font-semibold text-slate-700">
+                        {customer.activeCaseCount}
+                      </div>
+                      <div>
+                        {customer.activeCaseCount === 1
+                          ? "caso activo"
+                          : "casos activos"}
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                  <span
-                    className={`rounded-full border px-2.5 py-1 font-medium ${customerVisualClasses.channelBadge}`}
-                  >
-                    Último canal: {latestSourceChannel}
-                  </span>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                      Último canal: {latestSourceChannel}
+                    </span>
 
-                  <span
-                    className={`rounded-full px-2.5 py-1 font-medium ${customerVisualClasses.languageBadge}`}
-                  >
-                    {(customer.language || "es").toUpperCase()}
-                  </span>
-                </div>
+                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                      {formatCustomerLanguage(customer.language)}
+                    </span>
+                  </div>
 
-                <div className="mt-3 text-xs text-slate-500">
-                  Última interacción:{" "}
-                  {formatLastInteraction(customer.last_interaction_at)}
-                </div>
-              </button>
-            );
-          })}
+                  <div className="mt-3 text-xs text-slate-500">
+                    Última interacción:{" "}
+                    {formatLastInteraction(customer.last_interaction_at)}
+                  </div>
+                </button>
+              );
+            })}
           </div>
         </SectionCard>
       ) : null}
