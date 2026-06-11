@@ -1052,123 +1052,149 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       </SectionCard>
 
       {showForm ? (
-        <SectionCard className="mt-5">
-          <div className="mb-4 flex items-start justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">
-                {isEditing ? "Editar cita interna" : "Crear cita interna"}
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                {isEditing
-                  ? "Actualiza el título, la fecha o las notas de esta cita interna."
-                  : "Asocia una cita interna a un caso existente. No se enviará ninguna confirmación automática al cliente."}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={handleCancelForm}
-              className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              title="Cerrar formulario"
-            >
-              <X size={18} />
-            </button>
-          </div>
-
-          <div className="grid gap-4 md:grid-cols-2">
-            {isEditing ? (
-              <div className="text-sm font-medium text-slate-700 md:col-span-2">
-                Caso asociado
-                <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
-                  {editingAppointment?.inquiryLabel || "Caso no indicado"}
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="appointment-modal-title"
+          onClick={handleCancelForm}
+        >
+          <div
+            className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <div className="mb-2 inline-flex rounded-full border border-[#0F4C5C]/15 bg-[#0F4C5C]/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                  {isEditing ? "Editar cita interna" : "Crear cita interna"}
                 </div>
-              </div>
-            ) : (
-              <label className="text-sm font-medium text-slate-700 md:col-span-2">
-                Caso asociado
-                <select
-                  value={selectedInquiryId}
-                  onChange={(event) => {
-                    setSelectedInquiryId(event.target.value);
-                  }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+
+                <h2
+                  id="appointment-modal-title"
+                  className="text-xl font-bold text-slate-950"
                 >
-                  {inquiryOptions.length === 0 ? (
-                    <option value="">No hay casos activos disponibles</option>
-                  ) : (
-                    <>
-                      <option value="">Selecciona un caso asociado</option>
+                  {isEditing ? "Editar cita interna" : "Crear cita interna"}
+                </h2>
 
-                      {inquiryOptions.map((inquiry) => (
-                        <option key={inquiry.id} value={inquiry.id}>
-                          {inquiry.customer_name} ·{" "}
-                          {inquiry.subject || "Sin asunto"} ·{" "}
-                          {formatInquiryStatus(inquiry.status)}
-                        </option>
-                      ))}
-                    </>
-                  )}
-                </select>
-              </label>
-            )}
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  {isEditing
+                    ? "Actualiza el título, la fecha o las notas de esta cita interna."
+                    : "Asocia una cita interna a un caso existente. COPPE no enviará ninguna confirmación automática al cliente."}
+                </p>
+              </div>
 
-            <label className="text-sm font-medium text-slate-700">
-              Título
-              <input
-                value={title}
-                onChange={(event) => setTitle(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="Escribe el título de la cita"
-              />
-            </label>
-
-            <label className="text-sm font-medium text-slate-700">
-              Fecha y hora
-              <input
-                type="datetime-local"
-                value={scheduledAt}
-                onChange={(event) => setScheduledAt(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-              />
-            </label>
-
-            <label className="text-sm font-medium text-slate-700 md:col-span-2">
-              Notas
-              <textarea
-                value={notes}
-                onChange={(event) => setNotes(event.target.value)}
-                className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="Añade detalles relevantes para preparar la cita..."
-              />
-            </label>
-          </div>
-
-          {formErrorMessage ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {formErrorMessage}
+              <button
+                type="button"
+                onClick={handleCancelForm}
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                title="Cerrar ventana"
+              >
+                <X size={18} />
+              </button>
             </div>
-          ) : null}
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button
-              onClick={handleSaveAppointment}
-              disabled={isSaving || (!isEditing && inquiryOptions.length === 0)}
-            >
-              {isSaving
-                ? isEditing
-                  ? "Guardando cambios..."
-                  : "Creando cita..."
-                : isEditing
-                  ? "Guardar cambios"
-                  : "Guardar cita interna"}
-            </Button>
+            <div className="px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                {isEditing ? (
+                  <div className="text-sm font-medium text-slate-700 md:col-span-2">
+                    Caso asociado
+                    <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
+                      {editingAppointment?.inquiryLabel || "Caso no indicado"}
+                    </div>
+                  </div>
+                ) : (
+                  <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                    Caso asociado
+                    <select
+                      value={selectedInquiryId}
+                      onChange={(event) => {
+                        setSelectedInquiryId(event.target.value);
+                      }}
+                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    >
+                      {inquiryOptions.length === 0 ? (
+                        <option value="">No hay casos activos disponibles</option>
+                      ) : (
+                        <>
+                          <option value="">Selecciona un caso asociado</option>
 
-            <Button variant="secondary" onClick={handleCancelForm}>
-              Cancelar
-            </Button>
+                          {inquiryOptions.map((inquiry) => (
+                            <option key={inquiry.id} value={inquiry.id}>
+                              {inquiry.customer_name} ·{" "}
+                              {inquiry.subject || "Sin asunto"} ·{" "}
+                              {formatInquiryStatus(inquiry.status)}
+                            </option>
+                          ))}
+                        </>
+                      )}
+                    </select>
+                  </label>
+                )}
+
+                <label className="text-sm font-medium text-slate-700">
+                  Título
+                  <input
+                    value={title}
+                    onChange={(event) => setTitle(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    placeholder="Escribe el título de la cita"
+                    autoFocus
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-slate-700">
+                  Fecha y hora
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(event) => setScheduledAt(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                  Notas
+                  <textarea
+                    value={notes}
+                    onChange={(event) => setNotes(event.target.value)}
+                    className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    placeholder="Añade detalles relevantes para preparar la cita..."
+                  />
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+                Esta cita es solo de uso interno. El cliente no recibe ninguna
+                confirmación automática desde COPPE.
+              </div>
+
+              {formErrorMessage ? (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {formErrorMessage}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+              <Button variant="ghost" onClick={handleCancelForm}>
+                Cancelar
+              </Button>
+
+              <Button
+                onClick={handleSaveAppointment}
+                disabled={isSaving || (!isEditing && inquiryOptions.length === 0)}
+              >
+                {isSaving
+                  ? isEditing
+                    ? "Guardando cambios..."
+                    : "Creando cita..."
+                  : isEditing
+                    ? "Guardar cambios"
+                    : "Guardar cita interna"}
+              </Button>
+            </div>
           </div>
-        </SectionCard>
+        </div>
       ) : null}
 
       {errorMessage ? (

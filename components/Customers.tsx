@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   Archive,
   ClipboardList,
@@ -472,6 +472,27 @@ export function Customers({ openCustomer }: CustomersProps) {
     setNewCustomerEmail("");
     setNewCustomerPhone("");
     setNewCustomerLanguage("es");
+
+    window.setTimeout(() => {
+      setShowCreateForm(false);
+      setSuccessMessage("");
+    }, 2200);
+  };
+
+  const handleCreateCustomerKeyDown = (
+    event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (isCreatingCustomer || successMessage) {
+      return;
+    }
+
+    handleCreateCustomer();
   };
 
   const normalizedSearch = normalizeSearchText(appliedSearchTerm);
@@ -574,101 +595,139 @@ export function Customers({ openCustomer }: CustomersProps) {
       )}
 
       {showCreateForm ? (
-        <SectionCard
-          title="Nuevo cliente"
-          description="Crea un cliente para asociarle casos, notas y seguimientos."
-          className="mb-5"
-          action={
-            <button
-              type="button"
-              onClick={handleCloseCreateForm}
-              className="rounded-xl p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-              title="Cerrar formulario"
-            >
-              <X size={18} />
-            </button>
-          }
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="new-customer-title"
+          onClick={handleCloseCreateForm}
         >
-          <div className="grid gap-4 md:grid-cols-2">
-            <label className="text-sm font-medium text-slate-700">
-              Nombre
-              <input
-                value={newCustomerName}
-                onChange={(event) => setNewCustomerName(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="Nombre del cliente"
-              />
-            </label>
+          <div
+            className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+              <div>
+                <div className="mb-2 inline-flex rounded-full border border-[#0F4C5C]/15 bg-[#0F4C5C]/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                  Nuevo cliente
+                </div>
 
-            <label className="text-sm font-medium text-slate-700">
-              Email
-              <input
-                type="email"
-                value={newCustomerEmail}
-                onChange={(event) => setNewCustomerEmail(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="cliente@email.com"
-              />
-            </label>
+                <h2
+                  id="new-customer-title"
+                  className="text-xl font-bold text-slate-950"
+                >
+                  Crear cliente
+                </h2>
 
-            <label className="text-sm font-medium text-slate-700">
-              Teléfono
-              <input
-                type="tel"
-                value={newCustomerPhone}
-                onChange={(event) => setNewCustomerPhone(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                placeholder="+34 600 000 000"
-              />
-            </label>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  Añade un cliente para asociarle casos, notas, citas internas y
+                  seguimientos.
+                </p>
+              </div>
 
-            <label className="text-sm font-medium text-slate-700">
-              Idioma
-              <select
-                value={newCustomerLanguage}
-                onChange={(event) => setNewCustomerLanguage(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              <button
+                type="button"
+                onClick={handleCloseCreateForm}
+                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                title="Cerrar ventana"
               >
-                <option value="es">Español</option>
-                <option value="en">Inglés</option>
-              </select>
-            </label>
-          </div>
-
-          {createErrorMessage ? (
-            <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {createErrorMessage}
+                <X size={18} />
+              </button>
             </div>
-          ) : null}
 
-          {successMessage ? (
-            <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {successMessage}
+            <div className="px-6 py-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-medium text-slate-700">
+                  Nombre
+                  <input
+                    value={newCustomerName}
+                    onChange={(event) =>
+                      setNewCustomerName(event.target.value)
+                    }
+                    onKeyDown={handleCreateCustomerKeyDown}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    placeholder="Nombre del cliente"
+                    autoFocus
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-slate-700">
+                  Email
+                  <input
+                    type="email"
+                    value={newCustomerEmail}
+                    onChange={(event) =>
+                      setNewCustomerEmail(event.target.value)
+                    }
+                    onKeyDown={handleCreateCustomerKeyDown}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    placeholder="cliente@email.com"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-slate-700">
+                  Teléfono
+                  <input
+                    type="tel"
+                    value={newCustomerPhone}
+                    onChange={(event) =>
+                      setNewCustomerPhone(event.target.value)
+                    }
+                    onKeyDown={handleCreateCustomerKeyDown}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    placeholder="+34 600 000 000"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-slate-700">
+                  Idioma
+                  <select
+                    value={newCustomerLanguage}
+                    onChange={(event) =>
+                      setNewCustomerLanguage(event.target.value)
+                    }
+                    onKeyDown={handleCreateCustomerKeyDown}
+                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  >
+                    <option value="es">Español</option>
+                    <option value="en">Inglés</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+                Introduce al menos un email o un teléfono. COPPE comprobará si
+                ya existe un cliente con esos datos antes de guardarlo.
+              </div>
+
+              {createErrorMessage ? (
+                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  {createErrorMessage}
+                </div>
+              ) : null}
+
+              {successMessage ? (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                  {successMessage}
+                </div>
+              ) : null}
+
             </div>
-          ) : null}
 
-          <div className="mt-5 flex flex-wrap gap-2">
-            <Button
-              onClick={handleCreateCustomer}
-              disabled={isCreatingCustomer}
-            >
-              {isCreatingCustomer ? "Creando cliente..." : "Guardar cliente"}
-            </Button>
-
-            {createdCustomerId ? (
-              <Button
-                variant="secondary"
-                onClick={() => openCustomer(createdCustomerId)}
-              >
-                Ver cliente
+            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+              <Button variant="ghost" onClick={handleCloseCreateForm}>
+                Cancelar
               </Button>
-            ) : null}
 
-            <Button variant="ghost" onClick={handleCloseCreateForm}>
-              Cancelar
-            </Button>
+              <Button
+                onClick={handleCreateCustomer}
+                disabled={isCreatingCustomer}
+              >
+                {isCreatingCustomer ? "Creando cliente..." : "Guardar cliente"}
+              </Button>
+            </div>
           </div>
-        </SectionCard>
+        </div>
       ) : null}
 
       <SectionCard
