@@ -24,15 +24,10 @@ export function BoardColumn({
   const toneStyles = visualToneStyles[tone];
 
   return (
-    <section
-      className={classNames(
-        "rounded-3xl border p-4 shadow-sm shadow-slate-200/60",
-        toneStyles.softCard
-      )}
-    >
+    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60">
       <div
         className={classNames(
-          "mb-4 rounded-2xl border px-4 py-3",
+          "mb-4 rounded-2xl border px-4 py-3 shadow-sm",
           toneStyles.header
         )}
       >
@@ -43,14 +38,19 @@ export function BoardColumn({
             </h3>
 
             {description ? (
-              <p className="mt-1 text-xs leading-5 text-slate-500">
+              <p className="mt-1 text-xs leading-5 text-slate-600">
                 {description}
               </p>
             ) : null}
           </div>
 
           {typeof count === "number" ? (
-            <span className="inline-flex h-7 min-w-7 items-center justify-center rounded-full border border-white/80 bg-white px-2 text-xs font-bold text-slate-700 shadow-sm">
+            <span
+              className={classNames(
+                "inline-flex h-7 min-w-7 items-center justify-center rounded-full border bg-white px-2 text-xs font-bold shadow-sm",
+                toneStyles.badge
+              )}
+            >
               {count}
             </span>
           ) : null}

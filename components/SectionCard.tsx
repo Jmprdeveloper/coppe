@@ -22,7 +22,7 @@ export function SectionCard({
     <section className={classNames(surfaceStyles.pageSection, "p-5", className)}>
       {title || description || action ? (
         <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-          <div>
+          <div className="min-w-0">
             {title ? (
               <h2 className="text-lg font-bold text-slate-950">{title}</h2>
             ) : null}

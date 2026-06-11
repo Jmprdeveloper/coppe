@@ -1,9 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 
-import {
-  type VisualTone,
-  visualToneStyles,
-} from "../lib/visualSystem";
+import { type VisualTone, visualToneStyles } from "../lib/visualSystem";
 import { classNames } from "../lib/utils";
 
 type MetricCardProps = {
@@ -26,17 +23,17 @@ export function MetricCard({
   return (
     <article
       className={classNames(
-        "rounded-2xl border p-4 shadow-sm shadow-slate-200/60",
-        toneStyles.card
+        "rounded-2xl border p-4 shadow-sm shadow-slate-200/60 transition",
+        toneStyles.softCard
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <div className="min-w-0">
+          <div className="text-xs font-bold uppercase tracking-wide text-slate-500">
             {title}
           </div>
 
-          <div className="mt-2 text-2xl font-bold text-slate-950">
+          <div className="mt-2 truncate text-2xl font-bold text-slate-950">
             {value}
           </div>
         </div>
@@ -44,7 +41,7 @@ export function MetricCard({
         {Icon ? (
           <div
             className={classNames(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl",
+              "flex h-9 w-9 shrink-0 items-center justify-center rounded-2xl border border-white/70 shadow-sm",
               toneStyles.icon
             )}
           >
@@ -54,7 +51,7 @@ export function MetricCard({
       </div>
 
       {caption ? (
-        <p className="mt-3 text-xs leading-5 text-slate-500">{caption}</p>
+        <p className="mt-3 text-xs leading-5 text-slate-600">{caption}</p>
       ) : null}
     </article>
   );

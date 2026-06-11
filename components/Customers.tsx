@@ -1,7 +1,16 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import {
+  Archive,
+  ClipboardList,
+  Plus,
+  Search,
+  UserCheck,
+  UserPlus,
+  Users,
+  X,
+} from "lucide-react";
 
 import { getCurrentCompany } from "../lib/currentCompany";
 import { normalizeCustomerStatus } from "../lib/customerUtils";
@@ -18,7 +27,9 @@ import { createClient } from "../lib/supabase/client";
 import type { CustomerStatus } from "../types";
 
 import { Button } from "./Button";
+import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
+import { SectionCard } from "./SectionCard";
 import { StatusBadge } from "./StatusBadge";
 
 type CustomersProps = {
@@ -156,6 +167,163 @@ function getCustomerActivity(
       latestActivityAt: null,
     }
   );
+}
+
+type CustomerCardVisualClasses = {
+  wrapper: string;
+  channelBadge: string;
+  metricBox: string;
+  languageBadge: string;
+};
+
+function getCustomerCardVisualClasses(
+  customer: CustomerWithActivity
+): CustomerCardVisualClasses {
+  const normalizedStatus = normalizeCustomerStatus(customer.status);
+
+  if (normalizedStatus === "archived") {
+    return {
+      wrapper: "border-slate-200 ring-1 ring-slate-100",
+      channelBadge: "border-slate-200 bg-slate-50 text-slate-600",
+      metricBox: "bg-slate-50/80",
+      languageBadge: "bg-slate-100 text-slate-600",
+    };
+  }
+
+  if (normalizedStatus === "inactive") {
+    return {
+      wrapper: "border-amber-200 ring-1 ring-amber-100",
+      channelBadge: "border-amber-200 bg-amber-50 text-amber-700",
+      metricBox: "bg-amber-50/60",
+      languageBadge: "bg-amber-50 text-amber-700",
+    };
+  }
+
+  const channel = formatSourceChannel(customer.latestSourceChannel);
+
+  if (channel === "WhatsApp") {
+    return {
+      wrapper: "border-emerald-200 ring-1 ring-emerald-100",
+      channelBadge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      metricBox: "bg-emerald-50/60",
+      languageBadge: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (channel === "Chat web") {
+    return {
+      wrapper: "border-sky-200 ring-1 ring-sky-100",
+      channelBadge: "border-sky-200 bg-sky-50 text-sky-700",
+      metricBox: "bg-sky-50/60",
+      languageBadge: "bg-sky-50 text-sky-700",
+    };
+  }
+
+  if (channel === "Formulario web") {
+    return {
+      wrapper: "border-[#0F4C5C]/25 ring-1 ring-[#0F4C5C]/10",
+      channelBadge: "border-[#0F4C5C]/20 bg-[#0F4C5C]/[0.06] text-[#0F4C5C]",
+      metricBox: "bg-[#0F4C5C]/[0.045]",
+      languageBadge: "bg-[#0F4C5C]/[0.06] text-[#0F4C5C]",
+    };
+  }
+
+  if (channel === "Email") {
+    return {
+      wrapper: "border-amber-200 ring-1 ring-amber-100",
+      channelBadge: "border-amber-200 bg-amber-50 text-amber-700",
+      metricBox: "bg-amber-50/60",
+      languageBadge: "bg-amber-50 text-amber-700",
+    };
+  }
+
+  if (channel === "Teléfono") {
+    return {
+      wrapper: "border-purple-200 ring-1 ring-purple-100",
+      channelBadge: "border-purple-200 bg-purple-50 text-purple-700",
+      metricBox: "bg-purple-50/60",
+      languageBadge: "bg-purple-50 text-purple-700",
+    };
+  }
+
+  if (channel === "SMS") {
+    return {
+      wrapper: "border-indigo-200 ring-1 ring-indigo-100",
+      channelBadge: "border-indigo-200 bg-indigo-50 text-indigo-700",
+      metricBox: "bg-indigo-50/60",
+      languageBadge: "bg-indigo-50 text-indigo-700",
+    };
+  }
+
+  if (channel === "Instagram") {
+    return {
+      wrapper: "border-pink-200 ring-1 ring-pink-100",
+      channelBadge: "border-pink-200 bg-pink-50 text-pink-700",
+      metricBox: "bg-pink-50/60",
+      languageBadge: "bg-pink-50 text-pink-700",
+    };
+  }
+
+  if (channel === "Facebook") {
+    return {
+      wrapper: "border-blue-200 ring-1 ring-blue-100",
+      channelBadge: "border-blue-200 bg-blue-50 text-blue-700",
+      metricBox: "bg-blue-50/60",
+      languageBadge: "bg-blue-50 text-blue-700",
+    };
+  }
+
+  if (channel === "Perfil de Empresa de Google") {
+    return {
+      wrapper: "border-lime-200 ring-1 ring-lime-100",
+      channelBadge: "border-lime-200 bg-lime-50 text-lime-700",
+      metricBox: "bg-lime-50/60",
+      languageBadge: "bg-lime-50 text-lime-700",
+    };
+  }
+
+  if (channel === "Presencial") {
+    return {
+      wrapper: "border-orange-200 ring-1 ring-orange-100",
+      channelBadge: "border-orange-200 bg-orange-50 text-orange-700",
+      metricBox: "bg-orange-50/60",
+      languageBadge: "bg-orange-50 text-orange-700",
+    };
+  }
+
+  if (channel === "Portal externo") {
+    return {
+      wrapper: "border-cyan-200 ring-1 ring-cyan-100",
+      channelBadge: "border-cyan-200 bg-cyan-50 text-cyan-700",
+      metricBox: "bg-cyan-50/60",
+      languageBadge: "bg-cyan-50 text-cyan-700",
+    };
+  }
+
+  if (normalizedStatus === "active") {
+    return {
+      wrapper: "border-emerald-200 ring-1 ring-emerald-100",
+      channelBadge: "border-emerald-200 bg-emerald-50 text-emerald-700",
+      metricBox: "bg-emerald-50/60",
+      languageBadge: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (normalizedStatus === "new") {
+    return {
+      wrapper: "border-sky-200 ring-1 ring-sky-100",
+      channelBadge: "border-sky-200 bg-sky-50 text-sky-700",
+      metricBox: "bg-sky-50/60",
+      languageBadge: "bg-sky-50 text-sky-700",
+    };
+  }
+
+  return {
+    wrapper: "border-slate-200 ring-1 ring-slate-100",
+    channelBadge: "border-slate-200 bg-slate-50 text-slate-600",
+    metricBox: "bg-slate-50/80",
+    languageBadge: "bg-slate-100 text-slate-600",
+  };
 }
 
 export function Customers({ openCustomer }: CustomersProps) {
@@ -473,6 +641,20 @@ export function Customers({ openCustomer }: CustomersProps) {
   const hasActiveSearch = appliedSearchTerm.trim().length > 0;
   const hasActiveStatusFilter = statusFilter !== "all";
 
+  const totalCustomers = customers.length;
+  const activeCustomers = customers.filter(
+    (customer) => normalizeCustomerStatus(customer.status) === "active"
+  ).length;
+  const newCustomers = customers.filter(
+    (customer) => normalizeCustomerStatus(customer.status) === "new"
+  ).length;
+  const archivedCustomers = customers.filter(
+    (customer) => normalizeCustomerStatus(customer.status) === "archived"
+  ).length;
+  const customersWithActiveCases = customers.filter(
+    (customer) => customer.activeCaseCount > 0
+  ).length;
+
   return (
     <div>
       <PageHeader
@@ -484,6 +666,49 @@ export function Customers({ openCustomer }: CustomersProps) {
           </Button>
         }
       />
+
+
+      <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <MetricCard
+          title="Clientes totales"
+          value={totalCustomers}
+          caption="Registrados en el espacio activo"
+          icon={Users}
+          tone="brand"
+        />
+
+        <MetricCard
+          title="Activos"
+          value={activeCustomers}
+          caption="Disponibles para nuevos casos"
+          icon={UserCheck}
+          tone="success"
+        />
+
+        <MetricCard
+          title="Nuevos"
+          value={newCustomers}
+          caption="Clientes recién incorporados"
+          icon={UserPlus}
+          tone="info"
+        />
+
+        <MetricCard
+          title="Con casos activos"
+          value={customersWithActiveCases}
+          caption="Requieren atención operativa"
+          icon={ClipboardList}
+          tone={customersWithActiveCases > 0 ? "warning" : "neutral"}
+        />
+
+        <MetricCard
+          title="Archivados"
+          value={archivedCustomers}
+          caption="Fuera de la operativa diaria"
+          icon={Archive}
+          tone="neutral"
+        />
+      </div>
 
       {showCreateForm ? (
         <div className="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -590,56 +815,64 @@ export function Customers({ openCustomer }: CustomersProps) {
         </div>
       ) : null}
 
-      <div className="mb-4 flex flex-col gap-2 rounded-2xl border border-slate-200 bg-white p-2 sm:flex-row sm:items-center">
-        <div className="flex min-w-0 flex-1 items-center gap-2 px-2">
-          <Search size={16} className="shrink-0 text-slate-400" />
+      <SectionCard
+        title="Buscar y filtrar clientes"
+        description="Localiza clientes por nombre, email, teléfono, estado o último canal utilizado."
+        className="mb-5"
+      >
+        <div className="space-y-4">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-[#0F4C5C] focus-within:bg-white">
+              <Search size={16} className="shrink-0 text-slate-400" />
 
-          <input
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") {
-                handleSearch();
-              }
-            }}
-            className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
-            placeholder="Buscar por nombre, email, teléfono o último canal..."
-          />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter") {
+                    handleSearch();
+                  }
+                }}
+                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                placeholder="Buscar por nombre, email, teléfono o último canal..."
+              />
+            </div>
+
+            <div className="flex gap-2">
+              {hasActiveSearch ? (
+                <button
+                  type="button"
+                  onClick={handleClearSearch}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                >
+                  <X size={15} /> Limpiar
+                </button>
+              ) : null}
+
+              <Button onClick={handleSearch}>
+                <Search size={16} /> Buscar
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {customerStatusFilters.map((customerStatusFilter) => (
+              <button
+                key={customerStatusFilter.value}
+                type="button"
+                onClick={() => setStatusFilter(customerStatusFilter.value)}
+                className={
+                  statusFilter === customerStatusFilter.value
+                    ? "rounded-xl bg-[#0F4C5C] px-3 py-2 text-sm font-semibold text-white transition"
+                    : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                }
+              >
+                {customerStatusFilter.label}
+              </button>
+            ))}
+          </div>
         </div>
-
-        <div className="flex gap-2">
-          {hasActiveSearch ? (
-            <button
-              type="button"
-              onClick={handleClearSearch}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-            >
-              <X size={15} /> Limpiar
-            </button>
-          ) : null}
-
-          <Button onClick={handleSearch}>
-            <Search size={16} /> Buscar
-          </Button>
-        </div>
-      </div>
-
-      <div className="mb-4 flex flex-wrap gap-2">
-        {customerStatusFilters.map((customerStatusFilter) => (
-          <button
-            key={customerStatusFilter.value}
-            type="button"
-            onClick={() => setStatusFilter(customerStatusFilter.value)}
-            className={
-              statusFilter === customerStatusFilter.value
-                ? "rounded-xl bg-[#0F4C5C] px-3 py-2 text-sm font-semibold text-white transition"
-                : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-            }
-          >
-            {customerStatusFilter.label}
-          </button>
-        ))}
-      </div>
+      </SectionCard>
 
       {hasActiveSearch || hasActiveStatusFilter ? (
         <div className="mb-4 text-sm text-slate-500">
@@ -684,17 +917,30 @@ export function Customers({ openCustomer }: CustomersProps) {
       ) : null}
 
       {!isLoading && !errorMessage && filteredCustomers.length > 0 ? (
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <SectionCard
+          title="Listado de clientes"
+          description={
+            hasActiveSearch || hasActiveStatusFilter
+              ? `Mostrando ${filteredCustomers.length} de ${customers.length} cliente${
+                  customers.length === 1 ? "" : "s"
+                }.`
+              : `${customers.length} cliente${
+                  customers.length === 1 ? "" : "s"
+                } registrado${customers.length === 1 ? "" : "s"}.`
+          }
+        >
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {filteredCustomers.map((customer) => {
             const latestSourceChannel = customer.latestSourceChannel
               ? formatSourceChannel(customer.latestSourceChannel)
               : "Sin canal todavía";
+            const customerVisualClasses = getCustomerCardVisualClasses(customer);
 
             return (
               <button
                 key={customer.id}
                 onClick={() => openCustomer(customer.id)}
-                className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm transition hover:border-[#0F4C5C]/30 hover:shadow-md"
+                className={`rounded-2xl border bg-white p-5 text-left shadow-sm transition hover:border-[#0F4C5C]/30 hover:shadow-md ${customerVisualClasses.wrapper}`}
               >
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -717,7 +963,7 @@ export function Customers({ openCustomer }: CustomersProps) {
                 </div>
 
                 <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className={`rounded-xl px-3 py-2 ${customerVisualClasses.metricBox}`}>
                     <div className="font-semibold text-slate-700">
                       {customer.caseCount}
                     </div>
@@ -726,7 +972,7 @@ export function Customers({ openCustomer }: CustomersProps) {
                     </div>
                   </div>
 
-                  <div className="rounded-xl bg-slate-50 px-3 py-2">
+                  <div className={`rounded-xl px-3 py-2 ${customerVisualClasses.metricBox}`}>
                     <div className="font-semibold text-slate-700">
                       {customer.activeCaseCount}
                     </div>
@@ -739,11 +985,15 @@ export function Customers({ openCustomer }: CustomersProps) {
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                  <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                  <span
+                    className={`rounded-full border px-2.5 py-1 font-medium ${customerVisualClasses.channelBadge}`}
+                  >
                     Último canal: {latestSourceChannel}
                   </span>
 
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 font-medium text-slate-600">
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-medium ${customerVisualClasses.languageBadge}`}
+                  >
                     {(customer.language || "es").toUpperCase()}
                   </span>
                 </div>
@@ -755,7 +1005,8 @@ export function Customers({ openCustomer }: CustomersProps) {
               </button>
             );
           })}
-        </div>
+          </div>
+        </SectionCard>
       ) : null}
     </div>
   );
