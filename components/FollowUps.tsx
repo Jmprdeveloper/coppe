@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   AlertTriangle,
   CalendarDays,
@@ -456,11 +456,16 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
           .sort(compareFollowUps)
       );
 
-      setEditingFollowUpId(null);
-      setShowCreateForm(false);
-      setTitle("");
-      setDueAt(getDefaultDateTimeLocal());
       setSuccessMessage("Seguimiento actualizado correctamente.");
+
+      window.setTimeout(() => {
+        setEditingFollowUpId(null);
+        setShowCreateForm(false);
+        setTitle("");
+        setDueAt(getDefaultDateTimeLocal());
+        setSuccessMessage("");
+      }, 2200);
+
       return;
     }
 
@@ -513,10 +518,30 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       )
     );
 
-    setTitle(`Revisar caso de ${selectedInquiry.customer_name}`);
-    setDueAt(getDefaultDateTimeLocal());
-    setShowCreateForm(false);
     setSuccessMessage("Seguimiento creado correctamente.");
+
+    window.setTimeout(() => {
+      setTitle(`Revisar caso de ${selectedInquiry.customer_name}`);
+      setDueAt(getDefaultDateTimeLocal());
+      setShowCreateForm(false);
+      setSuccessMessage("");
+    }, 2200);
+  };
+
+  const handleFollowUpFormKeyDown = (
+    event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
+    if (event.key !== "Enter") {
+      return;
+    }
+
+    event.preventDefault();
+
+    if (isCreating || successMessage) {
+      return;
+    }
+
+    handleSaveFollowUp();
   };
 
   const handleUpdateFollowUpStatus = async (
@@ -797,6 +822,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     Caso asociado
                     <select
                       value={selectedInquiryId}
+                      onKeyDown={handleFollowUpFormKeyDown}
                       onChange={(event) => {
                         const nextInquiryId = event.target.value;
                         const nextInquiry = inquiryOptions.find(
@@ -833,6 +859,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                   <input
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
+                    onKeyDown={handleFollowUpFormKeyDown}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                     placeholder="Escribe el título del seguimiento"
                     autoFocus
@@ -845,6 +872,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     type="datetime-local"
                     value={dueAt}
                     onChange={(event) => setDueAt(event.target.value)}
+                    onKeyDown={handleFollowUpFormKeyDown}
                     className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                   />
                 </label>
@@ -858,6 +886,12 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
               {formErrorMessage ? (
                 <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                   {formErrorMessage}
+                </div>
+              ) : null}
+
+              {successMessage ? (
+                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
+                  {successMessage}
                 </div>
               ) : null}
             </div>
