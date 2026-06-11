@@ -226,7 +226,7 @@ function CustomerInfoItem({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3">
+    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm shadow-slate-200/40">
       <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
         {label}
       </div>
