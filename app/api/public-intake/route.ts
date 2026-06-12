@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import {
@@ -52,12 +53,121 @@ type InboundEventRow = {
   id: string;
 };
 
+type PublicIntakeRateLimitRow = {
+  allowed: boolean;
+  current_count: number;
+  retry_after_seconds: number;
+};
+
 const MAX_CUSTOMER_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
 const MAX_PHONE_LENGTH = 40;
+const PUBLIC_INTAKE_RATE_LIMIT_MAX_REQUESTS = 5;
+const PUBLIC_INTAKE_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
 
 function getStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function getClientIp(request: Request) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+
+  if (forwardedFor) {
+    const firstForwardedIp = forwardedFor
+      .split(",")
+      .map((value) => value.trim())
+      .find(Boolean);
+
+    if (firstForwardedIp) {
+      return firstForwardedIp;
+    }
+  }
+
+  return (
+    request.headers.get("x-real-ip") ||
+    request.headers.get("cf-connecting-ip") ||
+    request.headers.get("x-vercel-forwarded-for") ||
+    "unknown"
+  );
+}
+
+function hashRateLimitPart(value: string) {
+  return createHash("sha256").update(value).digest("hex").slice(0, 24);
+}
+
+function buildPublicIntakeRateLimitBucketKey(
+  request: Request,
+  publicIntakeToken: string,
+  sourceChannel: PublicSourceChannel
+) {
+  const clientIp = getClientIp(request);
+
+  return [
+    "public-intake",
+    sourceChannel === "Chat web" ? "chat" : "form",
+    hashRateLimitPart(publicIntakeToken),
+    hashRateLimitPart(clientIp),
+  ].join(":");
+}
+
+async function checkPublicIntakeRateLimit(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  request: Request,
+  publicIntakeToken: string,
+  sourceChannel: PublicSourceChannel
+) {
+  const bucketKey = buildPublicIntakeRateLimitBucketKey(
+    request,
+    publicIntakeToken,
+    sourceChannel
+  );
+
+  const { data, error } = await supabaseAdmin.rpc(
+    "check_public_intake_rate_limit",
+    {
+      p_bucket_key: bucketKey,
+      p_max_requests: PUBLIC_INTAKE_RATE_LIMIT_MAX_REQUESTS,
+      p_window_seconds: PUBLIC_INTAKE_RATE_LIMIT_WINDOW_SECONDS,
+    }
+  );
+
+  if (error) {
+    throw new Error(
+      `No se pudo comprobar el límite de envíos: ${
+        error.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  const rows = Array.isArray(data)
+    ? (data as PublicIntakeRateLimitRow[])
+    : data
+      ? ([data] as PublicIntakeRateLimitRow[])
+      : [];
+
+  const rateLimit = rows[0];
+
+  if (!rateLimit) {
+    throw new Error("No se recibió respuesta al comprobar el límite de envíos.");
+  }
+
+  return rateLimit;
+}
+
+function buildRateLimitedResponse(retryAfterSeconds: number) {
+  return NextResponse.json(
+    {
+      error:
+        "Has enviado demasiados mensajes en poco tiempo. Inténtalo de nuevo dentro de unos minutos.",
+      retryAfterSeconds,
+    },
+    {
+      status: 429,
+      headers: {
+        "Retry-After": String(retryAfterSeconds),
+      },
+    }
+  );
 }
 
 function normalizePublicSourceChannel(
@@ -416,6 +526,29 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "El chat web público no está activo en este momento." },
       { status: 403 }
+    );
+  }
+
+  try {
+    const rateLimit = await checkPublicIntakeRateLimit(
+      supabaseAdmin,
+      request,
+      publicIntakeToken,
+      sourceChannel
+    );
+
+    if (!rateLimit.allowed) {
+      return buildRateLimitedResponse(rateLimit.retry_after_seconds);
+    }
+  } catch (error) {
+    console.error("Could not check public intake rate limit:", error);
+
+    return NextResponse.json(
+      {
+        error:
+          "No se pudo comprobar el límite de envíos. Inténtalo de nuevo en unos minutos.",
+      },
+      { status: 500 }
     );
   }
 
