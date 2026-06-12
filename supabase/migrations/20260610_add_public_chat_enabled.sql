@@ -1,4 +1,4 @@
-﻿alter table public.companies
+alter table public.companies
 add column if not exists public_chat_enabled boolean;
 
 update public.companies

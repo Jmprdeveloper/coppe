@@ -1,4 +1,4 @@
-﻿begin;
+begin;
 
 drop policy if exists "Users can delete inquiry messages for their companies"
 on public.inquiry_messages;

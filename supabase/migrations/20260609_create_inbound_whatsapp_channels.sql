@@ -1,4 +1,4 @@
-﻿create table if not exists public.inbound_whatsapp_channels (
+create table if not exists public.inbound_whatsapp_channels (
   id uuid primary key default gen_random_uuid(),
   company_id uuid not null references public.companies(id) on delete cascade,
   phone_number_id text not null,

@@ -1,4 +1,4 @@
-﻿begin;
+begin;
 
 create table if not exists public.public_intake_rate_limits (
   bucket_key text primary key,
