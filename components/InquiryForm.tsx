@@ -30,10 +30,6 @@ type CustomerRow = {
   phone?: string | null;
 };
 
-type CreatedInquiryRow = {
-  id: string;
-};
-
 type InquiryAnalysisRequestResult =
   | {
       analysis: NonNullable<AnalyzeInquiryResponse["analysis"]>;
@@ -312,63 +308,48 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
       customerId = newCustomer.id;
     }
 
-    const { data: createdInquiry, error: createInquiryError } = await supabase
-      .from("inquiries")
-      .insert({
-        company_id: company.id,
-        customer_id: customerId,
-        customer_name: cleanName,
-        source_channel: cleanSourceChannel,
-        subject: inquiryAnalysis.subject,
-        original_message: cleanMessage,
-        ai_summary: inquiryAnalysis.summary,
-        ai_intent: inquiryAnalysis.intent,
-        ai_category: inquiryAnalysis.category,
-        ai_priority: inquiryAnalysis.priority,
-        ai_language: inquiryAnalysis.language,
-        sentiment: inquiryAnalysis.sentiment,
-        missing_information: inquiryAnalysis.missingInformation,
-        recommended_action: inquiryAnalysis.recommendedAction,
-        suggested_response: inquiryAnalysis.suggestedResponse,
-        status: "new",
-      })
-      .select("id")
-      .single<CreatedInquiryRow>();
+    if (!customerId) {
+      setIsSubmitting(false);
+      setErrorMessage("No se pudo resolver el cliente antes de crear el caso.");
+      return;
+    }
 
-    if (createInquiryError || !createdInquiry) {
+    const { data: createdInquiryIdFromRpc, error: createInquiryError } =
+      await supabase.rpc("create_inquiry_with_initial_message", {
+        p_company_id: company.id,
+        p_customer_id: customerId,
+        p_customer_name: cleanName,
+        p_source_channel: cleanSourceChannel,
+        p_subject: inquiryAnalysis.subject,
+        p_original_message: cleanMessage,
+        p_ai_summary: inquiryAnalysis.summary,
+        p_ai_intent: inquiryAnalysis.intent,
+        p_ai_category: inquiryAnalysis.category,
+        p_ai_priority: inquiryAnalysis.priority,
+        p_ai_language: inquiryAnalysis.language,
+        p_sentiment: inquiryAnalysis.sentiment,
+        p_missing_information: inquiryAnalysis.missingInformation,
+        p_recommended_action: inquiryAnalysis.recommendedAction,
+        p_suggested_response: inquiryAnalysis.suggestedResponse,
+        p_status: "new",
+        p_message_direction: "inbound",
+        p_message_author_type: "customer",
+      });
+
+    if (createInquiryError || !createdInquiryIdFromRpc) {
       setIsSubmitting(false);
       setErrorMessage(
-        `No se pudo crear el caso: ${
+        `No se pudo crear el caso con su mensaje inicial: ${
           createInquiryError?.message || "sin detalle del error"
         }`
       );
       return;
     }
 
-    const { error: createInitialMessageError } = await supabase
-      .from("inquiry_messages")
-      .insert({
-        company_id: company.id,
-        inquiry_id: createdInquiry.id,
-        customer_id: customerId,
-        direction: "inbound",
-        author_type: "customer",
-        body: cleanMessage,
-        source_channel: cleanSourceChannel,
-      });
+    const createdInquiryId = String(createdInquiryIdFromRpc);
 
     setIsSubmitting(false);
-    setCreatedInquiryId(createdInquiry.id);
-
-    if (createInitialMessageError) {
-      setSuccessMessage(
-        `Caso creado, pero no se pudo guardar el mensaje inicial en el historial del caso: ${
-          createInitialMessageError.message || "sin detalle del error"
-        }`
-      );
-      return;
-    }
-
+    setCreatedInquiryId(createdInquiryId);
     setSuccessMessage("Caso creado correctamente.");
   };
 

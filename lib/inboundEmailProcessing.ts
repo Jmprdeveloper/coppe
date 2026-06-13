@@ -599,35 +599,33 @@ export async function processInboundEmail(
     console.error("Inbound email analysis fallback used:", error);
   }
 
-  const { data: createdInquiry, error: createInquiryError } =
-    await supabaseAdmin
-      .from("inquiries")
-      .insert({
-        company_id: company.id,
-        customer_id: customer.id,
-        customer_name: customer.name || customerName,
-        source_channel: "Email",
-        subject: subject || analysis.subject,
-        original_message: textBody,
-        ai_summary: analysis.summary,
-        ai_intent: analysis.intent,
-        ai_category: analysis.category,
-        ai_priority: analysis.priority,
-        ai_language: analysis.language,
-        sentiment: analysis.sentiment,
-        missing_information: analysis.missingInformation,
-        recommended_action: analysis.recommendedAction,
-        suggested_response: analysis.suggestedResponse,
-        status: "new",
-      })
-      .select("id")
-      .single<{ id: string }>();
+  const { data: createdInquiryIdFromRpc, error: createInquiryError } =
+    await supabaseAdmin.rpc("create_inquiry_with_initial_message", {
+      p_company_id: company.id,
+      p_customer_id: customer.id,
+      p_customer_name: customer.name || customerName,
+      p_source_channel: "Email",
+      p_subject: subject || analysis.subject,
+      p_original_message: textBody,
+      p_ai_summary: analysis.summary,
+      p_ai_intent: analysis.intent,
+      p_ai_category: analysis.category,
+      p_ai_priority: analysis.priority,
+      p_ai_language: analysis.language,
+      p_sentiment: analysis.sentiment,
+      p_missing_information: analysis.missingInformation,
+      p_recommended_action: analysis.recommendedAction,
+      p_suggested_response: analysis.suggestedResponse,
+      p_status: "new",
+      p_message_direction: "inbound",
+      p_message_author_type: "customer",
+    });
 
-  if (createInquiryError || !createdInquiry) {
+  if (createInquiryError || !createdInquiryIdFromRpc) {
     return buildFailedResultAfterInboundEvent(
       supabaseAdmin,
       inboundEventId,
-      `No se pudo crear el caso: ${
+      `No se pudo crear el caso con su mensaje inicial: ${
         createInquiryError?.message || "sin detalle del error"
       }`,
       500,
@@ -635,37 +633,12 @@ export async function processInboundEmail(
     );
   }
 
-  const { error: createMessageError } = await supabaseAdmin
-    .from("inquiry_messages")
-    .insert({
-      company_id: company.id,
-      inquiry_id: createdInquiry.id,
-      customer_id: customer.id,
-      direction: "inbound",
-      author_type: "customer",
-      body: textBody,
-      source_channel: "Email",
-    });
-
-  if (createMessageError) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
-      `El caso se creó, pero no se pudo guardar el mensaje inicial: ${
-        createMessageError.message || "sin detalle del error"
-      }`,
-      500,
-      {
-        customerId: customer.id,
-        inquiryId: createdInquiry.id,
-      }
-    );
-  }
+  const createdInquiryId = String(createdInquiryIdFromRpc);
 
   await updateInboundEvent(supabaseAdmin, inboundEventId, {
     status: "processed",
     customer_id: customer.id,
-    inquiry_id: createdInquiry.id,
+    inquiry_id: createdInquiryId,
     error_message: null,
     processed_at: new Date().toISOString(),
   });
@@ -673,7 +646,7 @@ export async function processInboundEmail(
   return {
     ok: true,
     status: 201,
-    inquiryId: createdInquiry.id,
+    inquiryId: createdInquiryId,
     message: "Email recibido correctamente.",
   };
 }
