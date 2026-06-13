@@ -261,8 +261,6 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
 
     if (customerId) {
       const customerUpdate: {
-        email?: string;
-        phone?: string;
         language: string;
         status: string;
         last_interaction_at: string;
@@ -271,14 +269,6 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         status: "active",
         last_interaction_at: new Date().toISOString(),
       };
-
-      if (cleanEmail) {
-        customerUpdate.email = cleanEmail;
-      }
-
-      if (normalizedPhone) {
-        customerUpdate.phone = normalizedPhone;
-      }
 
       const { error: updateCustomerError } = await supabase
         .from("customers")
