@@ -1,6 +1,7 @@
 import { inquiryCategoryOptions } from "./inquiryCategories";
 import type {
   InquiryAnalysisResult,
+  InquirySentiment,
   MessageLanguage,
 } from "./inquiryAnalysis";
 import type { InquiryCategory, Priority } from "../types";
@@ -53,6 +54,14 @@ function normalizeAiCategory(value: unknown): InquiryCategory | null {
 
 function normalizeAiPriority(value: unknown): Priority | null {
   if (value === "low" || value === "medium" || value === "high") {
+    return value;
+  }
+
+  return null;
+}
+
+function normalizeAiSentiment(value: unknown): InquirySentiment | null {
+  if (value === "positive" || value === "neutral" || value === "negative") {
     return value;
   }
 
@@ -112,6 +121,7 @@ export function normalizeAiInquiryAnalysisResult(
   const intent = cleanRequiredString(value.intent);
   const category = normalizeAiCategory(value.category);
   const priority = normalizeAiPriority(value.priority);
+  const sentiment = normalizeAiSentiment(value.sentiment);
   const language = normalizeAiLanguage(value.language);
   const missingInformation = normalizeMissingInformation(
     value.missingInformation
@@ -125,6 +135,7 @@ export function normalizeAiInquiryAnalysisResult(
     !intent ||
     !category ||
     !priority ||
+    !sentiment ||
     !language ||
     !missingInformation ||
     !recommendedAction ||
@@ -139,6 +150,7 @@ export function normalizeAiInquiryAnalysisResult(
     intent,
     category,
     priority,
+    sentiment,
     language,
     missingInformation,
     recommendedAction,

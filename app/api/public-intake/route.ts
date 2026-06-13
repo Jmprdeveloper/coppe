@@ -7,6 +7,7 @@ import {
   isValidPhone,
   normalizePhoneForComparison,
 } from "../../../lib/customerValidation";
+import { inferSentiment } from "../../../lib/inquiryAnalysis";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../../../lib/inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "../../../lib/inquiryAnalysisService";
 import { createAdminClient } from "../../../lib/supabase/admin";
@@ -227,11 +228,13 @@ function buildFallbackAnalysis(
   const language = company.language === "en" ? "en" : "es";
   const sourceChannelText = getPublicSourceChannelText(sourceChannel);
   const subject = buildFallbackSubject(message, sourceChannel);
+  const sentiment = inferSentiment("general_info", message);
 
   return {
     language,
     category: "general_info",
     priority: "medium",
+    sentiment,
     summary: `${customerName} ha enviado un mensaje ${sourceChannelText.summarySuffix}`,
     intent: sourceChannelText.intent,
     missingInformation: [],
@@ -706,7 +709,7 @@ export async function POST(request: Request) {
         ai_category: analysis.category,
         ai_priority: analysis.priority,
         ai_language: analysis.language,
-        sentiment: "neutral",
+        sentiment: analysis.sentiment,
         missing_information: analysis.missingInformation,
         recommended_action: analysis.recommendedAction,
         suggested_response: analysis.suggestedResponse,

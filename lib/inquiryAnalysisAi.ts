@@ -66,6 +66,12 @@ const inquiryAnalysisJsonSchema = {
       description:
         "Priority level. Use high for urgent, angry, blocked, cancellation, serious complaint or time-sensitive messages.",
     },
+    sentiment: {
+      type: "string",
+      enum: ["positive", "neutral", "negative"],
+      description:
+        "Emotional tone of the customer message. Use negative for complaints, frustration, anger, disappointment, unresolved problems or strong urgency. Use positive for gratitude, satisfaction or praise. Use neutral for informational messages without clear emotional tone.",
+    },
     language: {
       type: "string",
       enum: ["es", "en"],
@@ -97,6 +103,7 @@ const inquiryAnalysisJsonSchema = {
     "intent",
     "category",
     "priority",
+    "sentiment",
     "language",
     "missingInformation",
     "recommendedAction",
@@ -221,6 +228,10 @@ Ejemplos de compatibilidad:
 - Si la empresa no es hotel, alojamiento o turismo y el cliente quiere reservar una habitación, normalmente no encaja.
 
 Clasificación:
+- sentiment debe reflejar el tono emocional real del mensaje del cliente: positive, neutral o negative.
+- Usa sentiment "negative" si hay queja, enfado, frustración, decepción, reclamación, problema sin resolver o urgencia expresada con tensión.
+- Usa sentiment "positive" si hay agradecimiento, satisfacción, felicitación o valoración claramente positiva.
+- Usa sentiment "neutral" si el mensaje es principalmente informativo y no muestra emoción clara.
 - Si el mensaje mezcla seguimiento y queja, prioriza queja/incidencia si hay enfado, servicio mal hecho, problema sin resolver o reclamación.
 - Si el mensaje pide precio, coste, tarifa, presupuesto o propuesta, usa quote_request salvo que haya una incidencia dominante.
 - Si el cliente pide ayuda técnica, acceso, cuenta, error de uso o soporte, usa support_request.

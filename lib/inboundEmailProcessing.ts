@@ -1,5 +1,6 @@
 import { getCustomerDatabaseErrorMessage } from "./customerValidation";
 import { isValidEmail } from "./customerValidation";
+import { inferSentiment } from "./inquiryAnalysis";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
 import { createAdminClient } from "./supabase/admin";
@@ -123,11 +124,16 @@ function buildFallbackAnalysis(
 ): InboundEmailAnalysis {
   const language = company.language === "en" ? "en" : "es";
   const fallbackSubject = buildFallbackSubject(subject, textBody);
+  const sentiment = inferSentiment(
+    "general_info",
+    buildMessageForAnalysis(subject, textBody)
+  );
 
   return {
     language,
     category: "general_info",
     priority: "medium",
+    sentiment,
     summary: `${customerName} ha enviado un email a ${company.name}.`,
     intent: "Email recibido en el canal de entrada de la empresa.",
     missingInformation: [],
@@ -608,7 +614,7 @@ export async function processInboundEmail(
         ai_category: analysis.category,
         ai_priority: analysis.priority,
         ai_language: analysis.language,
-        sentiment: "neutral",
+        sentiment: analysis.sentiment,
         missing_information: analysis.missingInformation,
         recommended_action: analysis.recommendedAction,
         suggested_response: analysis.suggestedResponse,

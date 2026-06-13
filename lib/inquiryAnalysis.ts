@@ -2,6 +2,7 @@ import { type CurrentCompany } from "./currentCompany";
 import { normalizeSearchText } from "./searchUtils";
 
 export type MessageLanguage = "es" | "en";
+export type InquirySentiment = "positive" | "neutral" | "negative";
 
 type ResponseTone =
   | "profesional y cercano"
@@ -393,6 +394,95 @@ export function inferPriority(category: string, message: string) {
   }
 
   return "medium";
+}
+
+export function inferSentiment(
+  category: string,
+  message: string
+): InquirySentiment {
+  const normalizedMessage = normalizeSearchText(message);
+
+  const hasAnySignal = (signals: string[]) =>
+    signals.some((signal) => normalizedMessage.includes(signal));
+
+  const negativeSignals = [
+    "enfadado",
+    "enfadada",
+    "molesto",
+    "molesta",
+    "indignado",
+    "indignada",
+    "inaceptable",
+    "vergonzoso",
+    "vergüenza",
+    "fatal",
+    "horrible",
+    "mal servicio",
+    "muy mal",
+    "no funciona",
+    "no me responde",
+    "nadie responde",
+    "sigo esperando",
+    "reclamacion",
+    "reclamación",
+    "queja",
+    "problema",
+    "incidencia",
+    "averia",
+    "avería",
+    "urgente",
+    "decepcionado",
+    "decepcionada",
+    "angry",
+    "upset",
+    "unacceptable",
+    "terrible",
+    "awful",
+    "very bad",
+    "bad service",
+    "not working",
+    "nobody replies",
+    "still waiting",
+    "complaint",
+    "problem",
+    "issue",
+    "urgent",
+    "disappointed",
+  ];
+
+  const positiveSignals = [
+    "gracias",
+    "muchas gracias",
+    "perfecto",
+    "genial",
+    "excelente",
+    "muy bien",
+    "estupendo",
+    "contento",
+    "contenta",
+    "satisfecho",
+    "satisfecha",
+    "amable",
+    "thank you",
+    "thanks",
+    "perfect",
+    "great",
+    "excellent",
+    "very good",
+    "happy",
+    "satisfied",
+    "kind",
+  ];
+
+  if (category === "complaint_or_incident" || hasAnySignal(negativeSignals)) {
+    return "negative";
+  }
+
+  if (hasAnySignal(positiveSignals)) {
+    return "positive";
+  }
+
+  return "neutral";
 }
 
 export function buildSummary(
@@ -932,6 +1022,7 @@ export type InquiryAnalysisResult = {
   intent: string;
   category: string;
   priority: string;
+  sentiment: InquirySentiment;
   language: MessageLanguage;
   missingInformation: string[];
   recommendedAction: string;
@@ -946,6 +1037,7 @@ export function analyzeInquiry({
   const language = detectLanguage(message, company.language);
   const category = inferCategory(message);
   const priority = inferPriority(category, message);
+  const sentiment = inferSentiment(category, message);
   const subject = buildSubject(message, category);
   const summary = buildSummary(customerName, message, category, company);
   const intent = buildIntent(category);
@@ -965,6 +1057,7 @@ export function analyzeInquiry({
     intent,
     category,
     priority,
+    sentiment,
     language,
     missingInformation,
     recommendedAction,

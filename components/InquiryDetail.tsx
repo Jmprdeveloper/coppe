@@ -1023,7 +1023,7 @@ export function InquiryDetail({
         ai_category: analysis.category,
         ai_priority: analysis.priority,
         ai_language: analysis.language,
-        sentiment: "neutral",
+        sentiment: analysis.sentiment,
         missing_information: analysis.missingInformation,
         recommended_action: analysis.recommendedAction,
         suggested_response: analysis.suggestedResponse,

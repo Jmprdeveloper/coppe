@@ -2,6 +2,7 @@ import type {
   Inquiry,
   InquiryStatus,
   Priority,
+  Sentiment,
 } from "../types";
 import { normalizeInquiryCategory } from "./inquiryCategories";
 
@@ -50,6 +51,20 @@ export function normalizePriority(priority: string | null): Priority {
   return "medium";
 }
 
+export function normalizeSentiment(
+  sentiment: string | null
+): Sentiment | "No indicado" {
+  if (
+    sentiment === "positive" ||
+    sentiment === "neutral" ||
+    sentiment === "negative"
+  ) {
+    return sentiment;
+  }
+
+  return "No indicado";
+}
+
 export function formatDateTime(
   value: string | null,
   fallback = "Fecha no disponible"
@@ -86,7 +101,7 @@ export function mapInquiryRowToInquiry(row: InquiryRow): Inquiry {
     aiCategory: normalizeInquiryCategory(row.ai_category),
     aiPriority: normalizePriority(row.ai_priority),
     aiLanguage: row.ai_language ?? "No indicado",
-    sentiment: row.sentiment ?? "No indicado",
+    sentiment: normalizeSentiment(row.sentiment),
     missingInformation: row.missing_information ?? [],
     recommendedAction:
       row.recommended_action ?? "No hay acción recomendada disponible.",

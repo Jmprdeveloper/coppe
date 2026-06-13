@@ -2,6 +2,7 @@ import {
     getCustomerDatabaseErrorMessage,
     normalizePhoneForComparison,
   } from "./customerValidation";
+  import { inferSentiment } from "./inquiryAnalysis";
   import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
   import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
   import { createAdminClient } from "./supabase/admin";
@@ -287,11 +288,13 @@ import {
     company: InboundWhatsAppCompany
   ): InboundWhatsAppAnalysis {
     const language = company.language === "en" ? "en" : "es";
+    const sentiment = inferSentiment("general_info", textBody);
   
     return {
       language,
       category: "general_info",
       priority: "medium",
+      sentiment,
       summary: `${customerName} ha enviado un mensaje por WhatsApp a ${company.name}.`,
       intent: "Mensaje recibido en el canal de WhatsApp de la empresa.",
       missingInformation: [],
@@ -755,7 +758,7 @@ import {
           ai_category: analysis.category,
           ai_priority: analysis.priority,
           ai_language: analysis.language,
-          sentiment: "neutral",
+          sentiment: analysis.sentiment,
           missing_information: analysis.missingInformation,
           recommended_action: analysis.recommendedAction,
           suggested_response: analysis.suggestedResponse,

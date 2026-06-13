@@ -31,6 +31,8 @@ export type Priority =
   | "medium"
   | "high";
 
+export type Sentiment = "positive" | "neutral" | "negative";
+
 export type InquiryCategory =
   | "general_info"
   | "product_service_inquiry"
@@ -66,7 +68,7 @@ export type Inquiry = {
   aiCategory: InquiryCategory;
   aiPriority: Priority;
   aiLanguage: string;
-  sentiment: string;
+  sentiment: Sentiment | "No indicado";
   missingInformation: string[];
   recommendedAction: string;
   suggestedResponse: string;

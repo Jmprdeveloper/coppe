@@ -326,7 +326,7 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
         ai_category: inquiryAnalysis.category,
         ai_priority: inquiryAnalysis.priority,
         ai_language: inquiryAnalysis.language,
-        sentiment: "neutral",
+        sentiment: inquiryAnalysis.sentiment,
         missing_information: inquiryAnalysis.missingInformation,
         recommended_action: inquiryAnalysis.recommendedAction,
         suggested_response: inquiryAnalysis.suggestedResponse,
