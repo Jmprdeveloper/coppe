@@ -6,8 +6,15 @@ import {
   processInboundWhatsAppWebhook,
   type WhatsAppWebhookPayload,
 } from "../../../lib/inboundWhatsAppProcessing";
+import {
+  buildRequestBodyTooLargeResponse,
+  readRequestTextWithLimit,
+  RequestBodyTooLargeError,
+} from "../../../lib/requestBodyLimits";
 
 export const runtime = "nodejs";
+
+const MAX_INBOUND_WHATSAPP_REQUEST_BODY_BYTES = 256 * 1024;
 
 function getWhatsAppVerifyToken() {
   return process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN?.trim() ?? "";
@@ -82,8 +89,15 @@ export async function POST(request: Request) {
     let rawPayload = "";
 
     try {
-      rawPayload = await request.text();
+      rawPayload = await readRequestTextWithLimit(
+        request,
+        MAX_INBOUND_WHATSAPP_REQUEST_BODY_BYTES
+      );
     } catch (error) {
+      if (error instanceof RequestBodyTooLargeError) {
+        return buildRequestBodyTooLargeResponse(error.maxBytes);
+      }
+
       console.error("Could not read inbound WhatsApp request body:", error);
 
       return NextResponse.json(
