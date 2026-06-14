@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { Webhook } from "svix";
 
 import { processInboundEmail } from "../../../../lib/inboundEmailProcessing";
+import {
+  buildRequestBodyTooLargeResponse,
+  readRequestTextWithLimit,
+  RequestBodyTooLargeError,
+} from "../../../../lib/requestBodyLimits";
+
+const MAX_RESEND_WEBHOOK_REQUEST_BODY_BYTES = 256 * 1024;
 
 type ResendReceivedWebhookPayload = {
   type?: string;
@@ -170,9 +177,17 @@ export async function POST(request: Request) {
   let event: ResendReceivedWebhookPayload;
 
   try {
-    const rawPayload = await request.text();
+    const rawPayload = await readRequestTextWithLimit(
+      request,
+      MAX_RESEND_WEBHOOK_REQUEST_BODY_BYTES
+    );
+
     event = verifyResendWebhook(rawPayload, request);
   } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return buildRequestBodyTooLargeResponse(error.maxBytes);
+    }
+
     console.error("Invalid Resend webhook:", error);
 
     return NextResponse.json(
