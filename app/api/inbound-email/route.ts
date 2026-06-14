@@ -6,8 +6,15 @@ import {
   processInboundEmail,
   type InboundEmailRequestBody,
 } from "../../../lib/inboundEmailProcessing";
+import {
+  buildRequestBodyTooLargeResponse,
+  readRequestJsonWithLimit,
+  RequestBodyTooLargeError,
+} from "../../../lib/requestBodyLimits";
 
 export const runtime = "nodejs";
+
+const MAX_INBOUND_EMAIL_REQUEST_BODY_BYTES = 64 * 1024;
 
 function getEmailWebhookSecret() {
   return process.env.INBOUND_EMAIL_WEBHOOK_SECRET?.trim() ?? "";
@@ -63,8 +70,15 @@ export async function POST(request: Request) {
   let body: InboundEmailRequestBody;
 
   try {
-    body = (await request.json()) as InboundEmailRequestBody;
-  } catch {
+    body = await readRequestJsonWithLimit<InboundEmailRequestBody>(
+      request,
+      MAX_INBOUND_EMAIL_REQUEST_BODY_BYTES
+    );
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return buildRequestBodyTooLargeResponse(error.maxBytes);
+    }
+
     return NextResponse.json(
       { error: "El cuerpo de la petición no es válido." },
       { status: 400 }
