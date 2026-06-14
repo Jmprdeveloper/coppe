@@ -11,6 +11,11 @@ import { inferSentiment } from "../../../lib/inquiryAnalysis";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../../../lib/inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "../../../lib/inquiryAnalysisService";
 import { createAdminClient } from "../../../lib/supabase/admin";
+import {
+  buildRequestBodyTooLargeResponse,
+  readRequestJsonWithLimit,
+  RequestBodyTooLargeError,
+} from "../../../lib/requestBodyLimits";
 
 type PublicSourceChannel = "Formulario web" | "Chat web";
 
@@ -65,6 +70,7 @@ const MAX_EMAIL_LENGTH = 254;
 const MAX_PHONE_LENGTH = 40;
 const PUBLIC_INTAKE_RATE_LIMIT_MAX_REQUESTS = 5;
 const PUBLIC_INTAKE_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
+const MAX_PUBLIC_INTAKE_REQUEST_BODY_BYTES = 32 * 1024;
 
 function getStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -389,13 +395,21 @@ export async function POST(request: Request) {
   let body: PublicIntakeRequestBody;
 
   try {
-    body = (await request.json()) as PublicIntakeRequestBody;
-  } catch {
+    body = await readRequestJsonWithLimit<PublicIntakeRequestBody>(
+      request,
+      MAX_PUBLIC_INTAKE_REQUEST_BODY_BYTES
+    );
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return buildRequestBodyTooLargeResponse(error.maxBytes);
+    }
+
     return NextResponse.json(
       { error: "El cuerpo de la petición no es válido." },
       { status: 400 }
     );
   }
+
 
   const honeypotValue = getStringValue(body.companyWebsite);
 
