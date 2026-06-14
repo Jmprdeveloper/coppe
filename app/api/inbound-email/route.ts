@@ -1,9 +1,13 @@
+import { timingSafeEqual } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import {
   processInboundEmail,
   type InboundEmailRequestBody,
 } from "../../../lib/inboundEmailProcessing";
+
+export const runtime = "nodejs";
 
 function getEmailWebhookSecret() {
   return process.env.INBOUND_EMAIL_WEBHOOK_SECRET?.trim() ?? "";
@@ -19,6 +23,21 @@ function getBearerToken(request: Request) {
   return authorizationHeader.slice(7).trim();
 }
 
+function timingSafeTextEqual(value: string, expectedValue: string) {
+  if (!value || !expectedValue) {
+    return false;
+  }
+
+  const valueBuffer = Buffer.from(value, "utf8");
+  const expectedValueBuffer = Buffer.from(expectedValue, "utf8");
+
+  if (valueBuffer.length !== expectedValueBuffer.length) {
+    return false;
+  }
+
+  return timingSafeEqual(valueBuffer, expectedValueBuffer);
+}
+
 function isAuthorizedInboundEmailRequest(request: Request) {
   const expectedSecret = getEmailWebhookSecret();
 
@@ -30,7 +49,10 @@ function isAuthorizedInboundEmailRequest(request: Request) {
     request.headers.get("x-coppe-inbound-email-secret")?.trim() ?? "";
   const bearerToken = getBearerToken(request);
 
-  return headerSecret === expectedSecret || bearerToken === expectedSecret;
+  return (
+    timingSafeTextEqual(headerSecret, expectedSecret) ||
+    timingSafeTextEqual(bearerToken, expectedSecret)
+  );
 }
 
 export async function POST(request: Request) {
