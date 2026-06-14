@@ -427,12 +427,17 @@ export function Topbar({
     const normalizedSearch = normalizeSearchText(searchTerm);
 
     if (!normalizedSearch || normalizedSearch.length < 2) {
-      searchRequestId.current += 1;
-      setResults([]);
-      setIsSearching(false);
-      setHasSearched(false);
-      setSearchErrorMessage("");
-      return;
+      const timeoutId = window.setTimeout(() => {
+        searchRequestId.current += 1;
+        setResults([]);
+        setIsSearching(false);
+        setHasSearched(false);
+        setSearchErrorMessage("");
+      }, 0);
+
+      return () => {
+        window.clearTimeout(timeoutId);
+      };
     }
 
     const timeoutId = window.setTimeout(() => {

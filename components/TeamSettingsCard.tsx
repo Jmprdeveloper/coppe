@@ -205,7 +205,13 @@ export function TeamSettingsCard() {
   };
 
   useEffect(() => {
-    loadTeamData();
+    const timeoutId = window.setTimeout(() => {
+      void loadTeamData();
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supabase]);
 

@@ -310,6 +310,7 @@ export function CustomerDetail({
     useState("");
   const [followUpMessage, setFollowUpMessage] = useState("");
   const [followUpErrorMessage, setFollowUpErrorMessage] = useState("");
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   useEffect(() => {
     async function loadCustomerData() {
@@ -323,6 +324,7 @@ export function CustomerDetail({
       setCreateFollowUpErrorMessage("");
       setFollowUpMessage("");
       setFollowUpErrorMessage("");
+      setCurrentTimeMs(Date.now());
       setCustomer(null);
       setNotes([]);
       setInquiries([]);
@@ -967,8 +969,6 @@ export function CustomerDetail({
     (followUp) =>
       followUp.status === "completed" || followUp.status === "cancelled"
   );
-
-  const currentTimeMs = Date.now();
 
   const pendingClosureAppointments = appointments.filter((appointment) =>
     isAppointmentPendingClosure(appointment, currentTimeMs)

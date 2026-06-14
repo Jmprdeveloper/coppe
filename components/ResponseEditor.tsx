@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { CheckCircle2, Copy } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
@@ -17,7 +17,16 @@ type ResponseEditorProps = {
   onMarkAsWaitingCustomer?: (responseText: string) => Promise<boolean>;
 };
 
-export function ResponseEditor({
+export function ResponseEditor(props: ResponseEditorProps) {
+  return (
+    <ResponseEditorContent
+      key={`${props.inquiry.id}:${props.inquiry.suggestedResponse}`}
+      {...props}
+    />
+  );
+}
+
+function ResponseEditorContent({
   inquiry,
   canMarkAsReplied = false,
   isMarkingAsReplied = false,
@@ -35,12 +44,6 @@ export function ResponseEditor({
     useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    setText(inquiry.suggestedResponse);
-    setSuccessMessage("");
-    setErrorMessage("");
-  }, [inquiry.id, inquiry.suggestedResponse]);
 
   const copyResponseText = async (cleanText: string) => {
     if (navigator.clipboard?.writeText) {
@@ -228,6 +231,7 @@ export function ResponseEditor({
       setIsFinishingWaitingCustomer(false);
     }
   };
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between">
@@ -269,7 +273,9 @@ export function ResponseEditor({
       <div className="mt-4 flex flex-wrap gap-2">
         <Button
           onClick={handleCopy}
-          disabled={isCopying || isFinishingResponse || isFinishingWaitingCustomer}
+          disabled={
+            isCopying || isFinishingResponse || isFinishingWaitingCustomer
+          }
         >
           <Copy size={16} />
           {isCopying ? "Copiando..." : "Copiar borrador"}
@@ -278,7 +284,9 @@ export function ResponseEditor({
         <Button
           variant="secondary"
           onClick={handleSave}
-          disabled={isSaving || isFinishingResponse || isFinishingWaitingCustomer}
+          disabled={
+            isSaving || isFinishingResponse || isFinishingWaitingCustomer
+          }
         >
           {isSaving ? "Guardando..." : "Guardar cambios"}
         </Button>
@@ -300,6 +308,7 @@ export function ResponseEditor({
               : "Guardar, copiar y esperar respuesta"}
           </Button>
         ) : null}
+
         {canMarkAsReplied ? (
           <Button
             variant="secondary"

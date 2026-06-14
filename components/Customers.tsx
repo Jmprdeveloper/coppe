@@ -201,10 +201,6 @@ export function Customers({ openCustomer }: CustomersProps) {
   const [newCustomerPhone, setNewCustomerPhone] = useState("");
   const [newCustomerLanguage, setNewCustomerLanguage] = useState("es");
 
-  const [createdCustomerId, setCreatedCustomerId] = useState<string | null>(
-    null
-  );
-
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
 
@@ -302,7 +298,6 @@ export function Customers({ openCustomer }: CustomersProps) {
     setNewCustomerLanguage("es");
     setCreateErrorMessage("");
     setSuccessMessage("");
-    setCreatedCustomerId(null);
   };
 
   const handleOpenCreateForm = () => {
@@ -318,7 +313,6 @@ export function Customers({ openCustomer }: CustomersProps) {
   const handleCreateCustomer = async () => {
     setCreateErrorMessage("");
     setSuccessMessage("");
-    setCreatedCustomerId(null);
 
     const cleanName = newCustomerName.trim();
     const cleanEmail = newCustomerEmail.trim().toLowerCase();
@@ -465,7 +459,6 @@ export function Customers({ openCustomer }: CustomersProps) {
       },
       ...currentCustomers,
     ]);
-    setCreatedCustomerId(createdCustomer.id);
     setSuccessMessage("Cliente creado correctamente.");
 
     setNewCustomerName("");
@@ -711,7 +704,6 @@ export function Customers({ openCustomer }: CustomersProps) {
                   {successMessage}
                 </div>
               ) : null}
-
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">

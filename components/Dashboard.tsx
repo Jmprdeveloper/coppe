@@ -460,12 +460,14 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
   );
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   useEffect(() => {
     async function loadDashboardData() {
       setIsLoading(true);
       setErrorMessage("");
       setSuccessMessage("");
+      setCurrentTimeMs(Date.now());
 
       const { data: inquiriesData, error: inquiriesError } = await supabase
         .from("inquiries")
@@ -708,8 +710,6 @@ export function Dashboard({ setActiveView, openInquiry }: DashboardProps) {
     (followUp) =>
       followUp.urgency === "overdue" || followUp.urgency === "today"
   ).length;
-
-  const currentTimeMs = Date.now();
 
   const appointmentsPendingClosure = appointments.filter((appointment) =>
     isAppointmentPendingClosure(appointment, currentTimeMs)

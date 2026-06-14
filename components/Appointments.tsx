@@ -298,6 +298,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
   const [formErrorMessage, setFormErrorMessage] = useState("");
+  const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
   useEffect(() => {
     async function loadAppointmentsAndInquiries() {
@@ -305,6 +306,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       setErrorMessage("");
       setSuccessMessage("");
       setFormErrorMessage("");
+      setCurrentTimeMs(Date.now());
 
       const { data: inquiriesData, error: inquiriesError } = await supabase
         .from("inquiries")
@@ -405,8 +407,6 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
     return matchesStatus && matchesAppointmentSearch(appointment, searchTerm);
   });
-
-  const currentTimeMs = Date.now();
 
   const totalPendingClosureAppointments = appointments.filter((appointment) =>
     isAppointmentPendingClosure(appointment, currentTimeMs),

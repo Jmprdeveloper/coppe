@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useMemo,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import {
   Building2,
   FileText,
@@ -163,6 +169,23 @@ function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
   );
 }
 
+
+function subscribeToPublicFormOriginChanges() {
+  return () => undefined;
+}
+
+function getPublicFormOriginSnapshot() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.location.origin;
+}
+
+function getPublicFormOriginServerSnapshot() {
+  return "";
+}
+
 export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -180,7 +203,6 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [publicIntakeToken, setPublicIntakeToken] = useState("");
   const [publicIntakeEnabled, setPublicIntakeEnabled] = useState(false);
   const [publicChatEnabled, setPublicChatEnabled] = useState(false);
-  const [publicFormOrigin, setPublicFormOrigin] = useState("");
   const [isUpdatingPublicIntake, setIsUpdatingPublicIntake] = useState(false);
   const [isUpdatingPublicChat, setIsUpdatingPublicChat] = useState(false);
   const [publicIntakeMessage, setPublicIntakeMessage] = useState("");
@@ -210,10 +232,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const canEditCompanySettings = canManageCompanySettings(currentCompany);
   const isUpdatingPublicChannels =
     isUpdatingPublicIntake || isUpdatingPublicChat;
-
-  useEffect(() => {
-    setPublicFormOrigin(window.location.origin);
-  }, []);
+  const publicFormOrigin = useSyncExternalStore(
+    subscribeToPublicFormOriginChanges,
+    getPublicFormOriginSnapshot,
+    getPublicFormOriginServerSnapshot
+  );
 
   useEffect(() => {
     async function loadCompanySettings() {
