@@ -4,8 +4,14 @@ import { type AnalyzeInquiryRequestBody } from "../../../../lib/inquiryAnalysisA
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../../../../lib/inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "../../../../lib/inquiryAnalysisService";
 import { getCurrentCompany } from "../../../../lib/currentCompany";
+import {
+  buildRequestBodyTooLargeResponse,
+  readRequestJsonWithLimit,
+  RequestBodyTooLargeError,
+} from "../../../../lib/requestBodyLimits";
 import { createClient } from "../../../../lib/supabase/server";
 
+const MAX_ANALYZE_REQUEST_BODY_BYTES = 32 * 1024;
 
 export async function POST(request: Request) {
   const supabase = await createClient();
@@ -16,17 +22,21 @@ export async function POST(request: Request) {
   } = await supabase.auth.getUser();
 
   if (userError || !user) {
-    return NextResponse.json(
-      { error: "No autorizado." },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "No autorizado." }, { status: 401 });
   }
 
   let body: AnalyzeInquiryRequestBody;
 
   try {
-    body = await request.json();
-  } catch {
+    body = await readRequestJsonWithLimit<AnalyzeInquiryRequestBody>(
+      request,
+      MAX_ANALYZE_REQUEST_BODY_BYTES
+    );
+  } catch (error) {
+    if (error instanceof RequestBodyTooLargeError) {
+      return buildRequestBodyTooLargeResponse(error.maxBytes);
+    }
+
     return NextResponse.json(
       { error: "El cuerpo de la petición no es válido." },
       { status: 400 }
