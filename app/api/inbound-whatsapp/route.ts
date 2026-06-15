@@ -134,13 +134,7 @@ export async function POST(request: Request) {
       console.error("Inbound WhatsApp webhook processing failed:", error);
 
       return NextResponse.json(
-        {
-          error: "No se pudo procesar el webhook de WhatsApp.",
-          detail:
-            error instanceof Error
-              ? error.message
-              : "Error desconocido al procesar WhatsApp.",
-        },
+        { error: "No se pudo procesar el webhook de WhatsApp." },
         { status: 500 }
       );
     }
@@ -171,13 +165,7 @@ export async function POST(request: Request) {
     console.error("Unexpected inbound WhatsApp route error:", error);
 
     return NextResponse.json(
-      {
-        error: "Error inesperado en el webhook de WhatsApp.",
-        detail:
-          error instanceof Error
-            ? error.message
-            : "Error inesperado sin detalle disponible.",
-      },
+      { error: "Error inesperado en el webhook de WhatsApp." },
       { status: 500 }
     );
   }
