@@ -71,6 +71,8 @@ const MAX_PHONE_LENGTH = 40;
 const PUBLIC_INTAKE_RATE_LIMIT_MAX_REQUESTS = 5;
 const PUBLIC_INTAKE_RATE_LIMIT_WINDOW_SECONDS = 10 * 60;
 const MAX_PUBLIC_INTAKE_REQUEST_BODY_BYTES = 32 * 1024;
+const GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE =
+  "No se pudo registrar el mensaje. Inténtalo de nuevo en unos minutos.";
 
 function getStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -313,22 +315,25 @@ async function updateInboundEvent(
 async function buildFailedResponseAfterInboundEvent(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   inboundEventId: string,
-  errorMessage: string,
+  internalErrorMessage: string,
   status: number,
   ids: {
     customerId?: string | null;
     inquiryId?: string | null;
-  } = {}
+  } = {},
+  publicErrorMessage = GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE
 ) {
+  console.error("Public intake processing failed:", internalErrorMessage);
+
   await updateInboundEvent(supabaseAdmin, inboundEventId, {
     status: "failed",
     customer_id: ids.customerId ?? null,
     inquiry_id: ids.inquiryId ?? null,
-    error_message: errorMessage,
+    error_message: internalErrorMessage,
     processed_at: new Date().toISOString(),
   });
 
-  return NextResponse.json({ error: errorMessage }, { status });
+  return NextResponse.json({ error: publicErrorMessage }, { status });
 }
 
 async function findExistingCustomer(
@@ -515,12 +520,10 @@ export async function POST(request: Request) {
     .maybeSingle<PublicIntakeCompany>();
 
   if (companyError) {
+    console.error("Could not load public intake company:", companyError);
+
     return NextResponse.json(
-      {
-        error: `No se pudo cargar la empresa asociada: ${
-          companyError.message || "sin detalle del error"
-        }`,
-      },
+      { error: "No se pudo cargar el enlace público. Inténtalo de nuevo en unos minutos." },
       { status: 500 }
     );
   }
@@ -586,13 +589,10 @@ export async function POST(request: Request) {
       }
     );
   } catch (error) {
+    console.error("Could not create public intake inbound event:", error);
+
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo registrar la entrada recibida.",
-      },
+      { error: GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE },
       { status: 500 }
     );
   }
