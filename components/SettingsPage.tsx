@@ -10,6 +10,7 @@ import {
 import {
   Building2,
   FileText,
+  Mail,
   MessageCircle,
   MessageSquareText,
   RadioTower,
@@ -44,6 +45,13 @@ type PublicIntakeSettingsRow = {
   public_intake_token: string | null;
   public_intake_enabled: boolean | null;
   public_chat_enabled: boolean | null;
+};
+
+type InboundEmailChannelSettingsRow = {
+  id: string;
+  inbound_email_address: string;
+  local_part: string;
+  enabled: boolean;
 };
 
 type InboundWhatsAppChannelSettingsRow = {
@@ -86,6 +94,33 @@ function normalizeLanguage(value: string | null | undefined): LanguageOption {
 
 function createPublicIntakeToken() {
   return crypto.randomUUID();
+}
+
+const inboundEmailDomain = (
+  process.env.NEXT_PUBLIC_COPPE_INBOUND_EMAIL_DOMAIN || "inbound.coppe.es"
+)
+  .trim()
+  .toLowerCase();
+
+function normalizeInboundEmailLocalPart(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9._-]/g, "-")
+    .replace(/[._-]{2,}/g, "-")
+    .replace(/^[._-]+|[._-]+$/g, "")
+    .slice(0, 64);
+}
+
+function buildInboundEmailAddress(localPart: string) {
+  const cleanLocalPart = normalizeInboundEmailLocalPart(localPart);
+
+  if (!cleanLocalPart || !inboundEmailDomain) {
+    return "";
+  }
+
+  return `${cleanLocalPart}@${inboundEmailDomain}`;
 }
 
 function getChannelStatusLabel(status: ChannelStatus) {
@@ -156,7 +191,7 @@ function ChannelSettingsCard({
   );
 }
 
-function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
+function MetricCardsSkeleton({ count = 6 }: { count?: number }) {
   return (
     <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
       {Array.from({ length: count }).map((_, index) => (
@@ -213,6 +248,16 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [publicChatCopyErrorMessage, setPublicChatCopyErrorMessage] =
     useState("");
 
+  const [emailChannelId, setEmailChannelId] = useState("");
+  const [emailLocalPart, setEmailLocalPart] = useState("");
+  const [emailInboundAddress, setEmailInboundAddress] = useState("");
+  const [emailEnabled, setEmailEnabled] = useState(false);
+  const [isSavingEmailChannel, setIsSavingEmailChannel] = useState(false);
+  const [emailMessage, setEmailMessage] = useState("");
+  const [emailErrorMessage, setEmailErrorMessage] = useState("");
+  const [emailCopyMessage, setEmailCopyMessage] = useState("");
+  const [emailCopyErrorMessage, setEmailCopyErrorMessage] = useState("");
+
   const [whatsAppChannelId, setWhatsAppChannelId] = useState("");
   const [whatsAppPhoneNumberId, setWhatsAppPhoneNumberId] = useState("");
   const [whatsAppDisplayPhoneNumber, setWhatsAppDisplayPhoneNumber] =
@@ -250,6 +295,14 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setCopyErrorMessage("");
       setPublicChatCopyMessage("");
       setPublicChatCopyErrorMessage("");
+      setEmailMessage("");
+      setEmailErrorMessage("");
+      setEmailCopyMessage("");
+      setEmailCopyErrorMessage("");
+      setEmailChannelId("");
+      setEmailLocalPart("");
+      setEmailInboundAddress("");
+      setEmailEnabled(false);
       setWhatsAppMessage("");
       setWhatsAppErrorMessage("");
       setWhatsAppCopyMessage("");
@@ -299,6 +352,25 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         return;
       }
 
+      const { data: emailChannelSettings, error: emailChannelError } =
+        await supabase
+          .from("inbound_email_channels")
+          .select("id, inbound_email_address, local_part, enabled")
+          .eq("company_id", data.id)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle<InboundEmailChannelSettingsRow>();
+
+      if (emailChannelError) {
+        setErrorMessage(
+          `No se pudo cargar la configuración de email entrante: ${
+            emailChannelError.message || "sin detalle del error"
+          }`
+        );
+        setIsLoading(false);
+        return;
+      }
+
       const { data: whatsAppChannelSettings, error: whatsAppChannelError } =
         await supabase
           .from("inbound_whatsapp_channels")
@@ -330,6 +402,10 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         Boolean(publicIntakeSettings?.public_intake_enabled)
       );
       setPublicChatEnabled(Boolean(publicIntakeSettings?.public_chat_enabled));
+      setEmailChannelId(emailChannelSettings?.id ?? "");
+      setEmailLocalPart(emailChannelSettings?.local_part ?? "");
+      setEmailInboundAddress(emailChannelSettings?.inbound_email_address ?? "");
+      setEmailEnabled(Boolean(emailChannelSettings?.enabled));
       setWhatsAppChannelId(whatsAppChannelSettings?.id ?? "");
       setWhatsAppPhoneNumberId(
         whatsAppChannelSettings?.phone_number_id ?? ""
@@ -354,6 +430,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       ? `${publicFormOrigin}/chat/${publicIntakeToken}`
       : "";
 
+  const emailInboundAddressPreview =
+    emailInboundAddress || buildInboundEmailAddress(emailLocalPart);
+
+  const resendWebhookUrl = publicFormOrigin
+    ? `${publicFormOrigin}/api/inbound-email/resend`
+    : "";
+
   const whatsAppWebhookUrl = publicFormOrigin
     ? `${publicFormOrigin}/api/inbound-whatsapp`
     : "";
@@ -366,6 +449,12 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     ? "active"
     : "inactive";
 
+  const emailChannelStatus: ChannelStatus = emailInboundAddress
+    ? emailEnabled
+      ? "active"
+      : "inactive"
+    : "not_configured";
+
   const whatsAppChannelStatus: ChannelStatus = whatsAppPhoneNumberId
     ? whatsAppEnabled
       ? "active"
@@ -375,6 +464,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const activeChannelCount = [
     publicIntakeChannelStatus,
     publicChatChannelStatus,
+    emailChannelStatus,
     whatsAppChannelStatus,
   ].filter((channelStatus) => channelStatus === "active").length;
 
@@ -421,6 +511,180 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       setPublicChatCopyErrorMessage(
         "No se pudo copiar el enlace. Puedes seleccionarlo y copiarlo manualmente."
       );
+    }
+  };
+
+  const handleCopyInboundEmailAddress = async () => {
+    setEmailCopyMessage("");
+    setEmailCopyErrorMessage("");
+    setEmailMessage("");
+    setEmailErrorMessage("");
+
+    if (!emailInboundAddress) {
+      setEmailCopyErrorMessage("No hay una dirección de email configurada.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(emailInboundAddress);
+      setEmailCopyMessage("Dirección de email copiada correctamente.");
+    } catch {
+      setEmailCopyErrorMessage(
+        "No se pudo copiar la dirección. Puedes seleccionarla y copiarla manualmente."
+      );
+    }
+  };
+
+  const handleCopyResendWebhookUrl = async () => {
+    setEmailCopyMessage("");
+    setEmailCopyErrorMessage("");
+    setEmailMessage("");
+    setEmailErrorMessage("");
+
+    if (!resendWebhookUrl) {
+      setEmailCopyErrorMessage("No hay una URL de webhook disponible.");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(resendWebhookUrl);
+      setEmailCopyMessage("URL del webhook de Resend copiada correctamente.");
+    } catch {
+      setEmailCopyErrorMessage(
+        "No se pudo copiar la URL. Puedes seleccionarla y copiarla manualmente."
+      );
+    }
+  };
+
+  const saveEmailChannel = async (nextEnabled: boolean) => {
+    if (!canEditCompanySettings) {
+      throw new Error("Solo un usuario owner puede modificar el canal email.");
+    }
+
+    if (!companyId) {
+      throw new Error("No se puede guardar el email porque no hay empresa cargada.");
+    }
+
+    if (!inboundEmailDomain) {
+      throw new Error(
+        "No está configurado el dominio técnico para email entrante."
+      );
+    }
+
+    const cleanLocalPart = normalizeInboundEmailLocalPart(emailLocalPart);
+
+    if (!cleanLocalPart) {
+      throw new Error(
+        "Introduce un identificador para la dirección de email entrante."
+      );
+    }
+
+    if (cleanLocalPart.length < 3) {
+      throw new Error(
+        "El identificador del email debe tener al menos 3 caracteres."
+      );
+    }
+
+    const nextInboundEmailAddress = `${cleanLocalPart}@${inboundEmailDomain}`;
+
+    const query = emailChannelId
+      ? supabase
+          .from("inbound_email_channels")
+          .update({
+            inbound_email_address: nextInboundEmailAddress,
+            local_part: cleanLocalPart,
+            provider: "resend",
+            enabled: nextEnabled,
+          })
+          .eq("id", emailChannelId)
+          .select("id, inbound_email_address, local_part, enabled")
+          .single<InboundEmailChannelSettingsRow>()
+      : supabase
+          .from("inbound_email_channels")
+          .insert({
+            company_id: companyId,
+            inbound_email_address: nextInboundEmailAddress,
+            local_part: cleanLocalPart,
+            provider: "resend",
+            enabled: nextEnabled,
+          })
+          .select("id, inbound_email_address, local_part, enabled")
+          .single<InboundEmailChannelSettingsRow>();
+
+    const { data, error } = await query;
+
+    if (error || !data) {
+      throw new Error(
+        `No se pudo guardar la configuración de email entrante: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+    }
+
+    setEmailChannelId(data.id);
+    setEmailLocalPart(data.local_part);
+    setEmailInboundAddress(data.inbound_email_address);
+    setEmailEnabled(Boolean(data.enabled));
+
+    return data;
+  };
+
+  const handleSaveEmailChannel = async () => {
+    setEmailMessage("");
+    setEmailErrorMessage("");
+    setEmailCopyMessage("");
+    setEmailCopyErrorMessage("");
+
+    setIsSavingEmailChannel(true);
+
+    try {
+      await saveEmailChannel(emailEnabled);
+      setEmailMessage("Configuración de email entrante guardada correctamente.");
+    } catch (error) {
+      setEmailErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar la configuración de email entrante."
+      );
+    } finally {
+      setIsSavingEmailChannel(false);
+    }
+  };
+
+  const handleToggleEmailEnabled = async () => {
+    setEmailMessage("");
+    setEmailErrorMessage("");
+    setEmailCopyMessage("");
+    setEmailCopyErrorMessage("");
+
+    const nextEnabled = !emailEnabled;
+
+    if (
+      !nextEnabled &&
+      !window.confirm(
+        "¿Seguro que quieres desactivar el email entrante? COPPE dejará de aceptar emails para esta dirección."
+      )
+    ) {
+      return;
+    }
+
+    setIsSavingEmailChannel(true);
+
+    try {
+      await saveEmailChannel(nextEnabled);
+      setEmailMessage(
+        nextEnabled
+          ? "Canal email activado correctamente."
+          : "Canal email desactivado correctamente."
+      );
+    } catch (error) {
+      setEmailErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo actualizar el canal email."
+      );
+    } finally {
+      setIsSavingEmailChannel(false);
     }
   };
 
@@ -845,6 +1109,10 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setCopyErrorMessage("");
     setPublicChatCopyMessage("");
     setPublicChatCopyErrorMessage("");
+    setEmailMessage("");
+    setEmailErrorMessage("");
+    setEmailCopyMessage("");
+    setEmailCopyErrorMessage("");
     setWhatsAppMessage("");
     setWhatsAppErrorMessage("");
     setWhatsAppCopyMessage("");
@@ -935,7 +1203,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard
               title="Empresa"
               value={name || "Sin nombre"}
@@ -946,8 +1214,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
             <MetricCard
               title="Canales activos"
-              value={`${activeChannelCount}/3`}
-              caption="Formulario, chat y WhatsApp"
+              value={`${activeChannelCount}/4`}
+              caption="Formulario, chat, email y WhatsApp"
               icon={RadioTower}
               tone="info"
             />
@@ -966,6 +1234,18 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               caption="Experiencia tipo conversación"
               icon={MessageSquareText}
               tone="neutral"
+            />
+
+            <MetricCard
+              title="Email"
+              value={getChannelStatusLabel(emailChannelStatus)}
+              caption={
+                emailInboundAddress
+                  ? emailInboundAddress
+                  : "Pendiente de configurar"
+              }
+              icon={Mail}
+              tone="info"
             />
 
             <MetricCard
@@ -1074,10 +1354,10 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
               <SectionCard
                 title="Canales de entrada"
-                description="Gestiona los enlaces públicos y el canal WhatsApp. Las tarjetas son blancas; el estado se muestra en badges y acciones."
+                description="Gestiona formulario, chat, email entrante y WhatsApp. Las tarjetas son blancas; el estado se muestra en badges y acciones."
                 action={
                   <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
-                    Activos: {activeChannelCount}/3
+                    Activos: {activeChannelCount}/4
                   </div>
                 }
               >
@@ -1209,6 +1489,141 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   </ChannelSettingsCard>
 
                   <ChannelSettingsCard
+                    title="Email entrante"
+                    description="Recibe emails de clientes y conviértelos automáticamente en casos dentro de COPPE."
+                    status={emailChannelStatus}
+                    actions={
+                      <>
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleCopyInboundEmailAddress}
+                          disabled={!emailInboundAddress}
+                        >
+                          Copiar dirección
+                        </Button>
+
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleCopyResendWebhookUrl}
+                          disabled={!resendWebhookUrl}
+                        >
+                          Copiar URL webhook
+                        </Button>
+
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant="secondary"
+                          onClick={handleSaveEmailChannel}
+                          disabled={
+                            isSavingEmailChannel || !canEditCompanySettings
+                          }
+                        >
+                          {isSavingEmailChannel
+                            ? "Guardando..."
+                            : "Guardar configuración"}
+                        </Button>
+
+                        <Button
+                          className="w-full sm:w-auto"
+                          variant={emailEnabled ? "secondary" : "primary"}
+                          onClick={handleToggleEmailEnabled}
+                          disabled={
+                            isSavingEmailChannel || !canEditCompanySettings
+                          }
+                        >
+                          {isSavingEmailChannel
+                            ? "Actualizando..."
+                            : emailEnabled
+                              ? "Desactivar"
+                              : "Activar"}
+                        </Button>
+                      </>
+                    }
+                  >
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <label className="block text-sm font-medium text-slate-700">
+                        Identificador
+                        <div className="mt-1 flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-[#0F4C5C] focus-within:bg-white">
+                          <input
+                            value={emailLocalPart}
+                            disabled={!canEditCompanySettings}
+                            onChange={(event) => {
+                              setEmailLocalPart(event.target.value);
+                              setEmailMessage("");
+                              setEmailErrorMessage("");
+                              setEmailCopyMessage("");
+                              setEmailCopyErrorMessage("");
+                            }}
+                            className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
+                            placeholder="ej. taller-lopez"
+                          />
+
+                          <span className="flex shrink-0 items-center border-l border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500">
+                            @{inboundEmailDomain || "dominio-no-configurado"}
+                          </span>
+                        </div>
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700">
+                        Dirección configurada
+                        <input
+                          value={
+                            emailInboundAddressPreview ||
+                            "Dirección no configurada"
+                          }
+                          readOnly
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                        />
+                      </label>
+
+                      <label className="block text-sm font-medium text-slate-700 md:col-span-2">
+                        URL del webhook de Resend
+                        <input
+                          value={resendWebhookUrl || "URL no disponible"}
+                          readOnly
+                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                        />
+                      </label>
+                    </div>
+
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      En Resend, el dominio técnico debe ser {inboundEmailDomain || "inbound.coppe.es"} y el webhook de recepción debe apuntar a la URL mostrada arriba. Cada empresa puede usar su dirección propia de entrada.
+                    </p>
+
+                    {emailErrorMessage ? (
+                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {emailErrorMessage}
+                      </div>
+                    ) : null}
+
+                    {emailMessage ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {emailMessage}
+                      </div>
+                    ) : null}
+
+                    {emailCopyErrorMessage ? (
+                      <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                        {emailCopyErrorMessage}
+                      </div>
+                    ) : null}
+
+                    {emailCopyMessage ? (
+                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                        {emailCopyMessage}
+                      </div>
+                    ) : null}
+
+                    {!emailEnabled ? (
+                      <p className="mt-3 text-xs leading-5 text-slate-500">
+                        La dirección puede estar configurada, pero no aceptará nuevos emails mientras el canal esté desactivado.
+                      </p>
+                    ) : null}
+                  </ChannelSettingsCard>
+
+                  <ChannelSettingsCard
                     title="WhatsApp"
                     description="Entrada automática desde WhatsApp Business Cloud API."
                     status={whatsAppChannelStatus}
@@ -1296,8 +1711,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
                     <p className="mt-3 text-xs leading-5 text-slate-500">
                       El token de verificación de Meta debe coincidir con
-                      WHATSAPP_WEBHOOK_VERIFY_TOKEN. El envío de respuestas por
-                      WhatsApp queda para una fase posterior.
+                      WHATSAPP_WEBHOOK_VERIFY_TOKEN y la URL del webhook debe
+                      estar configurada en Meta para recibir mensajes entrantes.
                     </p>
 
                     {whatsAppErrorMessage ? (
