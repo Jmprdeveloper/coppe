@@ -8,7 +8,13 @@ import {
   RequestBodyTooLargeError,
 } from "../../../../lib/requestBodyLimits";
 
+export const runtime = "nodejs";
+
 const MAX_RESEND_WEBHOOK_REQUEST_BODY_BYTES = 256 * 1024;
+const GENERIC_RESEND_EMAIL_RETRIEVAL_ERROR_MESSAGE =
+  "No se pudo recuperar el email recibido desde Resend.";
+const GENERIC_INBOUND_EMAIL_ERROR_MESSAGE =
+  "No se pudo procesar el email entrante.";
 
 type ResendReceivedWebhookPayload = {
   type?: string;
@@ -165,7 +171,7 @@ async function retrieveReceivedEmail(emailId: string) {
     const errorMessage =
       typeof payload?.message === "string"
         ? payload.message
-        : "No se pudo recuperar el email recibido desde Resend.";
+        : GENERIC_RESEND_EMAIL_RETRIEVAL_ERROR_MESSAGE;
 
     throw new Error(errorMessage);
   }
@@ -221,13 +227,10 @@ export async function POST(request: Request) {
   try {
     receivedEmail = await retrieveReceivedEmail(emailId);
   } catch (error) {
+    console.error("Could not retrieve received email from Resend:", error);
+
     return NextResponse.json(
-      {
-        error:
-          error instanceof Error
-            ? error.message
-            : "No se pudo recuperar el email recibido desde Resend.",
-      },
+      { error: GENERIC_RESEND_EMAIL_RETRIEVAL_ERROR_MESSAGE },
       { status: 500 }
     );
   }
@@ -245,16 +248,36 @@ export async function POST(request: Request) {
   const textBody = getTextBody(receivedEmail);
   const externalMessageId = `resend:${emailId}`;
 
-  const result = await processInboundEmail({
-    inboundEmailAddress,
-    externalMessageId,
-    fromName,
-    fromEmail,
-    subject,
-    textBody,
-  });
+  let result: Awaited<ReturnType<typeof processInboundEmail>>;
+
+  try {
+    result = await processInboundEmail({
+      inboundEmailAddress,
+      externalMessageId,
+      fromName,
+      fromEmail,
+      subject,
+      textBody,
+    });
+  } catch (error) {
+    console.error("Unexpected Resend inbound email processing error:", error);
+
+    return NextResponse.json(
+      { error: GENERIC_INBOUND_EMAIL_ERROR_MESSAGE },
+      { status: 500 }
+    );
+  }
 
   if (!result.ok) {
+    if (result.status >= 500) {
+      console.error("Resend inbound email processing returned error:", result);
+
+      return NextResponse.json(
+        { error: GENERIC_INBOUND_EMAIL_ERROR_MESSAGE },
+        { status: result.status }
+      );
+    }
+
     return NextResponse.json(
       { error: result.error },
       { status: result.status }
