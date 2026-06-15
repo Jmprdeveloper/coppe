@@ -71,6 +71,8 @@ const MAX_EXTERNAL_MESSAGE_ID_LENGTH = 255;
 const MAX_FROM_NAME_LENGTH = 120;
 const MAX_FROM_EMAIL_LENGTH = 254;
 const MAX_SUBJECT_LENGTH = 200;
+const GENERIC_INBOUND_EMAIL_ERROR_MESSAGE =
+  "No se pudo procesar el email entrante.";
 
 function getStringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -294,7 +296,10 @@ async function buildFailedResultAfterInboundEvent(
     processed_at: new Date().toISOString(),
   });
 
-  return buildErrorResult(errorMessage, status);
+  return buildErrorResult(
+    status >= 500 ? GENERIC_INBOUND_EMAIL_ERROR_MESSAGE : errorMessage,
+    status
+  );
 }
 
 async function findExistingCustomer(
@@ -425,12 +430,9 @@ export async function processInboundEmail(
       inboundEmailAddress
     );
   } catch (error) {
-    return buildErrorResult(
-      error instanceof Error
-        ? error.message
-        : "No se pudo cargar el canal de email entrante.",
-      500
-    );
+    console.error("Could not load inbound email channel:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
 
   if (!inboundEmailChannel) {
@@ -452,12 +454,9 @@ export async function processInboundEmail(
       inboundEmailChannel.company_id
     );
   } catch (error) {
-    return buildErrorResult(
-      error instanceof Error
-        ? error.message
-        : "No se pudo cargar la empresa asociada al email entrante.",
-      500
-    );
+    console.error("Could not load inbound email company:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
 
   if (!company) {
@@ -478,12 +477,9 @@ export async function processInboundEmail(
       return buildDuplicateResult(duplicateInboundEvent);
     }
   } catch (error) {
-    return buildErrorResult(
-      error instanceof Error
-        ? error.message
-        : "No se pudo comprobar si el email ya fue procesado.",
-      500
-    );
+    console.error("Could not check duplicate inbound email event:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
 
   let inboundEventId: string;
@@ -504,12 +500,9 @@ export async function processInboundEmail(
       }
     );
   } catch (error) {
-    return buildErrorResult(
-      error instanceof Error
-        ? error.message
-        : "No se pudo registrar el email entrante.",
-      500
-    );
+    console.error("Could not create inbound email event:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
 
   const now = new Date().toISOString();
