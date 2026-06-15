@@ -15,6 +15,8 @@ import {
 export const runtime = "nodejs";
 
 const MAX_INBOUND_EMAIL_REQUEST_BODY_BYTES = 64 * 1024;
+const GENERIC_INBOUND_EMAIL_ERROR_MESSAGE =
+  "No se pudo procesar el email entrante.";
 
 function getEmailWebhookSecret() {
   return process.env.INBOUND_EMAIL_WEBHOOK_SECRET?.trim() ?? "";
@@ -85,9 +87,29 @@ export async function POST(request: Request) {
     );
   }
 
-  const result = await processInboundEmail(body);
+  let result: Awaited<ReturnType<typeof processInboundEmail>>;
+
+  try {
+    result = await processInboundEmail(body);
+  } catch (error) {
+    console.error("Unexpected inbound email processing error:", error);
+
+    return NextResponse.json(
+      { error: GENERIC_INBOUND_EMAIL_ERROR_MESSAGE },
+      { status: 500 }
+    );
+  }
 
   if (!result.ok) {
+    if (result.status >= 500) {
+      console.error("Inbound email processing returned error:", result);
+
+      return NextResponse.json(
+        { error: GENERIC_INBOUND_EMAIL_ERROR_MESSAGE },
+        { status: result.status }
+      );
+    }
+
     return NextResponse.json(
       { error: result.error },
       { status: result.status }
