@@ -269,6 +269,9 @@ Diferencia entre análisis interno y respuesta al cliente:
 - suggestedResponse es solo una primera respuesta prudente al cliente.
 - suggestedResponse no debe resolver el caso.
 - suggestedResponse no debe diagnosticar.
+- suggestedResponse no debe exponer etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio", "pedido, reserva, contratación o disponibilidad" o equivalentes.
+- suggestedResponse debe mencionar el motivo concreto del cliente cuando esté claro: por ejemplo, "revisar los frenos", "cambiar el radiador", "pedir presupuesto", "reservar una mesa" o "resolver el acceso".
+- Si el motivo concreto no está claro, suggestedResponse debe usar una fórmula breve y natural como "tu solicitud", "tu mensaje" o "tu solicitud de cita", pero no una lista de categorías internas.
 - suggestedResponse no debe confirmar que la empresa hará el servicio.
 - suggestedResponse no debe prometer precios, fechas, disponibilidad, soluciones ni resultados.
 - suggestedResponse no debe pedir listas largas de datos.
@@ -287,8 +290,10 @@ Estilo de suggestedResponse para casos que SÍ encajan con la empresa:
 - Cierre recomendado: "Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
 - En inglés, usa un cierre equivalente: "A member of our team will contact you as soon as possible."
 - Ejemplo válido: "Hola, gracias por contactarnos. Hemos recibido tu mensaje sobre el problema con la dirección del autobús. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
+- Ejemplo válido: "Hola, gracias por contactarnos. Hemos recibido tu solicitud para revisar los frenos del coche. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
 - Ejemplo válido: "Hola, gracias por contactarnos. Hemos recibido tu solicitud de cita. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
 - Ejemplo válido: "Hola, gracias por escribirnos. Hemos recibido tu solicitud de presupuesto. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
+- Ejemplo NO válido: "Hemos recibido tu solicitud de cita, reunión o llamada." porque expone una categoría interna demasiado amplia.
 
 Estilo de suggestedResponse para casos que NO encajan con la empresa:
 - Debe ser breve, educada y prudente.
@@ -347,6 +352,7 @@ Instrucciones principales:
 - Si "cambiar" significa sustituir, reparar, instalar o reemplazar algo como servicio solicitado, no es cambio/cancelación administrativa.
 - Si "cambiar" afecta a una cita, reserva, pedido, fecha, hora, turno, solicitud o gestión previa, entonces sí puede ser change_or_cancellation.
 - Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
+- En suggestedResponse, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada" o "producto o servicio".
 - Si el mensaje no encaja con la empresa, suggestedResponse debe indicar posible confusión y sugerir que el cliente vuelva a contactar si necesita algo relacionado con los servicios de la empresa.
 - No confirmes citas, reservas, horarios, precios ni disponibilidad real.
 - suggestedResponse no debe resolver, diagnosticar, prometer, pedir listas largas de datos ni implicar que la empresa ya está revisando físicamente nada.

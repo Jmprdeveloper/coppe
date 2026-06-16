@@ -852,6 +852,109 @@ function formatList(items: string[], language: MessageLanguage) {
   }`;
 }
 
+function formatCustomerFacingRequestPurpose(value: string) {
+  const cleanValue = value
+    .replace(/^[,:;\-\s]+/, "")
+    .replace(/[¿?!.:;\s]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!cleanValue) {
+    return "";
+  }
+
+  return `${cleanValue.charAt(0).toLowerCase()}${cleanValue.slice(1)}`;
+}
+
+function isWeakSpanishRequestPurpose(value: string) {
+  const normalizedValue = normalizeSearchText(value);
+
+  return [
+    "cita",
+    "una cita",
+    "pedir cita",
+    "solicitar cita",
+    "agendar cita",
+    "una reunion",
+    "una reunión",
+    "una llamada",
+    "que me atiendan",
+    "cuando me podeis atender",
+    "cuándo me podeis atender",
+    "cuando me podéis atender",
+    "cuándo me podéis atender",
+    "cuando me podeis dar cita",
+    "cuándo me podeis dar cita",
+    "cuando me podéis dar cita",
+    "cuándo me podéis dar cita",
+  ].includes(normalizedValue);
+}
+
+function extractSpanishRequestPurpose(originalMessage: string) {
+  const cleanMessage = originalMessage.replace(/\s+/g, " ").trim();
+
+  const patterns = [
+    /(?:para|por)\s+([^¿?!.]+)/i,
+    /(?:necesito|quiero|quisiera|me gustaría|me gustaria|tengo que)\s+([^¿?!.]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleanMessage.match(pattern);
+
+    if (!match?.[1]) {
+      continue;
+    }
+
+    const purpose = formatCustomerFacingRequestPurpose(match[1]);
+
+    if (purpose && !isWeakSpanishRequestPurpose(purpose)) {
+      return purpose;
+    }
+  }
+
+  return "";
+}
+
+function isWeakEnglishRequestPurpose(value: string) {
+  const normalizedValue = normalizeSearchText(value);
+
+  return [
+    "appointment",
+    "an appointment",
+    "book an appointment",
+    "schedule an appointment",
+    "a meeting",
+    "a call",
+    "be contacted",
+    "get an appointment",
+  ].includes(normalizedValue);
+}
+
+function extractEnglishRequestPurpose(originalMessage: string) {
+  const cleanMessage = originalMessage.replace(/\s+/g, " ").trim();
+
+  const patterns = [
+    /(?:to|for|about)\s+([^?!.]+)/i,
+    /(?:i need|i want|i would like|we need|we want|we would like)\s+([^?!.]+)/i,
+  ];
+
+  for (const pattern of patterns) {
+    const match = cleanMessage.match(pattern);
+
+    if (!match?.[1]) {
+      continue;
+    }
+
+    const purpose = formatCustomerFacingRequestPurpose(match[1]);
+
+    if (purpose && !isWeakEnglishRequestPurpose(purpose)) {
+      return purpose;
+    }
+  }
+
+  return "";
+}
+
 function getSpanishGreeting(customerName: string, tone: ResponseTone) {
   if (tone === "formal") {
     return `Estimado/a ${customerName}`;
@@ -930,7 +1033,12 @@ function buildSpanishResponse(
   }
 
   if (category === "appointment_request") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cita, reunión o llamada. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
+    const requestPurpose = extractSpanishRequestPurpose(originalMessage);
+    const acknowledgement = requestPurpose
+      ? `Hemos recibido tu solicitud para ${requestPurpose}.`
+      : "Hemos recibido tu solicitud de cita.";
+
+    return `${greeting}, gracias por contactar con ${companyContext.name}. ${acknowledgement} Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
   }
 
   if (category === "product_service_inquiry") {
@@ -1014,7 +1122,12 @@ function buildEnglishResponse(
   }
 
   if (category === "appointment_request") {
-    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your appointment, meeting or call request. A member of our team will contact you as soon as possible.`;
+    const requestPurpose = extractEnglishRequestPurpose(originalMessage);
+    const acknowledgement = requestPurpose
+      ? `We have received your request to ${requestPurpose}.`
+      : "We have received your appointment request.";
+
+    return `${greeting}, thank you for contacting ${companyContext.name}. ${acknowledgement} A member of our team will contact you as soon as possible.`;
   }
 
   if (category === "product_service_inquiry") {
