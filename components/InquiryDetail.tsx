@@ -75,6 +75,17 @@ type InquiryMessageRow = {
   created_at: string;
 };
 
+type SendEmailResponseNextStatus = "replied" | "waiting_customer";
+
+type SendEmailResponseApiResponse = {
+  ok?: boolean;
+  error?: string;
+  warning?: string;
+  providerMessageId?: string;
+  inquiryMessage?: InquiryMessageRow;
+  nextStatus?: SendEmailResponseNextStatus;
+};
+
 type InboundEventForInquiryRow = {
   id: string;
   raw_payload: Record<string, unknown> | null;
@@ -886,6 +897,111 @@ export function InquiryDetail({
     return wasMarkedAsWaitingCustomer;
   };
 
+  const handleSendEmailResponse = async (
+    responseText: string,
+    nextStatus: SendEmailResponseNextStatus
+  ): Promise<boolean> => {
+    setStatusMessage("");
+    setStatusErrorMessage("");
+
+    if (!inquiry) {
+      setStatusErrorMessage(
+        "No se puede enviar la respuesta porque no hay caso cargado."
+      );
+      return false;
+    }
+
+    const cleanResponseText = responseText.trim();
+
+    if (!cleanResponseText) {
+      setStatusErrorMessage("La respuesta no puede quedar vacía.");
+      return false;
+    }
+
+    setIsUpdatingStatus(true);
+
+    let sendResponse: Response;
+
+    try {
+      sendResponse = await fetch("/api/inquiries/send-email-response", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inquiryId: inquiry.id,
+          responseText: cleanResponseText,
+          nextStatus,
+        }),
+      });
+    } catch {
+      setIsUpdatingStatus(false);
+      setStatusErrorMessage(
+        "No se pudo conectar con el servicio de envío de email. Inténtalo de nuevo en unos segundos."
+      );
+      return false;
+    }
+
+    let payload: SendEmailResponseApiResponse | null = null;
+
+    try {
+      payload = (await sendResponse.json()) as SendEmailResponseApiResponse;
+    } catch {
+      payload = null;
+    }
+
+    setIsUpdatingStatus(false);
+
+    if (!sendResponse.ok || !payload?.ok) {
+      setStatusErrorMessage(
+        payload?.error ||
+          "No se pudo enviar el email desde COPPE. Revisa el canal de email de la empresa."
+      );
+      return false;
+    }
+
+    if (payload.inquiryMessage) {
+      setInquiryMessages((currentMessages) => {
+        const alreadyExists = currentMessages.some(
+          (message) => message.id === payload?.inquiryMessage?.id
+        );
+
+        if (alreadyExists || !payload?.inquiryMessage) {
+          return currentMessages;
+        }
+
+        return [...currentMessages, payload.inquiryMessage];
+      });
+    }
+
+    setInquiry({
+      ...inquiry,
+      status: nextStatus,
+      suggestedResponse: cleanResponseText,
+    });
+
+    setRawInquiry((currentRawInquiry) =>
+      currentRawInquiry
+        ? {
+            ...currentRawInquiry,
+            status: nextStatus,
+            suggested_response: cleanResponseText,
+          }
+        : currentRawInquiry
+    );
+
+    const successMessage =
+      nextStatus === "waiting_customer"
+        ? "Email enviado y caso marcado como esperando al cliente."
+        : "Email enviado y caso marcado como respondido.";
+
+    setStatusMessage(
+      payload.warning ? `${successMessage} ${payload.warning}` : successMessage
+    );
+
+    return true;
+  };
+
   const handleSaveNote = async () => {
     setNoteMessage("");
     setNoteErrorMessage("");
@@ -1665,6 +1781,9 @@ export function InquiryDetail({
     inquiryStatus === "pending" ||
     inquiryStatus === "waiting_customer";
 
+  const canSendEmailResponse =
+    canUseFinalActions && Boolean(customer?.email?.trim());
+
   const canCreateFollowUp =
     inquiryStatus === "new" ||
     inquiryStatus === "pending" ||
@@ -1926,6 +2045,9 @@ export function InquiryDetail({
             onMarkAsReplied={handleMarkAsRepliedWithResponse}
             canMarkAsWaitingCustomer={canUseFinalActions}
             onMarkAsWaitingCustomer={handleMarkAsWaitingCustomerWithResponse}
+            canSendEmailResponse={canSendEmailResponse}
+            isSendingEmailResponse={isUpdatingStatus}
+            onSendEmailResponse={handleSendEmailResponse}
           />
         </main>
 

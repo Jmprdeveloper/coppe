@@ -1,12 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2, Copy } from "lucide-react";
+import { CheckCircle2, Copy, Send } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
 import type { Inquiry } from "../types";
 
 import { Button } from "./Button";
+
+type SendEmailResponseNextStatus = "replied" | "waiting_customer";
 
 type ResponseEditorProps = {
   inquiry: Inquiry;
@@ -15,6 +17,12 @@ type ResponseEditorProps = {
   onMarkAsReplied?: (responseText: string) => Promise<boolean>;
   canMarkAsWaitingCustomer?: boolean;
   onMarkAsWaitingCustomer?: (responseText: string) => Promise<boolean>;
+  canSendEmailResponse?: boolean;
+  isSendingEmailResponse?: boolean;
+  onSendEmailResponse?: (
+    responseText: string,
+    nextStatus: SendEmailResponseNextStatus
+  ) => Promise<boolean>;
 };
 
 export function ResponseEditor(props: ResponseEditorProps) {
@@ -33,6 +41,9 @@ function ResponseEditorContent({
   onMarkAsReplied,
   canMarkAsWaitingCustomer = false,
   onMarkAsWaitingCustomer,
+  canSendEmailResponse = false,
+  isSendingEmailResponse = false,
+  onSendEmailResponse,
 }: ResponseEditorProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -42,8 +53,21 @@ function ResponseEditorContent({
   const [isFinishingResponse, setIsFinishingResponse] = useState(false);
   const [isFinishingWaitingCustomer, setIsFinishingWaitingCustomer] =
     useState(false);
+  const [isSendingEmailReplied, setIsSendingEmailReplied] = useState(false);
+  const [isSendingEmailWaitingCustomer, setIsSendingEmailWaitingCustomer] =
+    useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+
+  const isBusy =
+    isSaving ||
+    isCopying ||
+    isFinishingResponse ||
+    isFinishingWaitingCustomer ||
+    isSendingEmailReplied ||
+    isSendingEmailWaitingCustomer ||
+    isMarkingAsReplied ||
+    isSendingEmailResponse;
 
   const copyResponseText = async (cleanText: string) => {
     if (navigator.clipboard?.writeText) {
@@ -234,6 +258,57 @@ function ResponseEditorContent({
     }
   };
 
+  const handleSendEmailResponse = async (
+    nextStatus: SendEmailResponseNextStatus
+  ) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    const cleanText = text.trim();
+
+    if (!cleanText) {
+      setErrorMessage("El borrador de respuesta no puede quedar vacío.");
+      return;
+    }
+
+    if (!onSendEmailResponse) {
+      setErrorMessage("No se pudo enviar el email desde COPPE.");
+      return;
+    }
+
+    if (nextStatus === "waiting_customer") {
+      setIsSendingEmailWaitingCustomer(true);
+    } else {
+      setIsSendingEmailReplied(true);
+    }
+
+    try {
+      await saveResponseText(cleanText);
+
+      const wasSent = await onSendEmailResponse(cleanText, nextStatus);
+
+      if (!wasSent) {
+        setErrorMessage("No se pudo enviar el email desde COPPE.");
+        return;
+      }
+
+      setSuccessMessage(
+        nextStatus === "waiting_customer"
+          ? "Email enviado y caso marcado como esperando al cliente."
+          : "Email enviado y caso marcado como respondido."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar el email desde COPPE."
+      );
+    } finally {
+      setIsSendingEmailReplied(false);
+      setIsSendingEmailWaitingCustomer(false);
+    }
+  };
+
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
       <div className="mb-3 flex items-center justify-between gap-4">
@@ -241,9 +316,9 @@ function ResponseEditorContent({
           <h3 className="font-bold text-slate-950">Borrador de respuesta</h3>
 
           <p className="text-xs leading-5 text-slate-500">
-            Edita el texto, cópialo y envíalo manualmente por el canal
-            correspondiente. COPPE registrará la respuesta en el historial del
-            caso.
+            {canSendEmailResponse
+              ? "Edita el texto y elige si quieres enviarlo por email desde COPPE o copiarlo para responder manualmente."
+              : "Edita el texto, cópialo y envíalo manualmente por el canal correspondiente. COPPE registrará la respuesta en el historial del caso."}
           </p>
         </div>
 
@@ -275,23 +350,37 @@ function ResponseEditorContent({
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
-        <Button
-          onClick={handleCopy}
-          disabled={
-            isCopying || isFinishingResponse || isFinishingWaitingCustomer
-          }
-        >
+        {canSendEmailResponse && canMarkAsReplied ? (
+          <Button
+            onClick={() => handleSendEmailResponse("replied")}
+            disabled={isBusy}
+          >
+            <Send size={16} />
+            {isSendingEmailReplied || isSendingEmailResponse
+              ? "Enviando email..."
+              : "Enviar email y marcar respondido"}
+          </Button>
+        ) : null}
+
+        {canSendEmailResponse && canMarkAsWaitingCustomer ? (
+          <Button
+            variant="secondary"
+            onClick={() => handleSendEmailResponse("waiting_customer")}
+            disabled={isBusy}
+          >
+            <Send size={16} />
+            {isSendingEmailWaitingCustomer || isSendingEmailResponse
+              ? "Enviando email..."
+              : "Enviar email y esperar respuesta"}
+          </Button>
+        ) : null}
+
+        <Button onClick={handleCopy} disabled={isBusy}>
           <Copy size={16} />
           {isCopying ? "Copiando..." : "Copiar borrador"}
         </Button>
 
-        <Button
-          variant="secondary"
-          onClick={handleSave}
-          disabled={
-            isSaving || isFinishingResponse || isFinishingWaitingCustomer
-          }
-        >
+        <Button variant="secondary" onClick={handleSave} disabled={isBusy}>
           {isSaving ? "Guardando..." : "Guardar borrador"}
         </Button>
 
@@ -299,13 +388,7 @@ function ResponseEditorContent({
           <Button
             variant="secondary"
             onClick={handleWaitForCustomer}
-            disabled={
-              isSaving ||
-              isCopying ||
-              isFinishingResponse ||
-              isFinishingWaitingCustomer ||
-              isMarkingAsReplied
-            }
+            disabled={isBusy}
           >
             {isFinishingWaitingCustomer || isMarkingAsReplied
               ? "Actualizando..."
@@ -317,13 +400,7 @@ function ResponseEditorContent({
           <Button
             variant="secondary"
             onClick={handleFinishResponse}
-            disabled={
-              isSaving ||
-              isCopying ||
-              isFinishingResponse ||
-              isFinishingWaitingCustomer ||
-              isMarkingAsReplied
-            }
+            disabled={isBusy}
           >
             <CheckCircle2 size={16} />
             {isFinishingResponse || isMarkingAsReplied
