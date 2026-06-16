@@ -183,7 +183,7 @@ function getMessageDirectionLabel(direction: string) {
   }
 
   if (direction === "outbound") {
-    return "Enviado";
+    return "Respuesta registrada";
   }
 
   return "Mensaje";
@@ -728,7 +728,7 @@ export function InquiryDetail({
     }
 
     if (newStatus === "replied") {
-      setStatusMessage("Caso marcado como respondido.");
+      setStatusMessage("Respuesta registrada y caso marcado como respondido.");
       return true;
     }
 

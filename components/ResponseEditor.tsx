@@ -103,7 +103,9 @@ function ResponseEditorContent({
 
     try {
       await copyResponseText(cleanText);
-      setSuccessMessage("Borrador copiado al portapapeles.");
+      setSuccessMessage(
+        "Borrador copiado al portapapeles para enviarlo manualmente."
+      );
     } catch {
       setErrorMessage(
         "No se pudo copiar el borrador. Selecciona el texto y cópialo manualmente."
@@ -172,7 +174,7 @@ function ResponseEditorContent({
       }
 
       setSuccessMessage(
-        "Borrador guardado, copiado y caso marcado como respondido."
+        "Borrador guardado, copiado y registrado como respuesta manual. El caso se marcó como respondido."
       );
     } catch (error) {
       setErrorMessage(
@@ -219,7 +221,7 @@ function ResponseEditorContent({
       }
 
       setSuccessMessage(
-        "Borrador guardado, copiado y caso marcado como esperando al cliente."
+        "Borrador guardado, copiado y registrado como respuesta manual. El caso se marcó como esperando al cliente."
       );
     } catch (error) {
       setErrorMessage(
@@ -234,12 +236,14 @@ function ResponseEditorContent({
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex items-center justify-between gap-4">
         <div>
           <h3 className="font-bold text-slate-950">Borrador de respuesta</h3>
 
-          <p className="text-xs text-slate-500">
-            Edita el borrador antes de enviarlo al cliente.
+          <p className="text-xs leading-5 text-slate-500">
+            Edita el texto, cópialo y envíalo manualmente por el canal
+            correspondiente. COPPE registrará la respuesta en el historial del
+            caso.
           </p>
         </div>
 
@@ -288,7 +292,7 @@ function ResponseEditorContent({
             isSaving || isFinishingResponse || isFinishingWaitingCustomer
           }
         >
-          {isSaving ? "Guardando..." : "Guardar cambios"}
+          {isSaving ? "Guardando..." : "Guardar borrador"}
         </Button>
 
         {canMarkAsWaitingCustomer ? (
@@ -305,7 +309,7 @@ function ResponseEditorContent({
           >
             {isFinishingWaitingCustomer || isMarkingAsReplied
               ? "Actualizando..."
-              : "Guardar, copiar y esperar respuesta"}
+              : "Copiar y registrar espera"}
           </Button>
         ) : null}
 
@@ -324,7 +328,7 @@ function ResponseEditorContent({
             <CheckCircle2 size={16} />
             {isFinishingResponse || isMarkingAsReplied
               ? "Finalizando..."
-              : "Guardar, copiar y marcar respondido"}
+              : "Copiar y registrar respondido"}
           </Button>
         ) : null}
       </div>
