@@ -155,6 +155,121 @@ export function detectLanguage(
   return normalizedFallbackLanguage;
 }
 
+function hasAdministrativeChangeRequest(normalizedMessage: string) {
+  const hasAnySignal = (signals: string[]) =>
+    signals.some((signal) => normalizedMessage.includes(signal));
+
+  const explicitCancellationSignal = hasAnySignal([
+    "cancel",
+    "cancelar",
+    "cancelacion",
+    "cancelación",
+    "anular",
+    "anulacion",
+    "anulación",
+    "dar de baja",
+    "devolucion",
+    "devolución",
+    "return",
+    "refund",
+  ]);
+
+  if (explicitCancellationSignal) {
+    return true;
+  }
+
+  const administrativeChangePhrases = [
+    "cambiar cita",
+    "cambiar la cita",
+    "cambiar una cita",
+    "cambiar mi cita",
+    "cambiar el turno",
+    "cambiar turno",
+    "cambiar la reserva",
+    "cambiar reserva",
+    "cambiar mi reserva",
+    "cambiar el pedido",
+    "cambiar pedido",
+    "cambiar mi pedido",
+    "cambiar la solicitud",
+    "cambiar solicitud",
+    "cambiar mi solicitud",
+    "cambiar la fecha",
+    "cambiar fecha",
+    "cambiar la hora",
+    "cambiar hora",
+    "cambiar la reunion",
+    "cambiar reunion",
+    "cambiar la reunión",
+    "cambiar reunión",
+    "cambiar la direccion de envio",
+    "cambiar direccion de envio",
+    "cambiar la dirección de envío",
+    "cambiar dirección de envío",
+    "cambiar los datos",
+    "cambiar datos",
+    "modificar cita",
+    "modificar la cita",
+    "modificar una cita",
+    "modificar mi cita",
+    "modificar reserva",
+    "modificar la reserva",
+    "modificar pedido",
+    "modificar el pedido",
+    "modificar solicitud",
+    "modificar la solicitud",
+    "modificar fecha",
+    "modificar la fecha",
+    "modificar hora",
+    "modificar la hora",
+    "modificar turno",
+    "modificar el turno",
+    "modificar datos",
+    "modificar los datos",
+    "aplazar cita",
+    "aplazar la cita",
+    "aplazar reserva",
+    "aplazar la reserva",
+    "aplazar reunion",
+    "aplazar reunión",
+    "reprogramar cita",
+    "reprogramar la cita",
+    "reprogramar reserva",
+    "reprogramar la reserva",
+    "reprogramar reunion",
+    "reprogramar reunión",
+    "change appointment",
+    "change my appointment",
+    "change booking",
+    "change my booking",
+    "change reservation",
+    "change my reservation",
+    "change order",
+    "change my order",
+    "change request",
+    "change my request",
+    "change date",
+    "change the date",
+    "change time",
+    "change the time",
+    "change meeting",
+    "change my meeting",
+    "modify appointment",
+    "modify booking",
+    "modify reservation",
+    "modify order",
+    "modify request",
+    "reschedule appointment",
+    "reschedule booking",
+    "reschedule reservation",
+    "reschedule meeting",
+  ];
+
+  return administrativeChangePhrases.some((phrase) =>
+    normalizedMessage.includes(phrase)
+  );
+}
+
 export function inferCategory(message: string) {
   const normalizedMessage = normalizeSearchText(message);
 
@@ -213,52 +328,7 @@ export function inferCategory(message: string) {
     return "quote_request";
   }
 
-  const explicitCancellationSignal = hasAnySignal([
-    "cancel",
-    "cancelar",
-    "cancelacion",
-    "cancelación",
-    "anular",
-    "anulacion",
-    "anulación",
-    "dar de baja",
-    "devolucion",
-    "devolución",
-    "return",
-    "refund",
-  ]);
-
-  const changeActionSignal = hasAnySignal([
-    "cambiar",
-    "modificar",
-    "aplazar",
-    "reprogramar",
-    "change",
-    "modify",
-    "reschedule",
-  ]);
-
-  const changeTargetSignal = hasAnySignal([
-    "cita",
-    "reserva",
-    "pedido",
-    "solicitud",
-    "fecha",
-    "hora",
-    "turno",
-    "reunion",
-    "reunión",
-    "appointment",
-    "booking",
-    "reservation",
-    "order",
-    "request",
-    "date",
-    "time",
-    "meeting",
-  ]);
-
-  if (explicitCancellationSignal || (changeActionSignal && changeTargetSignal)) {
+  if (hasAdministrativeChangeRequest(normalizedMessage)) {
     return "change_or_cancellation";
   }
 
@@ -358,8 +428,15 @@ export function inferCategory(message: string) {
       "revision",
       "revisión",
       "cambio de",
+      "cambiar el",
+      "cambiar la",
       "cambiar los",
       "cambiar las",
+      "sustituir",
+      "sustitucion",
+      "sustitución",
+      "reemplazar",
+      "reemplazo",
       "product",
       "service",
       "details",
@@ -853,7 +930,7 @@ function buildSpanishResponse(
   }
 
   if (category === "appointment_request") {
-    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cita, reunión o llamada y revisaremos la disponibilidad antes de confirmarte la mejor opción.`;
+    return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu solicitud de cita, reunión o llamada. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
   }
 
   if (category === "product_service_inquiry") {
@@ -937,7 +1014,7 @@ function buildEnglishResponse(
   }
 
   if (category === "appointment_request") {
-    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your appointment, meeting or call request and will check our availability before confirming the best option for you.`;
+    return `${greeting}, thank you for contacting ${companyContext.name}. We have received your appointment, meeting or call request. A member of our team will contact you as soon as possible.`;
   }
 
   if (category === "product_service_inquiry") {

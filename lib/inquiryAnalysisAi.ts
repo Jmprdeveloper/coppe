@@ -202,6 +202,11 @@ Reglas generales:
 - La empresa configurada en el análisis es la fuente de verdad sobre qué actividad realiza la empresa.
 - No asumas que la empresa pertenece a un sector distinto del configurado.
 - Clasifica por significado, no solo por palabras exactas.
+- Desambigua verbos polisémicos como "cambiar", "modificar", "revisar", "mirar", "devolver" o "reservar" según el objeto y el contexto de empresa.
+- No clasifiques como cambio/cancelación administrativa solo por la palabra "cambiar".
+- Si "cambiar" significa sustituir, reemplazar, instalar, reparar o intervenir sobre un producto, pieza, elemento, documento, equipo, instalación, servicio técnico o elemento físico/digital, clasifica según la necesidad real: cita, presupuesto, soporte, producto/servicio o incidencia.
+- Solo usa change_or_cancellation cuando el cliente quiera cambiar, reprogramar, aplazar, cancelar, anular, devolver o dar de baja una cita, reserva, pedido, solicitud, suscripción, fecha, hora, turno, reunión, contrato o gestión previa.
+- Si el mensaje combina una necesidad concreta de servicio con una petición de cita, prioriza la necesidad y la cita, no la palabra "cambiar".
 - El cliente puede escribir con faltas, jerga, lenguaje coloquial, enfado, dialecto o expresiones ambiguas.
 - Redacta todos los campos orientados al cliente en el idioma del cliente.
 - No inventes datos concretos que no estén en el mensaje del cliente.
@@ -226,6 +231,9 @@ Ejemplos de compatibilidad:
 - Si la empresa es una academia y el cliente menciona clases, cursos, matrícula, horarios o profesores, eso encaja.
 - Si la empresa es un restaurante y el cliente quiere reservar una mesa, eso encaja.
 - Si la empresa no es hotel, alojamiento o turismo y el cliente quiere reservar una habitación, normalmente no encaja.
+- Si cualquier empresa recibe "quiero cambiar mi cita", "quiero cambiar la hora", "quiero modificar una reserva" o "quiero cancelar un pedido", eso es cambio/cancelación administrativa.
+- Si cualquier empresa recibe "quiero cambiar el radiador", "quiero cambiar la batería", "quiero cambiar una cerradura", "quiero cambiar el diseño", "quiero cambiar un componente" o "quiero sustituir una pieza", eso NO es cambio/cancelación administrativa: es una solicitud de servicio, soporte, reparación, instalación, presupuesto o cita según el contexto.
+- Si una empresa vende productos y el cliente quiere "cambiar un producto por otra talla" o "devolver un pedido", puede encajar como cambio/devolución, porque el objeto es un pedido, compra o devolución previa.
 
 Clasificación:
 - sentiment debe reflejar el tono emocional real del mensaje del cliente: positive, neutral o negative.
@@ -335,6 +343,9 @@ Instrucciones principales:
 - COPPE es generalista: adapta el análisis al sector y descripción de esta empresa concreta.
 - Primero decide si el mensaje encaja con esta empresa concreta.
 - No clasifiques como válido un mensaje solo porque pida una cita, reserva, revisión, presupuesto o ayuda. El motivo concreto debe encajar con el sector y descripción de la empresa.
+- No clasifiques como change_or_cancellation solo por la palabra "cambiar"; mira qué se quiere cambiar.
+- Si "cambiar" significa sustituir, reparar, instalar o reemplazar algo como servicio solicitado, no es cambio/cancelación administrativa.
+- Si "cambiar" afecta a una cita, reserva, pedido, fecha, hora, turno, solicitud o gestión previa, entonces sí puede ser change_or_cancellation.
 - Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
 - Si el mensaje no encaja con la empresa, suggestedResponse debe indicar posible confusión y sugerir que el cliente vuelva a contactar si necesita algo relacionado con los servicios de la empresa.
 - No confirmes citas, reservas, horarios, precios ni disponibilidad real.
