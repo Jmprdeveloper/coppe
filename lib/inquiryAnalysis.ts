@@ -894,8 +894,8 @@ function extractSpanishRequestPurpose(originalMessage: string) {
   const cleanMessage = originalMessage.replace(/\s+/g, " ").trim();
 
   const patterns = [
-    /(?:para|por)\s+([^¿?!.]+)/i,
-    /(?:necesito|quiero|quisiera|me gustaría|me gustaria|tengo que)\s+([^¿?!.]+)/i,
+    /\b(?:para|por)\s+([^¿?!.]+)/i,
+    /\b(?:necesito|quiero|quisiera|me gustaría|me gustaria|tengo que)\s+([^¿?!.]+)/i,
   ];
 
   for (const pattern of patterns) {
@@ -934,8 +934,8 @@ function extractEnglishRequestPurpose(originalMessage: string) {
   const cleanMessage = originalMessage.replace(/\s+/g, " ").trim();
 
   const patterns = [
-    /(?:to|for|about)\s+([^?!.]+)/i,
-    /(?:i need|i want|i would like|we need|we want|we would like)\s+([^?!.]+)/i,
+    /\b(?:to|for|about)\s+([^?!.]+)/i,
+    /\b(?:i need|i want|i would like|we need|we want|we would like)\s+([^?!.]+)/i,
   ];
 
   for (const pattern of patterns) {
