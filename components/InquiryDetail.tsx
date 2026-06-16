@@ -75,6 +75,10 @@ type InquiryMessageRow = {
   created_at: string;
 };
 
+type OutboundMessageForInquiryRow = {
+  inquiry_message_id: string | null;
+};
+
 type SendEmailResponseNextStatus = "replied" | "waiting_customer";
 
 type SendEmailResponseApiResponse = {
@@ -188,9 +192,13 @@ function getMessageAuthorLabel(authorType: string) {
   return "Mensaje";
 }
 
-function getMessageDirectionLabel(direction: string) {
+function getMessageDirectionLabel(direction: string, wasSentByEmail = false) {
   if (direction === "inbound") {
     return "Recibido";
+  }
+
+  if (direction === "outbound" && wasSentByEmail) {
+    return "Email enviado";
   }
 
   if (direction === "outbound") {
@@ -363,6 +371,7 @@ export function InquiryDetail({
   const [inquiryMessages, setInquiryMessages] = useState<InquiryMessageRow[]>(
     []
   );
+  const [sentEmailMessageIds, setSentEmailMessageIds] = useState<string[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [inboundReceivedDetails, setInboundReceivedDetails] =
@@ -451,6 +460,7 @@ export function InquiryDetail({
       setCustomer(null);
       setNotes([]);
       setInquiryMessages([]);
+      setSentEmailMessageIds([]);
       setFollowUps([]);
       setAppointments([]);
       setInboundReceivedDetails(null);
@@ -578,6 +588,25 @@ export function InquiryDetail({
         );
         setIsLoading(false);
         return;
+      }
+
+      const { data: outboundMessagesData, error: outboundMessagesError } =
+        await supabase
+          .from("outbound_messages")
+          .select("inquiry_message_id")
+          .eq("inquiry_id", inquiryData.id)
+          .eq("channel", "email")
+          .eq("status", "sent")
+          .not("inquiry_message_id", "is", null);
+
+      if (!outboundMessagesError) {
+        const sentMessageIds = (
+          (outboundMessagesData ?? []) as OutboundMessageForInquiryRow[]
+        )
+          .map((outboundMessage) => outboundMessage.inquiry_message_id)
+          .filter((messageId): messageId is string => Boolean(messageId));
+
+        setSentEmailMessageIds(sentMessageIds);
       }
 
       const { data: followUpsData, error: followUpsError } = await supabase
@@ -971,6 +1000,16 @@ export function InquiryDetail({
         }
 
         return [...currentMessages, payload.inquiryMessage];
+      });
+
+      setSentEmailMessageIds((currentIds) => {
+        const sentEmailMessageId = payload?.inquiryMessage?.id;
+
+        if (!sentEmailMessageId || currentIds.includes(sentEmailMessageId)) {
+          return currentIds;
+        }
+
+        return [...currentIds, sentEmailMessageId];
       });
     }
 
@@ -1917,7 +1956,10 @@ export function InquiryDetail({
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {getMessageAuthorLabel(message.author_type)} ·{" "}
-                        {getMessageDirectionLabel(message.direction)}
+                        {getMessageDirectionLabel(
+                          message.direction,
+                          sentEmailMessageIds.includes(message.id)
+                        )}
                       </div>
 
                       <div className="text-xs text-slate-500">
