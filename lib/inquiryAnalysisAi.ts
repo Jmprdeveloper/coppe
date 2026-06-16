@@ -48,12 +48,12 @@ const inquiryAnalysisJsonSchema = {
     summary: {
       type: "string",
       description:
-        "Operational summary of the customer case for the company team. It must first evaluate whether the message fits the configured company sector and description.",
+        "Operational summary of the customer case for the company team. It must first evaluate whether the message fits the configured company sector and description. Use the concrete customer motive when it is clear; do not expose broad internal grouped labels.",
     },
     intent: {
       type: "string",
       description:
-        "Clear explanation of what the customer wants to achieve and whether that request fits the configured company activity.",
+        "Clear explanation of what the customer wants to achieve and whether that request fits the configured company activity. Use the concrete customer motive when it is clear; do not expose broad internal grouped labels.",
     },
     category: {
       type: "string",
@@ -266,6 +266,8 @@ Fechas, citas y agenda:
 
 Diferencia entre análisis interno y respuesta al cliente:
 - summary, intent, missingInformation y recommendedAction son para el equipo de la empresa. Pueden explicar qué ocurre, qué falta y qué debería revisar el equipo.
+- summary e intent deben ser concretos y legibles para una persona usuaria de COPPE. No deben exponer etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio", "pedido, reserva, contratación o disponibilidad" si el motivo real del cliente está claro.
+- Si el cliente pide cita para algo concreto, summary e intent deben mencionar ese motivo concreto. Ejemplo: "solicita una cita para revisar los frenos del coche", no "solicita una cita, llamada o reunión".
 - suggestedResponse es solo una primera respuesta prudente al cliente.
 - suggestedResponse no debe resolver el caso.
 - suggestedResponse no debe diagnosticar.
@@ -352,6 +354,7 @@ Instrucciones principales:
 - Si "cambiar" significa sustituir, reparar, instalar o reemplazar algo como servicio solicitado, no es cambio/cancelación administrativa.
 - Si "cambiar" afecta a una cita, reserva, pedido, fecha, hora, turno, solicitud o gestión previa, entonces sí puede ser change_or_cancellation.
 - Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
+- En summary e intent, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio" o "pedido, reserva, contratación o disponibilidad".
 - En suggestedResponse, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada" o "producto o servicio".
 - Si el mensaje no encaja con la empresa, suggestedResponse debe indicar posible confusión y sugerir que el cliente vuelva a contactar si necesita algo relacionado con los servicios de la empresa.
 - No confirmes citas, reservas, horarios, precios ni disponibilidad real.

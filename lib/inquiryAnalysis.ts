@@ -562,6 +562,17 @@ export function inferSentiment(
   return "neutral";
 }
 
+function extractRequestPurposeByLanguage(
+  originalMessage: string,
+  language: MessageLanguage
+) {
+  if (language === "en") {
+    return extractEnglishRequestPurpose(originalMessage);
+  }
+
+  return extractSpanishRequestPurpose(originalMessage);
+}
+
 export function buildSummary(
   customerName: string,
   message: string,
@@ -570,6 +581,8 @@ export function buildSummary(
 ) {
   const cleanMessage = message.trim();
   const companyContext = buildCompanyContext(company);
+  const language = detectLanguage(message, company.language);
+  const requestPurpose = extractRequestPurposeByLanguage(message, language);
   const sectorContext = companyContext.sector
     ? ` en el sector ${companyContext.sector}`
     : "";
@@ -591,10 +604,18 @@ export function buildSummary(
   }
 
   if (category === "appointment_request") {
-    return `${customerName} solicita una cita, llamada, reunión o confirmación de disponibilidad de agenda con ${companyContext.name}.`;
+    if (requestPurpose) {
+      return `${customerName} solicita una cita para ${requestPurpose} con ${companyContext.name}.`;
+    }
+
+    return `${customerName} solicita una cita con ${companyContext.name}.`;
   }
 
   if (category === "product_service_inquiry") {
+    if (requestPurpose) {
+      return `${customerName} solicita información o ayuda sobre ${requestPurpose} a ${companyContext.name}.`;
+    }
+
     return `${customerName} solicita información sobre un producto o servicio de ${companyContext.name}.`;
   }
 
@@ -625,12 +646,30 @@ export function buildSummary(
   return `${cleanMessage.slice(0, 177)}...`;
 }
 
-export function buildIntent(category: string) {
+export function buildIntent(
+  category: string,
+  originalMessage = "",
+  company?: CurrentCompany
+) {
+  const language = detectLanguage(originalMessage, company?.language);
+  const requestPurpose = originalMessage
+    ? extractRequestPurposeByLanguage(originalMessage, language)
+    : "";
+
+  if (category === "appointment_request") {
+    return requestPurpose
+      ? `Solicitar cita para ${requestPurpose}`
+      : "Solicitar cita";
+  }
+
+  if (category === "product_service_inquiry" && requestPurpose) {
+    return `Solicitar información o ayuda sobre ${requestPurpose}`;
+  }
+
   const intents: Record<string, string> = {
     general_info: "Solicitar información general",
     product_service_inquiry: "Solicitar información sobre producto o servicio",
     quote_request: "Solicitar precio, tarifa o presupuesto",
-    appointment_request: "Solicitar cita, reunión o llamada",
     order_or_reservation: "Solicitar pedido, reserva, contratación o disponibilidad",
     change_or_cancellation: "Solicitar cambio o cancelación",
     complaint_or_incident: "Comunicar queja o incidencia",
@@ -1230,7 +1269,7 @@ export function analyzeInquiry({
   const sentiment = inferSentiment(category, message);
   const subject = buildSubject(message, category);
   const summary = buildSummary(customerName, message, category, company);
-  const intent = buildIntent(category);
+  const intent = buildIntent(category, message, company);
   const missingInformation = buildMissingInformation(category, message);
   const recommendedAction = buildRecommendedAction(category, message, company);
   const suggestedResponse = buildSuggestedResponse(
