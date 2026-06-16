@@ -77,6 +77,7 @@ type InquiryMessageRow = {
 
 type OutboundMessageForInquiryRow = {
   inquiry_message_id: string | null;
+  body: string | null;
 };
 
 type SendEmailResponseNextStatus = "replied" | "waiting_customer";
@@ -372,6 +373,9 @@ export function InquiryDetail({
     []
   );
   const [sentEmailMessageIds, setSentEmailMessageIds] = useState<string[]>([]);
+  const [sentEmailResponseBodies, setSentEmailResponseBodies] = useState<
+    string[]
+  >([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [inboundReceivedDetails, setInboundReceivedDetails] =
@@ -461,6 +465,7 @@ export function InquiryDetail({
       setNotes([]);
       setInquiryMessages([]);
       setSentEmailMessageIds([]);
+      setSentEmailResponseBodies([]);
       setFollowUps([]);
       setAppointments([]);
       setInboundReceivedDetails(null);
@@ -593,20 +598,26 @@ export function InquiryDetail({
       const { data: outboundMessagesData, error: outboundMessagesError } =
         await supabase
           .from("outbound_messages")
-          .select("inquiry_message_id")
+          .select("inquiry_message_id, body")
           .eq("inquiry_id", inquiryData.id)
           .eq("channel", "email")
           .eq("status", "sent")
           .not("inquiry_message_id", "is", null);
 
       if (!outboundMessagesError) {
-        const sentMessageIds = (
-          (outboundMessagesData ?? []) as OutboundMessageForInquiryRow[]
-        )
+        const sentEmailRows =
+          (outboundMessagesData ?? []) as OutboundMessageForInquiryRow[];
+
+        const sentMessageIds = sentEmailRows
           .map((outboundMessage) => outboundMessage.inquiry_message_id)
           .filter((messageId): messageId is string => Boolean(messageId));
 
+        const sentResponseBodies = sentEmailRows
+          .map((outboundMessage) => outboundMessage.body?.trim() || "")
+          .filter(Boolean);
+
         setSentEmailMessageIds(sentMessageIds);
+        setSentEmailResponseBodies(sentResponseBodies);
       }
 
       const { data: followUpsData, error: followUpsError } = await supabase
@@ -1010,6 +1021,14 @@ export function InquiryDetail({
         }
 
         return [...currentIds, sentEmailMessageId];
+      });
+
+      setSentEmailResponseBodies((currentBodies) => {
+        if (currentBodies.includes(cleanResponseText)) {
+          return currentBodies;
+        }
+
+        return [...currentBodies, cleanResponseText];
       });
     }
 
@@ -2089,6 +2108,7 @@ export function InquiryDetail({
             onMarkAsWaitingCustomer={handleMarkAsWaitingCustomerWithResponse}
             canSendEmailResponse={canSendEmailResponse}
             isSendingEmailResponse={isUpdatingStatus}
+            sentEmailResponseBodies={sentEmailResponseBodies}
             onSendEmailResponse={handleSendEmailResponse}
           />
         </main>

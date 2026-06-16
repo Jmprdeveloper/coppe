@@ -19,11 +19,16 @@ type ResponseEditorProps = {
   onMarkAsWaitingCustomer?: (responseText: string) => Promise<boolean>;
   canSendEmailResponse?: boolean;
   isSendingEmailResponse?: boolean;
+  sentEmailResponseBodies?: string[];
   onSendEmailResponse?: (
     responseText: string,
     nextStatus: SendEmailResponseNextStatus
   ) => Promise<boolean>;
 };
+
+function normalizeResponseTextForComparison(value: string) {
+  return value.replace(/\s+/g, " ").trim();
+}
 
 export function ResponseEditor(props: ResponseEditorProps) {
   return (
@@ -43,6 +48,7 @@ function ResponseEditorContent({
   onMarkAsWaitingCustomer,
   canSendEmailResponse = false,
   isSendingEmailResponse = false,
+  sentEmailResponseBodies = [],
   onSendEmailResponse,
 }: ResponseEditorProps) {
   const supabase = useMemo(() => createClient(), []);
@@ -68,6 +74,17 @@ function ResponseEditorContent({
     isSendingEmailWaitingCustomer ||
     isMarkingAsReplied ||
     isSendingEmailResponse;
+
+  const normalizedCurrentText = normalizeResponseTextForComparison(text);
+
+  const hasAlreadySentCurrentText =
+    normalizedCurrentText.length > 0 &&
+    sentEmailResponseBodies.some((sentResponseBody) => {
+      return (
+        normalizeResponseTextForComparison(sentResponseBody) ===
+        normalizedCurrentText
+      );
+    });
 
   const copyResponseText = async (cleanText: string) => {
     if (navigator.clipboard?.writeText) {
@@ -271,6 +288,13 @@ function ResponseEditorContent({
       return;
     }
 
+    if (hasAlreadySentCurrentText) {
+      setErrorMessage(
+        "Este borrador ya fue enviado por email en este caso. Edita el texto si necesitas enviar una nueva respuesta."
+      );
+      return;
+    }
+
     if (!onSendEmailResponse) {
       setErrorMessage("No se pudo enviar el email desde COPPE.");
       return;
@@ -337,6 +361,13 @@ function ResponseEditorContent({
         className="min-h-[150px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800 outline-none transition focus:border-[#0F4C5C] focus:bg-white"
       />
 
+      {canSendEmailResponse && hasAlreadySentCurrentText ? (
+        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          Este borrador ya fue enviado por email en este caso. Edita el texto
+          si necesitas enviar una nueva respuesta.
+        </div>
+      ) : null}
+
       {errorMessage ? (
         <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {errorMessage}
@@ -353,7 +384,7 @@ function ResponseEditorContent({
         {canSendEmailResponse && canMarkAsReplied ? (
           <Button
             onClick={() => handleSendEmailResponse("replied")}
-            disabled={isBusy}
+            disabled={isBusy || hasAlreadySentCurrentText}
           >
             <Send size={16} />
             {isSendingEmailReplied || isSendingEmailResponse
@@ -366,7 +397,7 @@ function ResponseEditorContent({
           <Button
             variant="secondary"
             onClick={() => handleSendEmailResponse("waiting_customer")}
-            disabled={isBusy}
+            disabled={isBusy || hasAlreadySentCurrentText}
           >
             <Send size={16} />
             {isSendingEmailWaitingCustomer || isSendingEmailResponse
