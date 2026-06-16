@@ -52,6 +52,32 @@ type InboundEventRow = {
   inquiry_id: string | null;
 };
 
+type OutboundEmailReplyRow = {
+  id: string;
+  company_id: string;
+  inquiry_id: string;
+  customer_id: string | null;
+  from_address: string | null;
+  to_address: string | null;
+  reply_token: string | null;
+};
+
+type InquiryForEmailReplyRow = {
+  id: string;
+  company_id: string;
+  customer_id: string | null;
+  status: string;
+};
+
+type InquiryMessageRow = {
+  id: string;
+  direction: string;
+  author_type: string;
+  body: string;
+  source_channel: string | null;
+  created_at: string;
+};
+
 export type InboundEmailProcessingResult =
   | {
       ok: true;
@@ -338,6 +364,457 @@ function getCustomerName(fromName: string, fromEmail: string) {
   return localPart || fromEmail;
 }
 
+
+function getEmailLocalPart(emailAddress: string) {
+  return emailAddress.split("@")[0]?.trim().toLowerCase() ?? "";
+}
+
+function getReplyTokenFromInboundEmailAddress(inboundEmailAddress: string) {
+  const localPart = getEmailLocalPart(inboundEmailAddress);
+  const replyTokenMatch = localPart.match(/^reply-([a-f0-9]{32})$/i);
+
+  return replyTokenMatch?.[1]?.toLowerCase() ?? "";
+}
+
+function stripQuotedEmailText(textBody: string) {
+  const lines = textBody.replace(/\r\n/g, "\n").replace(/\r/g, "\n").split("\n");
+  const keptLines: string[] = [];
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+
+    if (trimmedLine.startsWith(">")) {
+      break;
+    }
+
+    if (/^On .+ wrote:$/i.test(trimmedLine)) {
+      break;
+    }
+
+    if (/^El\s+(lun|mar|mi[ée]|jue|vie|s[áa]b|dom)\.?[,]?\s+.+\s+a\s+las\s+.+/i.test(trimmedLine)) {
+      break;
+    }
+
+    if (/^El\s+.+\s+escribi[oó]:$/i.test(trimmedLine)) {
+      break;
+    }
+
+    if (/^-{2,}\s*Original Message\s*-{2,}$/i.test(trimmedLine)) {
+      break;
+    }
+
+    if (/^De:\s+/i.test(trimmedLine) || /^From:\s+/i.test(trimmedLine)) {
+      break;
+    }
+
+    keptLines.push(line);
+  }
+
+  return keptLines
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+async function findOutboundEmailReplyByToken(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  replyToken: string
+) {
+  const { data, error } = await supabaseAdmin
+    .from("outbound_messages")
+    .select(
+      "id, company_id, inquiry_id, customer_id, from_address, to_address, reply_token"
+    )
+    .eq("channel", "email")
+    .eq("provider", "resend")
+    .eq("reply_token", replyToken)
+    .maybeSingle<OutboundEmailReplyRow>();
+
+  if (error) {
+    throw new Error(
+      `No se pudo cargar el email saliente asociado a la respuesta: ${
+        error.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  return data;
+}
+
+async function findInquiryForEmailReply(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  inquiryId: string
+) {
+  const { data, error } = await supabaseAdmin
+    .from("inquiries")
+    .select("id, company_id, customer_id, status")
+    .eq("id", inquiryId)
+    .maybeSingle<InquiryForEmailReplyRow>();
+
+  if (error) {
+    throw new Error(
+      `No se pudo cargar el caso asociado a la respuesta: ${
+        error.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  return data;
+}
+
+async function findCustomerById(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  companyId: string,
+  customerId: string
+) {
+  const { data, error } = await supabaseAdmin
+    .from("customers")
+    .select(
+      "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
+    )
+    .eq("company_id", companyId)
+    .eq("id", customerId)
+    .maybeSingle<CustomerRow>();
+
+  if (error) {
+    throw new Error(
+      `No se pudo cargar el cliente asociado a la respuesta: ${
+        error.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  return data;
+}
+
+function getNextStatusForEmailReply(currentStatus: string) {
+  if (currentStatus === "new" || currentStatus === "pending") {
+    return currentStatus;
+  }
+
+  return "pending";
+}
+
+async function processInboundEmailReply(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  values: {
+    replyToken: string;
+    inboundEmailAddress: string;
+    externalMessageId: string;
+    fromName: string;
+    fromEmail: string;
+    subject: string;
+    textBody: string;
+  }
+): Promise<InboundEmailProcessingResult> {
+  let outboundEmailReply: OutboundEmailReplyRow | null = null;
+
+  try {
+    outboundEmailReply = await findOutboundEmailReplyByToken(
+      supabaseAdmin,
+      values.replyToken
+    );
+  } catch (error) {
+    console.error("Could not load outbound email reply token:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
+  }
+
+  if (!outboundEmailReply) {
+    return buildErrorResult(
+      "No se encontró el caso asociado a esta respuesta por email.",
+      404
+    );
+  }
+
+  let company: InboundEmailCompany | null = null;
+
+  try {
+    company = await findInboundCompany(
+      supabaseAdmin,
+      outboundEmailReply.company_id
+    );
+  } catch (error) {
+    console.error("Could not load inbound email reply company:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
+  }
+
+  if (!company) {
+    return buildErrorResult(
+      "No se encontró la empresa asociada a esta respuesta por email.",
+      404
+    );
+  }
+
+  const originalFromAddress =
+    outboundEmailReply.from_address?.trim().toLowerCase() ?? "";
+
+  if (!originalFromAddress) {
+    return buildErrorResult(
+      "El email saliente original no tiene una dirección de respuesta válida.",
+      400
+    );
+  }
+
+  let originalEmailChannel: InboundEmailChannelRow | null = null;
+
+  try {
+    originalEmailChannel = await findInboundEmailChannel(
+      supabaseAdmin,
+      originalFromAddress
+    );
+  } catch (error) {
+    console.error("Could not load original inbound email channel:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
+  }
+
+  if (!originalEmailChannel || originalEmailChannel.company_id !== company.id) {
+    return buildErrorResult(
+      "No se encontró el canal de email asociado al envío original.",
+      404
+    );
+  }
+
+  if (!originalEmailChannel.enabled) {
+    return buildErrorResult(
+      "El canal de email asociado al envío original no está activo.",
+      403
+    );
+  }
+
+  try {
+    const duplicateInboundEvent = await findDuplicateInboundEvent(
+      supabaseAdmin,
+      company.id,
+      values.externalMessageId
+    );
+
+    if (duplicateInboundEvent) {
+      return buildDuplicateResult(duplicateInboundEvent);
+    }
+  } catch (error) {
+    console.error("Could not check duplicate inbound email reply event:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
+  }
+
+  let inboundEventId: string;
+
+  try {
+    inboundEventId = await createInboundEvent(
+      supabaseAdmin,
+      company.id,
+      values.externalMessageId,
+      {
+        inboundEmailAddress: values.inboundEmailAddress,
+        externalMessageId: values.externalMessageId,
+        fromName: values.fromName,
+        fromEmail: values.fromEmail,
+        subject: values.subject,
+        textBody: values.textBody,
+        replyToken: values.replyToken,
+        outboundMessageId: outboundEmailReply.id,
+        linkedInquiryId: outboundEmailReply.inquiry_id,
+        sourceChannel: "Email",
+      }
+    );
+  } catch (error) {
+    console.error("Could not create inbound email reply event:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
+  }
+
+  const expectedFromEmail =
+    outboundEmailReply.to_address?.trim().toLowerCase() ?? "";
+
+  if (!expectedFromEmail || expectedFromEmail !== values.fromEmail) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      "El remitente de la respuesta no coincide con el destinatario original del email saliente.",
+      403
+    );
+  }
+
+  let inquiry: InquiryForEmailReplyRow | null = null;
+
+  try {
+    inquiry = await findInquiryForEmailReply(
+      supabaseAdmin,
+      outboundEmailReply.inquiry_id
+    );
+  } catch (error) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      error instanceof Error
+        ? error.message
+        : "No se pudo cargar el caso asociado a la respuesta.",
+      500
+    );
+  }
+
+  if (!inquiry || inquiry.company_id !== company.id) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      "No se encontró el caso asociado a esta respuesta por email.",
+      404
+    );
+  }
+
+  let customer: CustomerRow | null = null;
+
+  try {
+    if (outboundEmailReply.customer_id) {
+      customer = await findCustomerById(
+        supabaseAdmin,
+        company.id,
+        outboundEmailReply.customer_id
+      );
+    }
+
+    if (!customer) {
+      customer = await findExistingCustomer(
+        supabaseAdmin,
+        company.id,
+        values.fromEmail
+      );
+    }
+  } catch (error) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      error instanceof Error
+        ? error.message
+        : "No se pudo cargar el cliente asociado a la respuesta.",
+      500,
+      { inquiryId: inquiry.id }
+    );
+  }
+
+  if (!customer || customer.company_id !== company.id) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      "No se encontró el cliente asociado a esta respuesta por email.",
+      404,
+      { inquiryId: inquiry.id }
+    );
+  }
+
+  const cleanReplyBody =
+    stripQuotedEmailText(values.textBody) || values.textBody.trim();
+
+  if (!cleanReplyBody) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      "El cuerpo limpio de la respuesta por email está vacío.",
+      400,
+      { customerId: customer.id, inquiryId: inquiry.id }
+    );
+  }
+
+  if (cleanReplyBody.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      `La respuesta por email no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres después de limpiar el texto citado.`,
+      400,
+      { customerId: customer.id, inquiryId: inquiry.id }
+    );
+  }
+
+  const now = new Date().toISOString();
+
+  const { error: updateCustomerError } = await supabaseAdmin
+    .from("customers")
+    .update({
+      last_interaction_at: now,
+    })
+    .eq("id", customer.id)
+    .eq("company_id", company.id);
+
+  if (updateCustomerError) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      `No se pudo actualizar el cliente asociado a la respuesta: ${
+        updateCustomerError.message || "sin detalle del error"
+      }`,
+      500,
+      { customerId: customer.id, inquiryId: inquiry.id }
+    );
+  }
+
+  const { data: createdMessage, error: createMessageError } =
+    await supabaseAdmin
+      .from("inquiry_messages")
+      .insert({
+        company_id: company.id,
+        inquiry_id: inquiry.id,
+        customer_id: customer.id,
+        direction: "inbound",
+        author_type: "customer",
+        body: cleanReplyBody,
+        source_channel: "Email",
+      })
+      .select("id, direction, author_type, body, source_channel, created_at")
+      .single<InquiryMessageRow>();
+
+  if (createMessageError || !createdMessage) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      `No se pudo guardar la respuesta en el historial del caso: ${
+        createMessageError?.message || "sin detalle del error"
+      }`,
+      500,
+      { customerId: customer.id, inquiryId: inquiry.id }
+    );
+  }
+
+  const nextStatus = getNextStatusForEmailReply(inquiry.status);
+
+  const { error: updateInquiryError } = await supabaseAdmin
+    .from("inquiries")
+    .update({
+      status: nextStatus,
+    })
+    .eq("id", inquiry.id)
+    .eq("company_id", company.id);
+
+  if (updateInquiryError) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      `La respuesta se guardó, pero no se pudo actualizar el estado del caso: ${
+        updateInquiryError.message || "sin detalle del error"
+      }`,
+      500,
+      { customerId: customer.id, inquiryId: inquiry.id }
+    );
+  }
+
+  await updateInboundEvent(supabaseAdmin, inboundEventId, {
+    status: "processed",
+    customer_id: customer.id,
+    inquiry_id: inquiry.id,
+    error_message: null,
+    processed_at: new Date().toISOString(),
+  });
+
+  return {
+    ok: true,
+    status: 200,
+    inquiryId: inquiry.id,
+    message: "Respuesta por email añadida al caso existente.",
+  };
+}
+
 export async function processInboundEmail(
   body: InboundEmailRequestBody
 ): Promise<InboundEmailProcessingResult> {
@@ -413,6 +890,20 @@ export async function processInboundEmail(
 
   if (!textBody) {
     return buildErrorResult("El cuerpo del email es obligatorio.", 400);
+  }
+
+  const replyToken = getReplyTokenFromInboundEmailAddress(inboundEmailAddress);
+
+  if (replyToken) {
+    return processInboundEmailReply(supabaseAdmin, {
+      replyToken,
+      inboundEmailAddress,
+      externalMessageId,
+      fromName,
+      fromEmail,
+      subject,
+      textBody,
+    });
   }
 
   if (messageForAnalysis.length > MAX_ANALYSIS_MESSAGE_LENGTH) {

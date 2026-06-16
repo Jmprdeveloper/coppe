@@ -1,3 +1,5 @@
+import { randomBytes } from "node:crypto";
+
 import { NextResponse } from "next/server";
 
 import {
@@ -73,6 +75,26 @@ function getResendApiKey() {
   return process.env.RESEND_API_KEY?.trim() ?? "";
 }
 
+function createEmailReplyToken() {
+  return randomBytes(16).toString("hex");
+}
+
+function getEmailDomain(address: string) {
+  const domain = address.split("@")[1]?.trim().toLowerCase() ?? "";
+
+  return domain;
+}
+
+function buildReplyToAddress(replyToken: string, fromAddress: string) {
+  const domain = getEmailDomain(fromAddress);
+
+  if (!domain) {
+    throw new Error("The outbound email channel does not have a valid domain.");
+  }
+
+  return `reply-${replyToken}@${domain}`;
+}
+
 function isValidNextStatus(value: string): value is "replied" | "waiting_customer" {
   return value === "replied" || value === "waiting_customer";
 }
@@ -132,11 +154,13 @@ async function sendEmailWithResend({
   to,
   subject,
   text,
+  replyTo,
 }: {
   from: string;
   to: string;
   subject: string;
   text: string;
+  replyTo: string;
 }) {
   const apiKey = getResendApiKey();
 
@@ -155,6 +179,7 @@ async function sendEmailWithResend({
       to: [to],
       subject,
       text,
+      reply_to: replyTo,
     }),
   });
 
@@ -351,6 +376,8 @@ export async function POST(request: Request) {
   const subject = buildEmailSubject(inquiry, company.name);
   const fromName = company.name;
   const fromHeader = buildFromHeader(fromName, fromAddress);
+  const replyToken = createEmailReplyToken();
+  const replyToAddress = buildReplyToAddress(replyToken, fromAddress);
   const now = new Date().toISOString();
 
   const { data: outboundMessage, error: outboundMessageError } =
@@ -368,6 +395,7 @@ export async function POST(request: Request) {
         to_address: toAddress,
         subject,
         body: responseText,
+        reply_token: replyToken,
         created_by: user.id,
       })
       .select("id")
@@ -393,6 +421,7 @@ export async function POST(request: Request) {
       to: toAddress,
       subject,
       text: responseText,
+      replyTo: replyToAddress,
     });
   } catch (error) {
     const errorMessage =
