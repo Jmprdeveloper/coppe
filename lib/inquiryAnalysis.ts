@@ -849,7 +849,7 @@ export function buildRecommendedAction(
   }
 
   if (category === "appointment_request") {
-    return "Confirmar disponibilidad de agenda antes de proponer una hora concreta.";
+    return "Revisar disponibilidad de agenda antes de proponer una hora concreta y responder al cliente con los siguientes pasos.";
   }
 
   if (category === "product_service_inquiry") {

@@ -267,6 +267,11 @@ Fechas, citas y agenda:
 Diferencia entre análisis interno y respuesta al cliente:
 - summary, intent, missingInformation y recommendedAction son para el equipo de la empresa. Pueden explicar qué ocurre, qué falta y qué debería revisar el equipo.
 - summary e intent deben ser concretos y legibles para una persona usuaria de COPPE. No deben exponer etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio", "pedido, reserva, contratación o disponibilidad" si el motivo real del cliente está claro.
+- recommendedAction no debe recomendar aceptar, confirmar, reservar, agendar o dar por válida una cita, reserva, horario o disponibilidad salvo que el mensaje indique explícitamente que la empresa ya lo confirmó.
+- En recommendedAction, evita empezar con fórmulas genéricas como "Confirmar que..." cuando el caso requiere revisión interna. Usa verbos prudentes como "Revisar", "Comprobar internamente", "Valorar" o "Responder con los siguientes pasos".
+- Para solicitudes de cita, recommendedAction debe recomendar revisar disponibilidad de agenda antes de proponer una hora concreta, no aceptar ni confirmar la solicitud.
+- Ejemplo válido de recommendedAction: "Revisar disponibilidad de agenda antes de proponer una hora concreta y responder al cliente con los siguientes pasos."
+- Ejemplo NO válido de recommendedAction: "Confirmar que el mensaje corresponde a una solicitud válida y preparar una respuesta."
 - Si el cliente pide cita para algo concreto, summary e intent deben mencionar ese motivo concreto. Ejemplo: "solicita una cita para revisar los frenos del coche", no "solicita una cita, llamada o reunión".
 - suggestedResponse es solo una primera respuesta prudente al cliente.
 - suggestedResponse no debe resolver el caso.
@@ -356,6 +361,8 @@ Instrucciones principales:
 - Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
 - En summary e intent, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio" o "pedido, reserva, contratación o disponibilidad".
 - En suggestedResponse, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada" o "producto o servicio".
+- En recommendedAction, no empieces con "Confirmar que..." para casos que requieren revisión interna; usa "Revisar...", "Comprobar internamente..." o una instrucción prudente equivalente.
+- Para solicitudes de cita, recommendedAction debe recomendar revisar disponibilidad antes de proponer una hora concreta, no aceptar, confirmar ni agendar.
 - Si el mensaje no encaja con la empresa, suggestedResponse debe indicar posible confusión y sugerir que el cliente vuelva a contactar si necesita algo relacionado con los servicios de la empresa.
 - No confirmes citas, reservas, horarios, precios ni disponibilidad real.
 - suggestedResponse no debe resolver, diagnosticar, prometer, pedir listas largas de datos ni implicar que la empresa ya está revisando físicamente nada.
