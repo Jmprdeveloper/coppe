@@ -7,6 +7,7 @@ export type InquiryCategoryOption = {
 
 export const inquiryCategoryOptions: InquiryCategoryOption[] = [
   { value: "general_info", label: "Información general" },
+  { value: "service_request", label: "Solicitud de servicio" },
   { value: "product_service_inquiry", label: "Producto o servicio" },
   { value: "quote_request", label: "Presupuesto" },
   { value: "appointment_request", label: "Cita" },

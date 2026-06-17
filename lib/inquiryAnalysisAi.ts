@@ -204,9 +204,12 @@ Reglas generales:
 - Clasifica por significado, no solo por palabras exactas.
 - Desambigua verbos polisémicos como "cambiar", "modificar", "revisar", "mirar", "devolver" o "reservar" según el objeto y el contexto de empresa.
 - No clasifiques como cambio/cancelación administrativa solo por la palabra "cambiar".
-- Si "cambiar" significa sustituir, reemplazar, instalar, reparar o intervenir sobre un producto, pieza, elemento, documento, equipo, instalación, servicio técnico o elemento físico/digital, clasifica según la necesidad real: cita, presupuesto, soporte, producto/servicio o incidencia.
+- Si "cambiar" significa sustituir, reemplazar, instalar, reparar o intervenir sobre un producto, pieza, elemento, documento, equipo, instalación, servicio técnico o elemento físico/digital, clasifica según la necesidad real: service_request, cita, presupuesto, soporte, producto/servicio o incidencia.
+- Usa service_request cuando el cliente quiere que la empresa revise, valore, evalúe, repare, tramite, gestione, prepare, atienda, mire o intervenga en algo relacionado con su actividad. Es una categoría generalista, no específica de talleres.
+- No uses service_request si el cliente solo pide información general sobre un producto o servicio sin solicitar una actuación concreta; en ese caso usa product_service_inquiry.
+- No uses service_request si el cliente pide precio, coste, tarifa, presupuesto o propuesta económica; en ese caso usa quote_request salvo que predomine claramente una incidencia.
 - Solo usa change_or_cancellation cuando el cliente quiera cambiar, reprogramar, aplazar, cancelar, anular, devolver o dar de baja una cita, reserva, pedido, solicitud, suscripción, fecha, hora, turno, reunión, contrato o gestión previa.
-- Si el mensaje combina una necesidad concreta de servicio con una petición de cita, prioriza la necesidad y la cita, no la palabra "cambiar".
+- Si el mensaje combina una necesidad concreta de servicio con una petición de cita, distingue si la cita es el objetivo principal o solo el medio para atender una solicitud de servicio. Usa appointment_request si la cita/reunión/llamada es lo principal; usa service_request si lo principal es revisar, evaluar, reparar, tramitar o atender algo.
 - El cliente puede escribir con faltas, jerga, lenguaje coloquial, enfado, dialecto o expresiones ambiguas.
 - Redacta todos los campos orientados al cliente en el idioma del cliente.
 - No inventes datos concretos que no estén en el mensaje del cliente.
@@ -224,6 +227,7 @@ Compatibilidad con la empresa:
 - En casos fuera de contexto empresarial, suggestedResponse debe indicar que puede haber una confusión y que el cliente puede volver a contactar si necesita algo relacionado con los servicios de la empresa.
 
 Ejemplos de compatibilidad:
+- service_request es generalista: puede ser revisar un coche, valorar una molestia en una clínica, revisar documentos en una asesoría, evaluar el nivel de un alumno en una academia, mirar una instalación en un servicio técnico o gestionar una incidencia en cualquier servicio profesional.
 - Si la empresa es un taller, automoción, mecánica o reparación de vehículos, un mensaje sobre coche, moto, furgoneta, camión, autobús, motor, frenos, dirección, ruedas, revisión o avería encaja salvo que la descripción lo excluya.
 - Si la empresa es un taller y el cliente dice que lleva días con molestias y quiere que lo vean, eso NO encaja: parece una solicitud para una clínica o profesional sanitario.
 - Si la empresa es una clínica o centro sanitario y el cliente dice que lleva días con molestias y quiere una cita, eso sí encaja.
@@ -242,6 +246,8 @@ Clasificación:
 - Usa sentiment "neutral" si el mensaje es principalmente informativo y no muestra emoción clara.
 - Si el mensaje mezcla seguimiento y queja, prioriza queja/incidencia si hay enfado, servicio mal hecho, problema sin resolver o reclamación.
 - Si el mensaje pide precio, coste, tarifa, presupuesto o propuesta, usa quote_request salvo que haya una incidencia dominante.
+- Usa service_request si el cliente pide que la empresa revise, evalúe, valore, repare, tramite, gestione, atienda, mire, prepare o intervenga en algo compatible con su actividad.
+- Usa product_service_inquiry para dudas informativas sobre productos o servicios, características, condiciones o disponibilidad general, cuando no haya una actuación concreta solicitada.
 - Si el cliente pide ayuda técnica, acceso, cuenta, error de uso o soporte, usa support_request.
 - En casos claramente fuera de contexto empresarial, usa preferentemente category "other" o "general_info", salvo que haya otra categoría claramente más adecuada.
 
@@ -358,6 +364,9 @@ Instrucciones principales:
 - No clasifiques como change_or_cancellation solo por la palabra "cambiar"; mira qué se quiere cambiar.
 - Si "cambiar" significa sustituir, reparar, instalar o reemplazar algo como servicio solicitado, no es cambio/cancelación administrativa.
 - Si "cambiar" afecta a una cita, reserva, pedido, fecha, hora, turno, solicitud o gestión previa, entonces sí puede ser change_or_cancellation.
+- Usa service_request cuando el cliente quiere que la empresa revise, evalúe, valore, repare, tramite, gestione, prepare, atienda, mire o intervenga en algo compatible con su actividad.
+- Mantén product_service_inquiry para preguntas informativas sobre productos o servicios cuando no se solicita una actuación concreta.
+- Mantén appointment_request para casos donde la cita, llamada o reunión sea el objetivo principal, no solo el medio para atender una solicitud de servicio.
 - Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
 - En summary e intent, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio" o "pedido, reserva, contratación o disponibilidad".
 - En suggestedResponse, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada" o "producto o servicio".

@@ -370,6 +370,52 @@ export function inferCategory(message: string) {
 
   if (
     hasAnySignal([
+      "mirar",
+      "mireis",
+      "miréis",
+      "verlo",
+      "verla",
+      "verme",
+      "llevarlo",
+      "llevarla",
+      "traerlo",
+      "traerla",
+      "revisar",
+      "revision",
+      "revisión",
+      "valorar",
+      "evaluar",
+      "reparar",
+      "arreglar",
+      "instalar",
+      "tramitar",
+      "gestionar",
+      "intervenir",
+      "mantenimiento",
+      "sustituir",
+      "sustitucion",
+      "sustitución",
+      "reemplazar",
+      "check it",
+      "take a look",
+      "review",
+      "assess",
+      "evaluate",
+      "repair",
+      "fix",
+      "install",
+      "process",
+      "handle",
+      "service request",
+      "maintenance",
+      "replace",
+    ])
+  ) {
+    return "service_request";
+  }
+
+  if (
+    hasAnySignal([
       "ayuda",
       "soporte",
       "asistencia",
@@ -611,6 +657,14 @@ export function buildSummary(
     return `${customerName} solicita una cita con ${companyContext.name}.`;
   }
 
+  if (category === "service_request") {
+    if (requestPurpose) {
+      return `${customerName} solicita que ${companyContext.name} revise o atienda ${requestPurpose}.`;
+    }
+
+    return `${customerName} solicita una revisión, intervención o prestación de servicio por parte de ${companyContext.name}.`;
+  }
+
   if (category === "product_service_inquiry") {
     if (requestPurpose) {
       return `${customerName} solicita información o ayuda sobre ${requestPurpose} a ${companyContext.name}.`;
@@ -662,12 +716,19 @@ export function buildIntent(
       : "Solicitar cita";
   }
 
+  if (category === "service_request") {
+    return requestPurpose
+      ? `Solicitar revisión, intervención o servicio para ${requestPurpose}`
+      : "Solicitar revisión, intervención o servicio";
+  }
+
   if (category === "product_service_inquiry" && requestPurpose) {
     return `Solicitar información o ayuda sobre ${requestPurpose}`;
   }
 
   const intents: Record<string, string> = {
     general_info: "Solicitar información general",
+    service_request: "Solicitar revisión, intervención o servicio",
     product_service_inquiry: "Solicitar información sobre producto o servicio",
     quote_request: "Solicitar precio, tarifa o presupuesto",
     order_or_reservation: "Solicitar pedido, reserva, contratación o disponibilidad",
@@ -791,6 +852,10 @@ export function buildMissingInformation(
     return ["referencia o número asociado", "datos identificativos de la solicitud"];
   }
 
+  if (category === "service_request") {
+    return [];
+  }
+
   if (category === "quote_request") {
     return ["producto o servicio solicitado", "detalles básicos para preparar la propuesta"];
   }
@@ -850,6 +915,10 @@ export function buildRecommendedAction(
 
   if (category === "appointment_request") {
     return "Revisar disponibilidad de agenda antes de proponer una hora concreta y responder al cliente con los siguientes pasos.";
+  }
+
+  if (category === "service_request") {
+    return `Revisar internamente la solicitud de servicio según la actividad de ${companyContext.name} y responder al cliente con los siguientes pasos, sin confirmar disponibilidad ni comprometer una solución antes de validarlo.`;
   }
 
   if (category === "product_service_inquiry") {
@@ -1080,6 +1149,15 @@ function buildSpanishResponse(
     return `${greeting}, gracias por contactar con ${companyContext.name}. ${acknowledgement} Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
   }
 
+  if (category === "service_request") {
+    const requestPurpose = extractSpanishRequestPurpose(originalMessage);
+    const acknowledgement = requestPurpose
+      ? `Hemos recibido tu solicitud para ${requestPurpose}.`
+      : "Hemos recibido tu solicitud de servicio.";
+
+    return `${greeting}, gracias por contactar con ${companyContext.name}. ${acknowledgement} Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
+  }
+
   if (category === "product_service_inquiry") {
     return `${greeting}, gracias por contactar con ${companyContext.name}. Hemos recibido tu mensaje sobre nuestros productos o servicios y lo revisaremos para darte una respuesta clara.`;
   }
@@ -1169,6 +1247,15 @@ function buildEnglishResponse(
     return `${greeting}, thank you for contacting ${companyContext.name}. ${acknowledgement} A member of our team will contact you as soon as possible.`;
   }
 
+  if (category === "service_request") {
+    const requestPurpose = extractEnglishRequestPurpose(originalMessage);
+    const acknowledgement = requestPurpose
+      ? `We have received your request to ${requestPurpose}.`
+      : "We have received your service request.";
+
+    return `${greeting}, thank you for contacting ${companyContext.name}. ${acknowledgement} A member of our team will contact you as soon as possible.`;
+  }
+
   if (category === "product_service_inquiry") {
     return `${greeting}, thank you for contacting ${companyContext.name}. We have received your question about our products or services and will review it so we can give you a clear answer.`;
   }
@@ -1225,6 +1312,7 @@ export function buildSubject(message: string, fallbackCategory: string) {
 
   const subjects: Record<string, string> = {
     general_info: "Caso general",
+    service_request: "Solicitud de servicio",
     product_service_inquiry: "Caso sobre producto o servicio",
     quote_request: "Solicitud de presupuesto",
     appointment_request: "Solicitud de cita",

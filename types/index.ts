@@ -35,6 +35,7 @@ export type Sentiment = "positive" | "neutral" | "negative";
 
 export type InquiryCategory =
   | "general_info"
+  | "service_request"
   | "product_service_inquiry"
   | "quote_request"
   | "appointment_request"
