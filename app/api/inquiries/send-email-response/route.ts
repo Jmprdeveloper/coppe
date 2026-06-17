@@ -461,7 +461,9 @@ export async function POST(request: Request) {
     );
   }
 
-  const { data: emailChannel, error: emailChannelError } = await supabase
+  const supabaseAdmin = createAdminClient();
+
+  const { data: emailChannel, error: emailChannelError } = await supabaseAdmin
     .from("inbound_email_channels")
     .select("id, company_id, inbound_email_address, provider, enabled")
     .eq("company_id", inquiry.company_id)
@@ -496,8 +498,6 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
-
-  const supabaseAdmin = createAdminClient();
 
   let duplicateEmailStatus: "pending" | "sent" | null = null;
 
