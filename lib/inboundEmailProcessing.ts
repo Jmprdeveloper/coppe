@@ -528,7 +528,29 @@ function buildEmailReplyAnalysisContext(
   messages: InquiryMessageRow[],
   latestReplyBody: string
 ) {
-  const subjectBlock = subject.trim() ? `Asunto del hilo:\n${subject.trim()}` : "";
+  const cleanSubject = subject.trim();
+  const cleanLatestReplyBody = latestReplyBody.trim();
+
+  const subjectBlock = cleanSubject
+    ? `Asunto del hilo:\n${cleanSubject}`
+    : "";
+
+  const latestReplyBlock = [
+    "Último mensaje del cliente recibido por email:",
+    cleanLatestReplyBody,
+  ].join("\n");
+
+  const analysisInstructionBlock = [
+    "Contexto para reanalizar un caso existente de COPPE:",
+    "- Este contenido NO es un caso nuevo; es una respuesta dentro de un caso ya abierto.",
+    "- Actualiza el análisis del caso teniendo en cuenta todo el hilo.",
+    "- Da prioridad al último mensaje del cliente porque contiene la información más reciente.",
+    "- Si el último mensaje aporta datos nuevos, incorpóralos en summary, intent, missingInformation, recommendedAction y suggestedResponse.",
+    "- No repitas una respuesta anterior si el cliente ya ha aportado nuevos datos.",
+    "- No confirmes citas, horarios, disponibilidad, reservas, diagnósticos, precios ni soluciones.",
+    "- El borrador debe responder al estado actual de la conversación, no solo al primer mensaje del caso.",
+  ].join("\n");
+
   const messageBlocks = messages
     .filter((message) => message.body.trim())
     .map((message) => {
@@ -540,7 +562,9 @@ function buildEmailReplyAnalysisContext(
 
   for (let startIndex = 0; startIndex < messageBlocks.length; startIndex += 1) {
     const candidate = [
+      analysisInstructionBlock,
       subjectBlock,
+      latestReplyBlock,
       "Historial reciente del caso:",
       messageBlocks.slice(startIndex).join("\n\n"),
     ]
@@ -553,7 +577,11 @@ function buildEmailReplyAnalysisContext(
     }
   }
 
-  const fallbackContext = [subjectBlock, `Cliente (recibido):\n${latestReplyBody}`]
+  const fallbackContext = [
+    analysisInstructionBlock,
+    subjectBlock,
+    latestReplyBlock,
+  ]
     .filter(Boolean)
     .join("\n\n")
     .trim();
@@ -562,7 +590,10 @@ function buildEmailReplyAnalysisContext(
     return fallbackContext;
   }
 
-  return latestReplyBody.slice(0, MAX_ANALYSIS_MESSAGE_LENGTH);
+  return [
+    "Respuesta reciente del cliente dentro de un caso existente:",
+    cleanLatestReplyBody.slice(0, MAX_ANALYSIS_MESSAGE_LENGTH),
+  ].join("\n");
 }
 
 async function findInquiryMessagesForAnalysis(
