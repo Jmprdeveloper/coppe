@@ -352,42 +352,51 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         return;
       }
 
-      const { data: emailChannelSettings, error: emailChannelError } =
-        await supabase
-          .from("inbound_email_channels")
-          .select("id, inbound_email_address, local_part, enabled")
-          .eq("company_id", data.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle<InboundEmailChannelSettingsRow>();
+      let emailChannelSettings: InboundEmailChannelSettingsRow | null = null;
+      let whatsAppChannelSettings: InboundWhatsAppChannelSettingsRow | null = null;
 
-      if (emailChannelError) {
-        setErrorMessage(
-          `No se pudo cargar la configuración de email entrante: ${
-            emailChannelError.message || "sin detalle del error"
-          }`
-        );
-        setIsLoading(false);
-        return;
-      }
+      if (canManageCompanySettings(data)) {
+        const { data: loadedEmailChannelSettings, error: emailChannelError } =
+          await supabase
+            .from("inbound_email_channels")
+            .select("id, inbound_email_address, local_part, enabled")
+            .eq("company_id", data.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle<InboundEmailChannelSettingsRow>();
 
-      const { data: whatsAppChannelSettings, error: whatsAppChannelError } =
-        await supabase
-          .from("inbound_whatsapp_channels")
-          .select("id, phone_number_id, display_phone_number, enabled")
-          .eq("company_id", data.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle<InboundWhatsAppChannelSettingsRow>();
+        if (emailChannelError) {
+          setErrorMessage(
+            `No se pudo cargar la configuración de email entrante: ${
+              emailChannelError.message || "sin detalle del error"
+            }`
+          );
+          setIsLoading(false);
+          return;
+        }
 
-      if (whatsAppChannelError) {
-        setErrorMessage(
-          `No se pudo cargar la configuración de WhatsApp: ${
-            whatsAppChannelError.message || "sin detalle del error"
-          }`
-        );
-        setIsLoading(false);
-        return;
+        emailChannelSettings = loadedEmailChannelSettings ?? null;
+
+        const { data: loadedWhatsAppChannelSettings, error: whatsAppChannelError } =
+          await supabase
+            .from("inbound_whatsapp_channels")
+            .select("id, phone_number_id, display_phone_number, enabled")
+            .eq("company_id", data.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle<InboundWhatsAppChannelSettingsRow>();
+
+        if (whatsAppChannelError) {
+          setErrorMessage(
+            `No se pudo cargar la configuración de WhatsApp: ${
+              whatsAppChannelError.message || "sin detalle del error"
+            }`
+          );
+          setIsLoading(false);
+          return;
+        }
+
+        whatsAppChannelSettings = loadedWhatsAppChannelSettings ?? null;
       }
 
       setCurrentCompany(data);
@@ -461,12 +470,22 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
       : "inactive"
     : "not_configured";
 
-  const activeChannelCount = [
-    publicIntakeChannelStatus,
-    publicChatChannelStatus,
-    emailChannelStatus,
-    whatsAppChannelStatus,
-  ].filter((channelStatus) => channelStatus === "active").length;
+  const visibleChannelStatuses = canEditCompanySettings
+    ? [
+        publicIntakeChannelStatus,
+        publicChatChannelStatus,
+        emailChannelStatus,
+        whatsAppChannelStatus,
+      ]
+    : [publicIntakeChannelStatus, publicChatChannelStatus];
+
+  const activeChannelCount = visibleChannelStatuses.filter(
+    (channelStatus) => channelStatus === "active"
+  ).length;
+  const activeChannelCountLabel = `${activeChannelCount}/${visibleChannelStatuses.length}`;
+  const activeChannelCountCaption = canEditCompanySettings
+    ? "Formulario, chat, email y WhatsApp"
+    : "Formulario y chat visibles para este usuario";
 
   const handleCopyPublicIntakeUrl = async () => {
     setCopyMessage("");
@@ -1214,8 +1233,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
             <MetricCard
               title="Canales activos"
-              value={`${activeChannelCount}/4`}
-              caption="Formulario, chat, email y WhatsApp"
+              value={activeChannelCountLabel}
+              caption={activeChannelCountCaption}
               icon={RadioTower}
               tone="info"
             />
@@ -1238,11 +1257,17 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
             <MetricCard
               title="Email"
-              value={getChannelStatusLabel(emailChannelStatus)}
+              value={
+                canEditCompanySettings
+                  ? getChannelStatusLabel(emailChannelStatus)
+                  : "Restringido"
+              }
               caption={
-                emailInboundAddress
+                canEditCompanySettings
                   ? emailInboundAddress
-                  : "Pendiente de configurar"
+                    ? emailInboundAddress
+                    : "Pendiente de configurar"
+                  : "Solo visible para owner"
               }
               icon={Mail}
               tone="info"
@@ -1250,11 +1275,17 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
             <MetricCard
               title="WhatsApp"
-              value={getChannelStatusLabel(whatsAppChannelStatus)}
+              value={
+                canEditCompanySettings
+                  ? getChannelStatusLabel(whatsAppChannelStatus)
+                  : "Restringido"
+              }
               caption={
-                whatsAppPhoneNumberId
-                  ? "Business Cloud API"
-                  : "Pendiente de configurar"
+                canEditCompanySettings
+                  ? whatsAppPhoneNumberId
+                    ? "Business Cloud API"
+                    : "Pendiente de configurar"
+                  : "Solo visible para owner"
               }
               icon={MessageCircle}
               tone="success"
@@ -1357,10 +1388,18 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 description="Gestiona formulario, chat, email entrante y WhatsApp. Las tarjetas son blancas; el estado se muestra en badges y acciones."
                 action={
                   <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
-                    Activos: {activeChannelCount}/4
+                    Activos: {activeChannelCountLabel}
                   </div>
                 }
               >
+                {!canEditCompanySettings ? (
+                  <div className="mb-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+                    Puedes consultar los enlaces públicos, pero la configuración
+                    técnica de email y WhatsApp solo está disponible para
+                    usuarios owner.
+                  </div>
+                ) : null}
+
                 <div className="space-y-4">
                   <ChannelSettingsCard
                     title="Formulario web"
