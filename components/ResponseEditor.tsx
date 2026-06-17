@@ -26,8 +26,38 @@ type ResponseEditorProps = {
   ) => Promise<boolean>;
 };
 
+function stripLeadingGreetingForDuplicateComparison(value: string) {
+  return value
+    .replace(/^(hola|hello|hi)\s*[,.:;!\-–—]\s*/u, "")
+    .replace(
+      /^(hola|hello|hi)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
+      ""
+    )
+    .replace(
+      /^(estimado\/a|estimado|estimada|dear)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
+      ""
+    )
+    .replace(
+      /^(buenos dias|buenos días|buenas tardes|buenas noches|good morning|good afternoon|good evening)\s*[,.:;!\-–—]?\s*/u,
+      ""
+    )
+    .trim();
+}
+
 function normalizeResponseTextForComparison(value: string) {
-  return value.replace(/\s+/g, " ").trim();
+  return stripLeadingGreetingForDuplicateComparison(
+    value
+      .normalize("NFKC")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[.!?¡¿…;:]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase()
+  )
+    .replace(/[.!?¡¿…;:]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 export function ResponseEditor(props: ResponseEditorProps) {

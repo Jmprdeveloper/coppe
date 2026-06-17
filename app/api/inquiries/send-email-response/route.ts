@@ -14,6 +14,7 @@ export const runtime = "nodejs";
 
 const MAX_SEND_EMAIL_RESPONSE_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_EMAIL_RESPONSE_TEXT_LENGTH = 12000;
+const DUPLICATE_EMAIL_PENDING_WINDOW_MS = 5 * 60 * 1000;
 
 type SendEmailResponseRequestBody = {
   inquiryId?: unknown;
@@ -53,6 +54,13 @@ type EmailChannelRow = {
 
 type OutboundMessageRow = {
   id: string;
+};
+
+type PreviousOutboundEmailRow = {
+  id: string;
+  status: string;
+  body: string | null;
+  created_at: string;
 };
 
 type InquiryMessageRow = {
@@ -95,7 +103,9 @@ function buildReplyToAddress(replyToken: string, fromAddress: string) {
   return `reply-${replyToken}@${domain}`;
 }
 
-function isValidNextStatus(value: string): value is "replied" | "waiting_customer" {
+function isValidNextStatus(
+  value: string
+): value is "replied" | "waiting_customer" {
   return value === "replied" || value === "waiting_customer";
 }
 
@@ -104,7 +114,10 @@ function hasBasicEmailShape(value: string) {
 }
 
 function sanitizeDisplayName(value: string) {
-  const cleanValue = value.replace(/[\r\n<>]/g, " ").replace(/\s+/g, " ").trim();
+  const cleanValue = value
+    .replace(/[\r\n<>]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 
   return cleanValue || "COPPE";
 }
@@ -113,7 +126,10 @@ function buildFromHeader(fromName: string, fromAddress: string) {
   return `${sanitizeDisplayName(fromName)} <${fromAddress}>`;
 }
 
-function buildEmailSubject(inquiry: InquiryForEmailResponseRow, companyName: string) {
+function buildEmailSubject(
+  inquiry: InquiryForEmailResponseRow,
+  companyName: string
+) {
   const cleanSubject = inquiry.subject?.trim();
 
   if (cleanSubject) {
@@ -125,6 +141,115 @@ function buildEmailSubject(inquiry: InquiryForEmailResponseRow, companyName: str
   }
 
   return `Respuesta de ${sanitizeDisplayName(companyName)}`.slice(0, 200);
+}
+
+function stripLeadingGreetingForDuplicateCheck(value: string) {
+  return value
+    .replace(/^(hola|hello|hi)\s*[,.:;!\-–—]\s*/u, "")
+    .replace(
+      /^(hola|hello|hi)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
+      ""
+    )
+    .replace(
+      /^(estimado\/a|estimado|estimada|dear)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
+      ""
+    )
+    .replace(
+      /^(buenos dias|buenos días|buenas tardes|buenas noches|good morning|good afternoon|good evening)\s*[,.:;!\-–—]?\s*/u,
+      ""
+    )
+    .trim();
+}
+
+function normalizeEmailResponseTextForDuplicateCheck(value: string) {
+  return stripLeadingGreetingForDuplicateCheck(
+    value
+      .normalize("NFKC")
+      .replace(/\s+/g, " ")
+      .trim()
+      .replace(/[.!?¡¿…;:]+$/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .toLowerCase()
+  )
+    .replace(/[.!?¡¿…;:]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isRecentPendingDuplicateEmail(createdAt: string) {
+  const createdAtTime = Date.parse(createdAt);
+
+  if (!Number.isFinite(createdAtTime)) {
+    return false;
+  }
+
+  return Date.now() - createdAtTime <= DUPLICATE_EMAIL_PENDING_WINDOW_MS;
+}
+
+function getDuplicateEmailResponseStatus(
+  previousEmails: PreviousOutboundEmailRow[],
+  responseText: string
+): "pending" | "sent" | null {
+  const normalizedResponseText =
+    normalizeEmailResponseTextForDuplicateCheck(responseText);
+
+  const matchingEmails = previousEmails.filter(
+    (previousEmail) =>
+      normalizeEmailResponseTextForDuplicateCheck(previousEmail.body ?? "") ===
+      normalizedResponseText
+  );
+
+  if (matchingEmails.some((previousEmail) => previousEmail.status === "sent")) {
+    return "sent";
+  }
+
+  if (
+    matchingEmails.some(
+      (previousEmail) =>
+        previousEmail.status === "pending" &&
+        isRecentPendingDuplicateEmail(previousEmail.created_at)
+    )
+  ) {
+    return "pending";
+  }
+
+  return null;
+}
+
+async function getDuplicateEmailResponseStatusForCase(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  values: {
+    companyId: string;
+    inquiryId: string;
+    toAddress: string;
+    responseText: string;
+  }
+) {
+  const { data, error } = await supabaseAdmin
+    .from("outbound_messages")
+    .select("id, status, body, created_at")
+    .eq("company_id", values.companyId)
+    .eq("inquiry_id", values.inquiryId)
+    .eq("channel", "email")
+    .eq("provider", "resend")
+    .eq("to_address", values.toAddress)
+    .in("status", ["pending", "sent"])
+    .order("created_at", { ascending: false })
+    .limit(30);
+
+  if (error) {
+    throw new Error(
+      `No se pudo comprobar si esta respuesta ya fue enviada: ${
+        error.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  return getDuplicateEmailResponseStatus(
+    (data ?? []) as PreviousOutboundEmailRow[],
+    values.responseText
+  );
 }
 
 function getResendErrorMessage(payload: ResendSendEmailResponse | null) {
@@ -373,6 +498,48 @@ export async function POST(request: Request) {
   }
 
   const supabaseAdmin = createAdminClient();
+
+  let duplicateEmailStatus: "pending" | "sent" | null = null;
+
+  try {
+    duplicateEmailStatus = await getDuplicateEmailResponseStatusForCase(
+      supabaseAdmin,
+      {
+        companyId: inquiry.company_id,
+        inquiryId: inquiry.id,
+        toAddress,
+        responseText,
+      }
+    );
+  } catch (error) {
+    console.error("Could not check duplicate email response:", error);
+
+    return NextResponse.json(
+      { error: "No se pudo comprobar si esta respuesta ya fue enviada." },
+      { status: 500 }
+    );
+  }
+
+  if (duplicateEmailStatus === "sent") {
+    return NextResponse.json(
+      {
+        error:
+          "Esta respuesta ya fue enviada por email en este caso. Edita el texto si necesitas enviar una nueva respuesta.",
+      },
+      { status: 409 }
+    );
+  }
+
+  if (duplicateEmailStatus === "pending") {
+    return NextResponse.json(
+      {
+        error:
+          "Esta respuesta ya se está enviando por email en este caso. Espera unos segundos antes de intentarlo de nuevo.",
+      },
+      { status: 409 }
+    );
+  }
+
   const subject = buildEmailSubject(inquiry, company.name);
   const fromName = company.name;
   const fromHeader = buildFromHeader(fromName, fromAddress);
