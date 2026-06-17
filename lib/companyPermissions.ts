@@ -10,36 +10,42 @@ export function normalizeCompanyMemberRole(
   return "member";
 }
 
-export function isCompanyOwner(
+export function hasCompanyRole(
   role: CompanyMemberRole | string | null | undefined
-) {
-  return normalizeCompanyMemberRole(role) === "owner";
+): role is CompanyMemberRole {
+  return role === "owner" || role === "member";
 }
 
-export function isCompanyMember(
+export function isCompanyOwnerRole(
   role: CompanyMemberRole | string | null | undefined
 ) {
-  return normalizeCompanyMemberRole(role) === "member";
+  return role === "owner";
+}
+
+export function isCompanyRegularMemberRole(
+  role: CompanyMemberRole | string | null | undefined
+) {
+  return role === "member";
 }
 
 export function canManageCompanySettings(
   company: CurrentCompany | null | undefined
 ) {
-  return isCompanyOwner(company?.userRole);
+  return isCompanyOwnerRole(company?.userRole);
 }
 
 export function canManageTeam(company: CurrentCompany | null | undefined) {
-  return isCompanyOwner(company?.userRole);
+  return isCompanyOwnerRole(company?.userRole);
 }
 
 export function canCreateCompanyInvitations(
   company: CurrentCompany | null | undefined
 ) {
-  return isCompanyOwner(company?.userRole);
+  return isCompanyOwnerRole(company?.userRole);
 }
 
 export function canCancelCompanyInvitations(
   company: CurrentCompany | null | undefined
 ) {
-  return isCompanyOwner(company?.userRole);
+  return isCompanyOwnerRole(company?.userRole);
 }
