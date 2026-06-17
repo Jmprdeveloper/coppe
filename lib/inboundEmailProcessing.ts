@@ -495,6 +495,123 @@ function getNextStatusForEmailReply(currentStatus: string) {
   return "pending";
 }
 
+function getMessageAnalysisAuthorLabel(message: InquiryMessageRow) {
+  if (message.author_type === "customer") {
+    return "Cliente";
+  }
+
+  if (message.author_type === "company") {
+    return "Empresa";
+  }
+
+  if (message.author_type === "ai") {
+    return "COPPE";
+  }
+
+  return "Mensaje";
+}
+
+function getMessageAnalysisDirectionLabel(message: InquiryMessageRow) {
+  if (message.direction === "inbound") {
+    return "recibido";
+  }
+
+  if (message.direction === "outbound") {
+    return "enviado";
+  }
+
+  return "registrado";
+}
+
+function buildEmailReplyAnalysisContext(
+  subject: string,
+  messages: InquiryMessageRow[],
+  latestReplyBody: string
+) {
+  const subjectBlock = subject.trim() ? `Asunto del hilo:\n${subject.trim()}` : "";
+  const messageBlocks = messages
+    .filter((message) => message.body.trim())
+    .map((message) => {
+      const authorLabel = getMessageAnalysisAuthorLabel(message);
+      const directionLabel = getMessageAnalysisDirectionLabel(message);
+
+      return `${authorLabel} (${directionLabel}):\n${message.body.trim()}`;
+    });
+
+  for (let startIndex = 0; startIndex < messageBlocks.length; startIndex += 1) {
+    const candidate = [
+      subjectBlock,
+      "Historial reciente del caso:",
+      messageBlocks.slice(startIndex).join("\n\n"),
+    ]
+      .filter(Boolean)
+      .join("\n\n")
+      .trim();
+
+    if (candidate.length <= MAX_ANALYSIS_MESSAGE_LENGTH) {
+      return candidate;
+    }
+  }
+
+  const fallbackContext = [subjectBlock, `Cliente (recibido):\n${latestReplyBody}`]
+    .filter(Boolean)
+    .join("\n\n")
+    .trim();
+
+  if (fallbackContext.length <= MAX_ANALYSIS_MESSAGE_LENGTH) {
+    return fallbackContext;
+  }
+
+  return latestReplyBody.slice(0, MAX_ANALYSIS_MESSAGE_LENGTH);
+}
+
+async function findInquiryMessagesForAnalysis(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  inquiryId: string
+) {
+  const { data, error } = await supabaseAdmin
+    .from("inquiry_messages")
+    .select("id, direction, author_type, body, source_channel, created_at")
+    .eq("inquiry_id", inquiryId)
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    throw new Error(
+      `No se pudieron cargar los mensajes del caso para reanalizarlo: ${
+        error.message || "sin detalle del error"
+      }`
+    );
+  }
+
+  return (data ?? []) as InquiryMessageRow[];
+}
+
+function buildInquiryUpdateValuesForEmailReply(
+  status: string,
+  analysis: InboundEmailAnalysis | null
+) {
+  const updateValues: Record<string, unknown> = {
+    status,
+  };
+
+  if (!analysis) {
+    return updateValues;
+  }
+
+  return {
+    ...updateValues,
+    ai_summary: analysis.summary,
+    ai_intent: analysis.intent,
+    ai_category: analysis.category,
+    ai_priority: analysis.priority,
+    ai_language: analysis.language,
+    sentiment: analysis.sentiment,
+    missing_information: analysis.missingInformation,
+    recommended_action: analysis.recommendedAction,
+    suggested_response: analysis.suggestedResponse,
+  };
+}
+
 async function processInboundEmailReply(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   values: {
@@ -777,13 +894,37 @@ async function processInboundEmailReply(
     );
   }
 
+  let analysis: InboundEmailAnalysis | null = null;
+
+  try {
+    const messagesForAnalysis = await findInquiryMessagesForAnalysis(
+      supabaseAdmin,
+      inquiry.id
+    );
+    const analysisContext = buildEmailReplyAnalysisContext(
+      values.subject,
+      messagesForAnalysis,
+      cleanReplyBody
+    );
+
+    analysis = await analyzeInquiryForCompany({
+      customerName: customer.name || getCustomerName(values.fromName, values.fromEmail),
+      message: analysisContext,
+      company,
+    });
+  } catch (error) {
+    console.error("Inbound email reply analysis fallback used:", error);
+  }
+
   const nextStatus = getNextStatusForEmailReply(inquiry.status);
+  const inquiryUpdateValues = buildInquiryUpdateValuesForEmailReply(
+    nextStatus,
+    analysis
+  );
 
   const { error: updateInquiryError } = await supabaseAdmin
     .from("inquiries")
-    .update({
-      status: nextStatus,
-    })
+    .update(inquiryUpdateValues)
     .eq("id", inquiry.id)
     .eq("company_id", company.id);
 
