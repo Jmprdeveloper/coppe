@@ -67,6 +67,11 @@ type InquiryForEmailReplyRow = {
   company_id: string;
   customer_id: string | null;
   status: string;
+  subject: string | null;
+  ai_category: string | null;
+  ai_priority: string | null;
+  sentiment: string | null;
+  ai_language: string | null;
 };
 
 type InquiryMessageRow = {
@@ -447,7 +452,9 @@ async function findInquiryForEmailReply(
 ) {
   const { data, error } = await supabaseAdmin
     .from("inquiries")
-    .select("id, company_id, customer_id, status")
+    .select(
+      "id, company_id, customer_id, status, subject, ai_category, ai_priority, sentiment, ai_language"
+    )
     .eq("id", inquiryId)
     .maybeSingle<InquiryForEmailReplyRow>();
 
@@ -526,31 +533,25 @@ function getMessageAnalysisDirectionLabel(message: InquiryMessageRow) {
 function buildEmailReplyAnalysisContext(
   subject: string,
   messages: InquiryMessageRow[],
-  latestReplyBody: string
+  latestReplyBody: string,
+  currentCategory: string | null
 ) {
-  const cleanSubject = subject.trim();
-  const cleanLatestReplyBody = latestReplyBody.trim();
-
-  const subjectBlock = cleanSubject
-    ? `Asunto del hilo:\n${cleanSubject}`
+  const subjectBlock = subject.trim() ? `Asunto del hilo:
+${subject.trim()}` : "";
+  const currentCategoryBlock = currentCategory
+    ? `Categoría actual del caso:
+${currentCategory}`
     : "";
-
-  const latestReplyBlock = [
-    "Último mensaje del cliente recibido por email:",
-    cleanLatestReplyBody,
+  const latestReplyBlock = `Último mensaje del cliente (información más reciente, máxima prioridad):
+${latestReplyBody.trim()}`;
+  const instructionBlock = [
+    "Estás actualizando un caso existente de COPPE, no creando un caso nuevo.",
+    "El último mensaje del cliente es información nueva dentro del mismo caso y tiene prioridad sobre el historial anterior.",
+    "Actualiza resumen, intención, información faltante, acción recomendada y respuesta sugerida teniendo en cuenta especialmente el último mensaje.",
+    "No repitas una respuesta anterior si el cliente ya ha aportado datos nuevos.",
+    "No cambies la categoría principal del caso salvo que el último mensaje cambie explícitamente la necesidad principal.",
+    "No clasifiques como presupuesto si el cliente no pide precio, coste, tarifa, presupuesto o propuesta económica.",
   ].join("\n");
-
-  const analysisInstructionBlock = [
-    "Contexto para reanalizar un caso existente de COPPE:",
-    "- Este contenido NO es un caso nuevo; es una respuesta dentro de un caso ya abierto.",
-    "- Actualiza el análisis del caso teniendo en cuenta todo el hilo.",
-    "- Da prioridad al último mensaje del cliente porque contiene la información más reciente.",
-    "- Si el último mensaje aporta datos nuevos, incorpóralos en summary, intent, missingInformation, recommendedAction y suggestedResponse.",
-    "- No repitas una respuesta anterior si el cliente ya ha aportado nuevos datos.",
-    "- No confirmes citas, horarios, disponibilidad, reservas, diagnósticos, precios ni soluciones.",
-    "- El borrador debe responder al estado actual de la conversación, no solo al primer mensaje del caso.",
-  ].join("\n");
-
   const messageBlocks = messages
     .filter((message) => message.body.trim())
     .map((message) => {
@@ -562,8 +563,9 @@ function buildEmailReplyAnalysisContext(
 
   for (let startIndex = 0; startIndex < messageBlocks.length; startIndex += 1) {
     const candidate = [
-      analysisInstructionBlock,
+      instructionBlock,
       subjectBlock,
+      currentCategoryBlock,
       latestReplyBlock,
       "Historial reciente del caso:",
       messageBlocks.slice(startIndex).join("\n\n"),
@@ -578,8 +580,9 @@ function buildEmailReplyAnalysisContext(
   }
 
   const fallbackContext = [
-    analysisInstructionBlock,
+    instructionBlock,
     subjectBlock,
+    currentCategoryBlock,
     latestReplyBlock,
   ]
     .filter(Boolean)
@@ -590,10 +593,7 @@ function buildEmailReplyAnalysisContext(
     return fallbackContext;
   }
 
-  return [
-    "Respuesta reciente del cliente dentro de un caso existente:",
-    cleanLatestReplyBody.slice(0, MAX_ANALYSIS_MESSAGE_LENGTH),
-  ].join("\n");
+  return latestReplyBody.slice(0, MAX_ANALYSIS_MESSAGE_LENGTH);
 }
 
 async function findInquiryMessagesForAnalysis(
@@ -617,29 +617,295 @@ async function findInquiryMessagesForAnalysis(
   return (data ?? []) as InquiryMessageRow[];
 }
 
-function buildInquiryUpdateValuesForEmailReply(
-  status: string,
-  analysis: InboundEmailAnalysis | null
+function normalizeAnalysisLanguage(
+  inquiry: InquiryForEmailReplyRow,
+  analysis: InboundEmailAnalysis | null,
+  company: InboundEmailCompany
 ) {
-  const updateValues: Record<string, unknown> = {
-    status,
-  };
-
-  if (!analysis) {
-    return updateValues;
+  if (analysis?.language === "en" || analysis?.language === "es") {
+    return analysis.language;
   }
 
+  if (inquiry.ai_language === "en" || inquiry.ai_language === "es") {
+    return inquiry.ai_language;
+  }
+
+  return company.language === "en" ? "en" : "es";
+}
+
+function normalizeAnalysisSentiment(
+  inquiry: InquiryForEmailReplyRow,
+  analysis: InboundEmailAnalysis | null
+) {
+  if (inquiry.sentiment === "negative") {
+    return "negative";
+  }
+
+  if (
+    analysis?.sentiment === "positive" ||
+    analysis?.sentiment === "neutral" ||
+    analysis?.sentiment === "negative"
+  ) {
+    return analysis.sentiment;
+  }
+
+  if (
+    inquiry.sentiment === "positive" ||
+    inquiry.sentiment === "neutral" ||
+    inquiry.sentiment === "negative"
+  ) {
+    return inquiry.sentiment;
+  }
+
+  return "neutral";
+}
+
+function normalizeAnalysisPriority(
+  inquiry: InquiryForEmailReplyRow,
+  analysis: InboundEmailAnalysis | null
+) {
+  if (inquiry.ai_priority === "high" || analysis?.priority === "high") {
+    return "high";
+  }
+
+  if (inquiry.ai_priority === "medium" || analysis?.priority === "medium") {
+    return "medium";
+  }
+
+  return "medium";
+}
+
+function getStableEmailReplyCategory(
+  inquiry: InquiryForEmailReplyRow,
+  analysis: InboundEmailAnalysis | null
+) {
+  return inquiry.ai_category || analysis?.category || "general_info";
+}
+
+function truncateForInternalText(value: string, maxLength: number) {
+  const cleanValue = value.replace(/\s+/g, " ").trim();
+
+  if (cleanValue.length <= maxLength) {
+    return cleanValue;
+  }
+
+  return `${cleanValue.slice(0, maxLength - 3)}...`;
+}
+
+function hasSchedulePreferenceSignal(value: string) {
+  const normalizedValue = value.toLowerCase();
+
+  return [
+    "hoy",
+    "mañana",
+    "manana",
+    "tarde",
+    "mañana por la tarde",
+    "manana por la tarde",
+    "por la mañana",
+    "por la manana",
+    "mediodía",
+    "mediodia",
+    "lunes",
+    "martes",
+    "miércoles",
+    "miercoles",
+    "jueves",
+    "viernes",
+    "sábado",
+    "sabado",
+    "domingo",
+    "today",
+    "tomorrow",
+    "morning",
+    "afternoon",
+    "evening",
+    "monday",
+    "tuesday",
+    "wednesday",
+    "thursday",
+    "friday",
+    "saturday",
+    "sunday",
+  ].some((signal) => normalizedValue.includes(signal));
+}
+
+function isShortAcknowledgementReply(value: string) {
+  const normalizedValue = value
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  if (!normalizedValue) {
+    return false;
+  }
+
+  const acknowledgementSignals = [
+    "ok",
+    "vale",
+    "perfecto",
+    "gracias",
+    "muchas gracias",
+    "de acuerdo",
+    "quedo pendiente",
+    "thanks",
+    "thank you",
+    "perfect",
+  ];
+
+  return (
+    normalizedValue.length <= 80 &&
+    acknowledgementSignals.some((signal) => normalizedValue.includes(signal))
+  );
+}
+
+function buildThreadedEmailReplySummary(
+  customerName: string,
+  latestReplyBody: string,
+  language: "es" | "en"
+) {
+  const preview = truncateForInternalText(latestReplyBody, 180);
+  const hasSchedulePreference = hasSchedulePreferenceSignal(latestReplyBody);
+
+  if (language === "en") {
+    if (isShortAcknowledgementReply(latestReplyBody)) {
+      return `${customerName} replied to the existing case and is waiting for the next steps.`;
+    }
+
+    if (hasSchedulePreference) {
+      return `${customerName} replied to the existing case with new information and a date or time preference: ${preview}`;
+    }
+
+    return `${customerName} replied to the existing case with new information: ${preview}`;
+  }
+
+  if (isShortAcknowledgementReply(latestReplyBody)) {
+    return `${customerName} ha respondido al caso existente y queda pendiente de los siguientes pasos.`;
+  }
+
+  if (hasSchedulePreference) {
+    return `${customerName} ha respondido al caso existente aportando nueva información y una preferencia de fecha u horario: ${preview}`;
+  }
+
+  return `${customerName} ha respondido al caso existente aportando nueva información: ${preview}`;
+}
+
+function buildThreadedEmailReplyIntent(
+  latestReplyBody: string,
+  language: "es" | "en"
+) {
+  const hasSchedulePreference = hasSchedulePreferenceSignal(latestReplyBody);
+
+  if (language === "en") {
+    if (isShortAcknowledgementReply(latestReplyBody)) {
+      return "Acknowledge the previous response and wait for next steps";
+    }
+
+    if (hasSchedulePreference) {
+      return "Provide additional information and a date or time preference for the existing case";
+    }
+
+    return "Provide additional information for the existing case";
+  }
+
+  if (isShortAcknowledgementReply(latestReplyBody)) {
+    return "Confirmar recepción de la respuesta anterior y quedar pendiente de los siguientes pasos";
+  }
+
+  if (hasSchedulePreference) {
+    return "Aportar información adicional y una preferencia de fecha u horario al caso existente";
+  }
+
+  return "Aportar información adicional al caso existente";
+}
+
+function buildThreadedEmailReplyRecommendedAction(
+  latestReplyBody: string,
+  language: "es" | "en"
+) {
+  const hasSchedulePreference = hasSchedulePreferenceSignal(latestReplyBody);
+
+  if (language === "en") {
+    if (hasSchedulePreference) {
+      return "Review the new information and internal availability before proposing a specific time to the customer.";
+    }
+
+    return "Review the new information provided by the customer and respond with the next steps.";
+  }
+
+  if (hasSchedulePreference) {
+    return "Revisar la nueva información aportada y la disponibilidad interna antes de proponer una hora concreta al cliente.";
+  }
+
+  return "Revisar la nueva información aportada por el cliente y responder con los siguientes pasos.";
+}
+
+function buildThreadedEmailReplySuggestedResponse(
+  customerName: string,
+  latestReplyBody: string,
+  language: "es" | "en"
+) {
+  const hasSchedulePreference = hasSchedulePreferenceSignal(latestReplyBody);
+  const isAcknowledgement = isShortAcknowledgementReply(latestReplyBody);
+
+  if (language === "en") {
+    if (isAcknowledgement) {
+      return `Hi ${customerName}, thank you for your reply. A member of our team will contact you as soon as possible.`;
+    }
+
+    if (hasSchedulePreference) {
+      return `Hi ${customerName}, thank you for the information. We have received the new details and your date or time preference. A member of our team will contact you as soon as possible.`;
+    }
+
+    return `Hi ${customerName}, thank you for the information. We have received the new details. A member of our team will contact you as soon as possible.`;
+  }
+
+  if (isAcknowledgement) {
+    return `Hola ${customerName}, gracias por tu respuesta. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
+  }
+
+  if (hasSchedulePreference) {
+    return `Hola ${customerName}, gracias por la información. Hemos recibido los nuevos datos y tu preferencia de fecha u horario. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
+  }
+
+  return `Hola ${customerName}, gracias por la información. Hemos recibido los nuevos datos. Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible.`;
+}
+
+function buildInquiryUpdateValuesForEmailReply(
+  status: string,
+  inquiry: InquiryForEmailReplyRow,
+  analysis: InboundEmailAnalysis | null,
+  customerName: string,
+  company: InboundEmailCompany,
+  latestReplyBody: string
+) {
+  const language = normalizeAnalysisLanguage(inquiry, analysis, company);
+
   return {
-    ...updateValues,
-    ai_summary: analysis.summary,
-    ai_intent: analysis.intent,
-    ai_category: analysis.category,
-    ai_priority: analysis.priority,
-    ai_language: analysis.language,
-    sentiment: analysis.sentiment,
-    missing_information: analysis.missingInformation,
-    recommended_action: analysis.recommendedAction,
-    suggested_response: analysis.suggestedResponse,
+    status,
+    ai_summary: buildThreadedEmailReplySummary(
+      customerName,
+      latestReplyBody,
+      language
+    ),
+    ai_intent: buildThreadedEmailReplyIntent(latestReplyBody, language),
+    ai_category: getStableEmailReplyCategory(inquiry, analysis),
+    ai_priority: normalizeAnalysisPriority(inquiry, analysis),
+    ai_language: language,
+    sentiment: normalizeAnalysisSentiment(inquiry, analysis),
+    missing_information: [],
+    recommended_action: buildThreadedEmailReplyRecommendedAction(
+      latestReplyBody,
+      language
+    ),
+    suggested_response: buildThreadedEmailReplySuggestedResponse(
+      customerName,
+      latestReplyBody,
+      language
+    ),
   };
 }
 
@@ -935,7 +1201,8 @@ async function processInboundEmailReply(
     const analysisContext = buildEmailReplyAnalysisContext(
       values.subject,
       messagesForAnalysis,
-      cleanReplyBody
+      cleanReplyBody,
+      inquiry.ai_category
     );
 
     analysis = await analyzeInquiryForCompany({
@@ -948,9 +1215,15 @@ async function processInboundEmailReply(
   }
 
   const nextStatus = getNextStatusForEmailReply(inquiry.status);
+  const customerDisplayName =
+    customer.name || getCustomerName(values.fromName, values.fromEmail);
   const inquiryUpdateValues = buildInquiryUpdateValuesForEmailReply(
     nextStatus,
-    analysis
+    inquiry,
+    analysis,
+    customerDisplayName,
+    company,
+    cleanReplyBody
   );
 
   const { error: updateInquiryError } = await supabaseAdmin
