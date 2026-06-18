@@ -16,6 +16,8 @@ const MAX_SEND_EMAIL_RESPONSE_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_EMAIL_RESPONSE_TEXT_LENGTH = 12000;
 const DUPLICATE_EMAIL_PENDING_WINDOW_MS = 5 * 60 * 1000;
 
+type SendEmailResponseNextStatus = "replied" | "waiting_customer";
+
 type SendEmailResponseRequestBody = {
   inquiryId?: unknown;
   responseText?: unknown;
@@ -105,7 +107,7 @@ function buildReplyToAddress(replyToken: string, fromAddress: string) {
 
 function isValidNextStatus(
   value: string
-): value is "replied" | "waiting_customer" {
+): value is SendEmailResponseNextStatus {
   return value === "replied" || value === "waiting_customer";
 }
 
@@ -250,6 +252,53 @@ async function getDuplicateEmailResponseStatusForCase(
     (data ?? []) as PreviousOutboundEmailRow[],
     values.responseText
   );
+}
+
+async function createEmailResponseAuditLog(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  values: {
+    companyId: string;
+    inquiryId: string;
+    customerId: string;
+    customerEmail: string;
+    emailChannelId: string;
+    fromAddress: string;
+    subject: string;
+    outboundMessageId: string;
+    inquiryMessageId: string | null;
+    providerMessageId: string;
+    nextStatus: SendEmailResponseNextStatus;
+    warning?: string;
+  }
+) {
+  const metadata: Record<string, string | null> = {
+    customer_id: values.customerId,
+    customer_email: values.customerEmail,
+    email_channel_id: values.emailChannelId,
+    from_address: values.fromAddress,
+    subject: values.subject,
+    outbound_message_id: values.outboundMessageId,
+    inquiry_message_id: values.inquiryMessageId,
+    provider: "resend",
+    provider_message_id: values.providerMessageId,
+    requested_next_status: values.nextStatus,
+  };
+
+  if (values.warning) {
+    metadata.warning = values.warning;
+  }
+
+  const { error } = await supabase.rpc("create_audit_log", {
+    target_company_id: values.companyId,
+    audit_action: "send_email_response",
+    audit_entity_type: "inquiry",
+    audit_entity_id: values.inquiryId,
+    audit_metadata: metadata,
+  });
+
+  if (error) {
+    console.error("Email sent, but could not create audit log:", error);
+  }
 }
 
 function getResendErrorMessage(payload: ResendSendEmailResponse | null) {
@@ -646,6 +695,21 @@ export async function POST(request: Request) {
       })
       .eq("id", outboundMessage.id);
 
+    await createEmailResponseAuditLog(supabase, {
+      companyId: inquiry.company_id,
+      inquiryId: inquiry.id,
+      customerId: customer.id,
+      customerEmail: toAddress,
+      emailChannelId: emailChannel.id,
+      fromAddress,
+      subject,
+      outboundMessageId: outboundMessage.id,
+      inquiryMessageId: null,
+      providerMessageId,
+      nextStatus,
+      warning: "inquiry_message_creation_failed",
+    });
+
     return NextResponse.json(
       {
         ok: true,
@@ -673,6 +737,20 @@ export async function POST(request: Request) {
       updateOutboundMessageError
     );
   }
+
+  await createEmailResponseAuditLog(supabase, {
+    companyId: inquiry.company_id,
+    inquiryId: inquiry.id,
+    customerId: customer.id,
+    customerEmail: toAddress,
+    emailChannelId: emailChannel.id,
+    fromAddress,
+    subject,
+    outboundMessageId: outboundMessage.id,
+    inquiryMessageId: createdInquiryMessage.id,
+    providerMessageId,
+    nextStatus,
+  });
 
   const { error: updateInquiryError } = await supabaseAdmin
     .from("inquiries")
