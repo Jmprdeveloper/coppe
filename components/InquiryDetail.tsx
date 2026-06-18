@@ -126,6 +126,65 @@ type InquiryAnalysisRequestResult =
       errorMessage: string;
     };
 
+const SUCCESS_MESSAGE_VISIBLE_MS = 4200;
+const SUCCESS_MESSAGE_FADE_MS = 300;
+
+const successMessageFadeOutStyle = `
+@keyframes coppeSuccessMessageFadeOut {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  to {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+`;
+
+type AutoDismissSuccessMessageProps = {
+  message: string;
+  onDismiss: (value: string) => void;
+};
+
+function AutoDismissSuccessMessage({
+  message,
+  onDismiss,
+}: AutoDismissSuccessMessageProps) {
+  useEffect(() => {
+    if (!message) {
+      return;
+    }
+
+    const clearTimer = window.setTimeout(() => {
+      onDismiss("");
+    }, SUCCESS_MESSAGE_VISIBLE_MS + SUCCESS_MESSAGE_FADE_MS);
+
+    return () => {
+      window.clearTimeout(clearTimer);
+    };
+  }, [message, onDismiss]);
+
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <>
+      <style>{successMessageFadeOutStyle}</style>
+      <div
+        className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        style={{
+          animation: `coppeSuccessMessageFadeOut ${SUCCESS_MESSAGE_FADE_MS}ms ease-in ${SUCCESS_MESSAGE_VISIBLE_MS}ms forwards`,
+        }}
+      >
+        {message}
+      </div>
+    </>
+  );
+}
+
 async function requestInquiryAnalysis(
   customerName: string,
   message: string
@@ -354,6 +413,25 @@ function getInquiryStatusAuditAction(
   return "update_inquiry_status";
 }
 
+function getFollowUpStatusAuditAction(
+  previousStatus: FollowUp["status"],
+  nextStatus: FollowUp["status"]
+) {
+  if (nextStatus === "pending" && previousStatus !== "pending") {
+    return "reopen_follow_up";
+  }
+
+  if (nextStatus === "completed") {
+    return "complete_follow_up";
+  }
+
+  if (nextStatus === "cancelled") {
+    return "cancel_follow_up";
+  }
+
+  return "update_follow_up_status";
+}
+
 function getDefaultFollowUpDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -364,6 +442,16 @@ function getDefaultFollowUpDateTimeLocal() {
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${year}-${month}-${day}T${hours}:${minutes}`;
+}
+
+function getDefaultFollowUpTitle(customerName: string) {
+  const cleanCustomerName = customerName.trim();
+
+  if (!cleanCustomerName) {
+    return "Revisar caso";
+  }
+
+  return `Revisar caso de ${cleanCustomerName}`;
 }
 
 function formatDateTimeLocalFromIso(value: string | null) {
@@ -427,9 +515,7 @@ export function InquiryDetail({
   const [editAppointmentNotes, setEditAppointmentNotes] = useState("");
 
   const [followUpTitle, setFollowUpTitle] = useState("");
-  const [followUpDueAt, setFollowUpDueAt] = useState(
-    getDefaultFollowUpDateTimeLocal()
-  );
+  const [followUpDueAt, setFollowUpDueAt] = useState("");
   const [showCreateFollowUpForm, setShowCreateFollowUpForm] = useState(false);
   const [editingFollowUpId, setEditingFollowUpId] = useState<string | null>(
     null
@@ -507,7 +593,7 @@ export function InquiryDetail({
       setEditAppointmentScheduledAt("");
       setEditAppointmentNotes("");
       setFollowUpTitle("");
-      setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+      setFollowUpDueAt("");
       setShowCreateFollowUpForm(false);
       setEditingFollowUpId(null);
       setEditFollowUpTitle("");
@@ -567,8 +653,8 @@ export function InquiryDetail({
       setEditAppointmentTitle("");
       setEditAppointmentScheduledAt("");
       setEditAppointmentNotes("");
-      setFollowUpTitle(`Revisar caso de ${inquiryData.customer_name}`);
-      setFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
+      setFollowUpTitle(getDefaultFollowUpTitle(inquiryData.customer_name));
+      setFollowUpDueAt("");
 
       let loadedCustomer: CustomerRow | null = null;
 
@@ -1167,9 +1253,34 @@ export function InquiryDetail({
       return;
     }
 
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: rawInquiry.company_id,
+      audit_action: "create_internal_note",
+      audit_entity_type: "internal_note",
+      audit_entity_id: data.id,
+      audit_metadata: {
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        body_length: cleanNote.length,
+        source: "inquiry_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Internal note created, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría de la nota.";
+    }
+
     setNotes((currentNotes) => [data, ...currentNotes]);
     setNote("");
-    setNoteMessage("Nota interna guardada correctamente.");
+    setNoteMessage(`Nota interna guardada correctamente.${auditWarningMessage}`);
   };
 
   const handleReanalyzeInquiry = async () => {
@@ -1678,18 +1789,55 @@ export function InquiryDetail({
       return;
     }
 
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: rawInquiry.company_id,
+      audit_action: "create_follow_up",
+      audit_entity_type: "follow_up",
+      audit_entity_id: data.id,
+      audit_metadata: {
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        status: "pending",
+        due_at: dueAt,
+        title_length: cleanFollowUpTitle.length,
+        source: "inquiry_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Follow-up created, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría del seguimiento.";
+    }
+
     setFollowUps((currentFollowUps) => [
       mapFollowUpRowToFollowUp(data),
       ...currentFollowUps,
     ]);
 
+    setFollowUpTitle(getDefaultFollowUpTitle(inquiry.customerName));
+    setFollowUpDueAt("");
     setShowCreateFollowUpForm(false);
-    setFollowUpCreateMessage("Seguimiento creado correctamente.");
+    setFollowUpCreateMessage(
+      `Seguimiento creado correctamente.${auditWarningMessage}`
+    );
   };
 
   const handleOpenCreateFollowUpForm = () => {
     setFollowUpCreateMessage("");
     setFollowUpCreateErrorMessage("");
+
+    if (inquiry) {
+      setFollowUpTitle(getDefaultFollowUpTitle(inquiry.customerName));
+    }
+
+    setFollowUpDueAt("");
     setShowCreateFollowUpForm(true);
   };
 
@@ -1716,6 +1864,13 @@ export function InquiryDetail({
   const handleSaveFollowUpEdit = async () => {
     setFollowUpActionMessage("");
     setFollowUpActionErrorMessage("");
+
+    if (!rawInquiry) {
+      setFollowUpActionErrorMessage(
+        "No se puede editar el seguimiento porque no hay caso cargado."
+      );
+      return;
+    }
 
     const editingFollowUp = followUps.find(
       (followUp) => followUp.id === editingFollowUpId
@@ -1787,6 +1942,40 @@ export function InquiryDetail({
     }
 
     const mappedFollowUp = mapFollowUpRowToFollowUp(data);
+    const previousDueAt = editingFollowUp.dueAtIso ?? null;
+    const nextDueAt = data.due_at ?? null;
+    const titleChanged = editingFollowUp.title.trim() !== cleanEditFollowUpTitle;
+    const dueAtChanged = previousDueAt !== nextDueAt;
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: rawInquiry.company_id,
+      audit_action: "update_follow_up",
+      audit_entity_type: "follow_up",
+      audit_entity_id: editingFollowUp.id,
+      audit_metadata: {
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        status: editingFollowUp.status,
+        previous_due_at: previousDueAt,
+        next_due_at: nextDueAt,
+        title_changed: titleChanged,
+        due_at_changed: dueAtChanged,
+        previous_title_length: editingFollowUp.title.trim().length,
+        next_title_length: cleanEditFollowUpTitle.length,
+        source: "inquiry_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Follow-up updated, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría del seguimiento.";
+    }
 
     setFollowUps((currentFollowUps) =>
       currentFollowUps.map((followUp) =>
@@ -1797,7 +1986,9 @@ export function InquiryDetail({
     setEditingFollowUpId(null);
     setEditFollowUpTitle("");
     setEditFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
-    setFollowUpActionMessage("Seguimiento actualizado correctamente.");
+    setFollowUpActionMessage(
+      `Seguimiento actualizado correctamente.${auditWarningMessage}`
+    );
   };
 
   const handleUpdateFollowUpStatus = async (
@@ -1806,6 +1997,27 @@ export function InquiryDetail({
   ) => {
     setFollowUpActionMessage("");
     setFollowUpActionErrorMessage("");
+
+    if (!rawInquiry) {
+      setFollowUpActionErrorMessage(
+        "No se puede actualizar el seguimiento porque no hay caso cargado."
+      );
+      return;
+    }
+
+    const currentFollowUp = followUps.find(
+      (followUp) => followUp.id === followUpId
+    );
+
+    if (!currentFollowUp) {
+      setFollowUpActionErrorMessage(
+        "No se puede actualizar el seguimiento porque no se encontró en pantalla."
+      );
+      return;
+    }
+
+    const previousStatus = currentFollowUp.status;
+
     setUpdatingFollowUpId(followUpId);
 
     const { data: updatedFollowUp, error } = await supabase
@@ -1838,6 +2050,37 @@ export function InquiryDetail({
     }
 
     const mappedUpdatedFollowUp = mapFollowUpRowToFollowUp(updatedFollowUp);
+    let auditWarningMessage = "";
+
+    if (previousStatus !== mappedUpdatedFollowUp.status) {
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: rawInquiry.company_id,
+        audit_action: getFollowUpStatusAuditAction(
+          previousStatus,
+          mappedUpdatedFollowUp.status
+        ),
+        audit_entity_type: "follow_up",
+        audit_entity_id: followUpId,
+        audit_metadata: {
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          previous_status: previousStatus,
+          next_status: mappedUpdatedFollowUp.status,
+          due_at: updatedFollowUp.due_at ?? null,
+          source: "inquiry_detail",
+        },
+      });
+
+      if (auditLogError) {
+        console.error(
+          "Follow-up status updated, but could not create audit log:",
+          auditLogError
+        );
+
+        auditWarningMessage =
+          " Advertencia: no se pudo registrar la auditoría del seguimiento.";
+      }
+    }
 
     setFollowUps((currentFollowUps) =>
       currentFollowUps.map((followUp) =>
@@ -1845,15 +2088,23 @@ export function InquiryDetail({
       )
     );
 
-    if (status === "pending") {
-      setFollowUpActionMessage("Seguimiento reabierto correctamente.");
+    if (mappedUpdatedFollowUp.status !== "pending" && inquiry) {
+      setFollowUpTitle(getDefaultFollowUpTitle(inquiry.customerName));
+      setFollowUpDueAt("");
+      setShowCreateFollowUpForm(false);
+    }
+
+    if (mappedUpdatedFollowUp.status === "pending") {
+      setFollowUpActionMessage(
+        `Seguimiento reabierto correctamente.${auditWarningMessage}`
+      );
       return;
     }
 
     setFollowUpActionMessage(
-      status === "completed"
-        ? "Seguimiento completado correctamente."
-        : "Seguimiento cancelado correctamente."
+      mappedUpdatedFollowUp.status === "completed"
+        ? `Seguimiento completado correctamente.${auditWarningMessage}`
+        : `Seguimiento cancelado correctamente.${auditWarningMessage}`
     );
   };
 
@@ -1979,11 +2230,10 @@ export function InquiryDetail({
             </div>
           ) : null}
 
-          {statusMessage ? (
-            <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-              {statusMessage}
-            </div>
-          ) : null}
+          <AutoDismissSuccessMessage
+            message={statusMessage}
+            onDismiss={setStatusMessage}
+          />
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -2130,11 +2380,10 @@ export function InquiryDetail({
               </div>
             ) : null}
 
-            {reanalysisMessage ? (
-              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {reanalysisMessage}
-              </div>
-            ) : null}
+            <AutoDismissSuccessMessage
+              message={reanalysisMessage}
+              onDismiss={setReanalysisMessage}
+            />
 
             <div className="mt-4 flex flex-wrap gap-2">
               <Button
@@ -2303,11 +2552,10 @@ export function InquiryDetail({
                   </div>
                 ) : null}
 
-                {appointmentMessage ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {appointmentMessage}
-                  </div>
-                ) : null}
+                <AutoDismissSuccessMessage
+                  message={appointmentMessage}
+                  onDismiss={setAppointmentMessage}
+                />
 
                 <Button
                   className="mt-4 w-full"
@@ -2580,6 +2828,17 @@ export function InquiryDetail({
                 : "Crear seguimiento"}
             </h3>
 
+            {followUpCreateErrorMessage ? (
+              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {followUpCreateErrorMessage}
+              </div>
+            ) : null}
+
+            <AutoDismissSuccessMessage
+              message={followUpCreateMessage}
+              onDismiss={setFollowUpCreateMessage}
+            />
+
             {canCreateFollowUp ? (
               shouldShowCreateFollowUpForm ? (
                 <>
@@ -2604,6 +2863,7 @@ export function InquiryDetail({
                           setFollowUpTitle(event.target.value)
                         }
                         className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                        placeholder="Escribe el título del seguimiento"
                       />
                     </label>
 
@@ -2620,17 +2880,6 @@ export function InquiryDetail({
                     </label>
                   </div>
 
-                  {followUpCreateErrorMessage ? (
-                    <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                      {followUpCreateErrorMessage}
-                    </div>
-                  ) : null}
-
-                  {followUpCreateMessage ? (
-                    <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                      {followUpCreateMessage}
-                    </div>
-                  ) : null}
 
                   <div
                     className={
@@ -2688,17 +2937,6 @@ export function InquiryDetail({
                   reabre el caso.
                 </p>
 
-                {followUpCreateErrorMessage ? (
-                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                    {followUpCreateErrorMessage}
-                  </div>
-                ) : null}
-
-                {followUpCreateMessage ? (
-                  <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {followUpCreateMessage}
-                  </div>
-                ) : null}
               </>
             )}
           </div>
@@ -2714,11 +2952,10 @@ export function InquiryDetail({
               </div>
             ) : null}
 
-            {followUpActionMessage ? (
-              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {followUpActionMessage}
-              </div>
-            ) : null}
+            <AutoDismissSuccessMessage
+              message={followUpActionMessage}
+              onDismiss={setFollowUpActionMessage}
+            />
 
             {editingFollowUp ? (
               <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -2847,11 +3084,10 @@ export function InquiryDetail({
               </div>
             ) : null}
 
-            {noteMessage ? (
-              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {noteMessage}
-              </div>
-            ) : null}
+            <AutoDismissSuccessMessage
+              message={noteMessage}
+              onDismiss={setNoteMessage}
+            />
 
             <Button
               variant="secondary"
