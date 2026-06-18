@@ -23,6 +23,7 @@ import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
 import type { Appointment, AppointmentStatus } from "../types";
 
+import { AutoDismissAlert } from "./AutoDismissAlert";
 import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
 import { MetricCard } from "./MetricCard";
@@ -1202,11 +1203,11 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                 </div>
               ) : null}
 
-              {successMessage ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                  {successMessage}
-                </div>
-              ) : null}
+              <AutoDismissAlert
+                className="mt-4 font-medium"
+                message={successMessage}
+                onDismiss={() => setSuccessMessage("")}
+              />
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
@@ -1237,11 +1238,11 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         </div>
       ) : null}
 
-      {successMessage ? (
-        <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {successMessage}
-        </div>
-      ) : null}
+      <AutoDismissAlert
+        className="mt-5"
+        message={successMessage}
+        onDismiss={() => setSuccessMessage("")}
+      />
 
       {isLoading ? (
         <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">

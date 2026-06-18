@@ -454,6 +454,16 @@ function getDefaultFollowUpTitle(customerName: string) {
   return `Revisar caso de ${cleanCustomerName}`;
 }
 
+function getDefaultAppointmentTitle(customerName: string) {
+  const cleanCustomerName = customerName.trim();
+
+  if (!cleanCustomerName) {
+    return "Cita para caso";
+  }
+
+  return `Cita para caso de ${cleanCustomerName}`;
+}
+
 function formatDateTimeLocalFromIso(value: string | null) {
   if (!value) {
     return getDefaultFollowUpDateTimeLocal();
@@ -547,7 +557,8 @@ export function InquiryDetail({
   const [noteErrorMessage, setNoteErrorMessage] = useState("");
   const [reanalysisMessage, setReanalysisMessage] = useState("");
   const [reanalysisErrorMessage, setReanalysisErrorMessage] = useState("");
-  const [appointmentMessage, setAppointmentMessage] = useState("");
+  const [appointmentCreateMessage, setAppointmentCreateMessage] = useState("");
+  const [appointmentActionMessage, setAppointmentActionMessage] = useState("");
   const [appointmentErrorMessage, setAppointmentErrorMessage] = useState("");
   const [followUpCreateMessage, setFollowUpCreateMessage] = useState("");
   const [followUpCreateErrorMessage, setFollowUpCreateErrorMessage] =
@@ -566,7 +577,8 @@ export function InquiryDetail({
       setNoteErrorMessage("");
       setReanalysisMessage("");
       setReanalysisErrorMessage("");
-      setAppointmentMessage("");
+      setAppointmentCreateMessage("");
+      setAppointmentActionMessage("");
       setAppointmentErrorMessage("");
       setFollowUpCreateMessage("");
       setFollowUpCreateErrorMessage("");
@@ -646,7 +658,7 @@ export function InquiryDetail({
 
       setInquiry(mapInquiryRowToInquiry(inquiryData));
       setRawInquiry(inquiryData);
-      setAppointmentTitle("");
+      setAppointmentTitle(getDefaultAppointmentTitle(inquiryData.customer_name));
       setAppointmentScheduledAt("");
       setAppointmentNotes("");
       setEditingAppointmentId(null);
@@ -1429,7 +1441,8 @@ export function InquiryDetail({
   };
 
   const handleCreateAppointment = async () => {
-    setAppointmentMessage("");
+    setAppointmentCreateMessage("");
+    setAppointmentActionMessage("");
     setAppointmentErrorMessage("");
 
     if (!rawInquiry || !inquiry) {
@@ -1513,17 +1526,18 @@ export function InquiryDetail({
       )
     );
 
-    setAppointmentTitle("");
+    setAppointmentTitle(getDefaultAppointmentTitle(inquiry.customerName));
     setAppointmentScheduledAt("");
     setAppointmentNotes("");
-    setAppointmentMessage("Cita creada como pendiente de confirmar.");
+    setAppointmentCreateMessage("Cita creada como pendiente de confirmar.");
   };
 
   const handleUpdateAppointmentStatus = async (
     appointmentId: string,
     status: AppointmentStatus
   ) => {
-    setAppointmentMessage("");
+    setAppointmentCreateMessage("");
+    setAppointmentActionMessage("");
     setAppointmentErrorMessage("");
     setUpdatingAppointmentId(appointmentId);
 
@@ -1568,11 +1582,12 @@ export function InquiryDetail({
         .sort(compareAppointmentsByScheduledAt)
     );
 
-    setAppointmentMessage("Estado de la cita actualizado.");
+    setAppointmentActionMessage("Estado de la cita actualizado.");
   };
 
   const handleOpenEditAppointmentForm = (appointment: Appointment) => {
-    setAppointmentMessage("");
+    setAppointmentCreateMessage("");
+    setAppointmentActionMessage("");
     setAppointmentErrorMessage("");
     setEditingAppointmentId(appointment.id);
     setEditAppointmentTitle(appointment.title);
@@ -1591,7 +1606,8 @@ export function InquiryDetail({
   };
 
   const handleSaveAppointmentEdit = async () => {
-    setAppointmentMessage("");
+    setAppointmentCreateMessage("");
+    setAppointmentActionMessage("");
     setAppointmentErrorMessage("");
 
     const editingAppointment = appointments.find(
@@ -1686,7 +1702,7 @@ export function InquiryDetail({
     setEditAppointmentTitle("");
     setEditAppointmentScheduledAt("");
     setEditAppointmentNotes("");
-    setAppointmentMessage("Cita actualizada correctamente.");
+    setAppointmentActionMessage("Cita actualizada correctamente.");
   };
 
   const handleCreateFollowUp = async () => {
@@ -2553,8 +2569,8 @@ export function InquiryDetail({
                 ) : null}
 
                 <AutoDismissSuccessMessage
-                  message={appointmentMessage}
-                  onDismiss={setAppointmentMessage}
+                  message={appointmentCreateMessage}
+                  onDismiss={setAppointmentCreateMessage}
                 />
 
                 <Button
@@ -2576,6 +2592,11 @@ export function InquiryDetail({
 
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="font-bold text-slate-950">Citas del caso</h3>
+
+            <AutoDismissSuccessMessage
+              message={appointmentActionMessage}
+              onDismiss={setAppointmentActionMessage}
+            />
 
             {appointments.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-slate-600">
@@ -2645,8 +2666,9 @@ export function InquiryDetail({
                                 </label>
                               </div>
 
-                              <div className="mt-4 flex flex-wrap gap-2">
+                              <div className="mt-4 grid gap-2">
                                 <Button
+                                  className="w-full justify-center"
                                   onClick={handleSaveAppointmentEdit}
                                   disabled={isSavingAppointmentEdit}
                                 >
@@ -2656,6 +2678,7 @@ export function InquiryDetail({
                                 </Button>
 
                                 <Button
+                                  className="w-full justify-center"
                                   variant="secondary"
                                   onClick={handleCancelEditAppointment}
                                   disabled={isSavingAppointmentEdit}
@@ -2683,8 +2706,9 @@ export function InquiryDetail({
                                 </p>
                               ) : null}
 
-                              <div className="mt-3 flex flex-wrap gap-2">
+                              <div className="mt-3 grid gap-2">
                                 <Button
+                                  className="w-full justify-center"
                                   variant="secondary"
                                   onClick={() =>
                                     handleOpenEditAppointmentForm(appointment)
@@ -2699,7 +2723,7 @@ export function InquiryDetail({
                                 {appointment.status === "proposed" ? (
                                   <>
                                     <Button
-                                      variant="secondary"
+                                      className="w-full justify-center"
                                       onClick={() =>
                                         handleUpdateAppointmentStatus(
                                           appointment.id,
@@ -2710,11 +2734,12 @@ export function InquiryDetail({
                                         updatingAppointmentId === appointment.id
                                       }
                                     >
-                                      Marcar como confirmada internamente
+                                      Confirmar
                                     </Button>
 
                                     <Button
-                                      variant="ghost"
+                                      className="w-full justify-center"
+                                      variant="secondary"
                                       onClick={() =>
                                         handleUpdateAppointmentStatus(
                                           appointment.id,
@@ -2733,7 +2758,7 @@ export function InquiryDetail({
                                 {appointment.status === "confirmed" ? (
                                   <>
                                     <Button
-                                      variant="secondary"
+                                      className="w-full justify-center"
                                       onClick={() =>
                                         handleUpdateAppointmentStatus(
                                           appointment.id,
@@ -2748,7 +2773,8 @@ export function InquiryDetail({
                                     </Button>
 
                                     <Button
-                                      variant="ghost"
+                                      className="w-full justify-center"
+                                      variant="secondary"
                                       onClick={() =>
                                         handleUpdateAppointmentStatus(
                                           appointment.id,
@@ -2801,7 +2827,7 @@ export function InquiryDetail({
 
                           <Button
                             variant="secondary"
-                            className="mt-3"
+                            className="mt-3 w-full justify-center"
                             onClick={() =>
                               handleUpdateAppointmentStatus(
                                 appointment.id,
