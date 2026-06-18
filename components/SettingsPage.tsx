@@ -23,6 +23,7 @@ import {
 import { canManageCompanySettings } from "../lib/companyPermissions";
 import { getCurrentCompany, type CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
+import { AutoDismissAlert } from "./AutoDismissAlert";
 import { Button } from "./Button";
 import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
@@ -1368,11 +1369,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   </div>
                 ) : null}
 
-                {message ? (
-                  <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {message}
-                  </div>
-                ) : null}
+                <AutoDismissAlert
+                  className="mt-5"
+                  message={message}
+                  onDismiss={() => setMessage("")}
+                />
 
                 <Button
                   className="mt-5"
@@ -1450,11 +1451,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       </div>
                     ) : null}
 
-                    {copyMessage ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {copyMessage}
-                      </div>
-                    ) : null}
+                    <AutoDismissAlert
+                      className="mt-3"
+                      message={copyMessage}
+                      onDismiss={() => setCopyMessage("")}
+                    />
 
                     {!publicIntakeEnabled ? (
                       <p className="mt-3 text-xs leading-5 text-slate-500">
@@ -1513,11 +1514,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       </div>
                     ) : null}
 
-                    {publicChatCopyMessage ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {publicChatCopyMessage}
-                      </div>
-                    ) : null}
+                    <AutoDismissAlert
+                      className="mt-3"
+                      message={publicChatCopyMessage}
+                      onDismiss={() => setPublicChatCopyMessage("")}
+                    />
 
                     {!publicChatEnabled ? (
                       <p className="mt-3 text-xs leading-5 text-slate-500">
@@ -1637,11 +1638,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       </div>
                     ) : null}
 
-                    {emailMessage ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {emailMessage}
-                      </div>
-                    ) : null}
+                    <AutoDismissAlert
+                      className="mt-3"
+                      message={emailMessage}
+                      onDismiss={() => setEmailMessage("")}
+                    />
 
                     {emailCopyErrorMessage ? (
                       <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1649,11 +1650,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       </div>
                     ) : null}
 
-                    {emailCopyMessage ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {emailCopyMessage}
-                      </div>
-                    ) : null}
+                    <AutoDismissAlert
+                      className="mt-3"
+                      message={emailCopyMessage}
+                      onDismiss={() => setEmailCopyMessage("")}
+                    />
 
                     {!emailEnabled ? (
                       <p className="mt-3 text-xs leading-5 text-slate-500">
@@ -1760,11 +1761,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       </div>
                     ) : null}
 
-                    {whatsAppMessage ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {whatsAppMessage}
-                      </div>
-                    ) : null}
+                    <AutoDismissAlert
+                      className="mt-3"
+                      message={whatsAppMessage}
+                      onDismiss={() => setWhatsAppMessage("")}
+                    />
 
                     {whatsAppCopyErrorMessage ? (
                       <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
@@ -1772,11 +1773,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       </div>
                     ) : null}
 
-                    {whatsAppCopyMessage ? (
-                      <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                        {whatsAppCopyMessage}
-                      </div>
-                    ) : null}
+                    <AutoDismissAlert
+                      className="mt-3"
+                      message={whatsAppCopyMessage}
+                      onDismiss={() => setWhatsAppCopyMessage("")}
+                    />
                   </ChannelSettingsCard>
                 </div>
 
@@ -1786,11 +1787,11 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                   </div>
                 ) : null}
 
-                {publicIntakeMessage ? (
-                  <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                    {publicIntakeMessage}
-                  </div>
-                ) : null}
+                <AutoDismissAlert
+                  className="mt-4"
+                  message={publicIntakeMessage}
+                  onDismiss={() => setPublicIntakeMessage("")}
+                />
 
                 <div className="mt-5 border-t border-slate-200 pt-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
