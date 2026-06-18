@@ -327,6 +327,33 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   };
 }
 
+function getInquiryStatusAuditAction(
+  previousStatus: InquiryStatus,
+  nextStatus: InquiryStatus
+) {
+  if (nextStatus === "pending" && previousStatus !== "pending") {
+    return "reopen_inquiry";
+  }
+
+  if (nextStatus === "waiting_customer") {
+    return "mark_inquiry_waiting_customer";
+  }
+
+  if (nextStatus === "replied") {
+    return "mark_inquiry_replied";
+  }
+
+  if (nextStatus === "closed") {
+    return "close_inquiry";
+  }
+
+  if (nextStatus === "discarded") {
+    return "discard_inquiry";
+  }
+
+  return "update_inquiry_status";
+}
+
 function getDefaultFollowUpDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -715,12 +742,14 @@ export function InquiryDetail({
   const handleUpdateStatus = async (
     newStatus: InquiryStatus
   ): Promise<boolean> => {
-    if (!inquiry) {
+    if (!inquiry || !rawInquiry) {
       return false;
     }
 
     setStatusMessage("");
     setStatusErrorMessage("");
+
+    const previousStatus = normalizeInquiryStatus(inquiry.status);
 
     if (
       newStatus === "discarded" &&
@@ -763,37 +792,73 @@ export function InquiryDetail({
       return false;
     }
 
+    let auditWarningMessage = "";
+
+    if (previousStatus !== newStatus) {
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: rawInquiry.company_id,
+        audit_action: getInquiryStatusAuditAction(previousStatus, newStatus),
+        audit_entity_type: "inquiry",
+        audit_entity_id: rawInquiry.id,
+        audit_metadata: {
+          previous_status: previousStatus,
+          next_status: newStatus,
+          customer_id: rawInquiry.customer_id,
+          source: "inquiry_detail",
+        },
+      });
+
+      if (auditLogError) {
+        console.error(
+          "Inquiry status updated, but could not create audit log:",
+          auditLogError
+        );
+
+        auditWarningMessage =
+          " Advertencia: no se pudo registrar la auditoría del cambio.";
+      }
+    }
+
     setInquiry({
       ...inquiry,
       status: newStatus,
     });
 
+    setRawInquiry({
+      ...rawInquiry,
+      status: newStatus,
+    });
+
     if (newStatus === "pending") {
-      setStatusMessage("Caso reabierto correctamente.");
+      setStatusMessage(`Caso reabierto correctamente.${auditWarningMessage}`);
       return true;
     }
 
     if (newStatus === "waiting_customer") {
-      setStatusMessage("Caso marcado como esperando al cliente.");
+      setStatusMessage(
+        `Caso marcado como esperando al cliente.${auditWarningMessage}`
+      );
       return true;
     }
 
     if (newStatus === "replied") {
-      setStatusMessage("Respuesta registrada y caso marcado como respondido.");
+      setStatusMessage(
+        `Respuesta registrada y caso marcado como respondido.${auditWarningMessage}`
+      );
       return true;
     }
 
     if (newStatus === "closed") {
-      setStatusMessage("Caso cerrado correctamente.");
+      setStatusMessage(`Caso cerrado correctamente.${auditWarningMessage}`);
       return true;
     }
 
     if (newStatus === "discarded") {
-      setStatusMessage("Caso descartado correctamente.");
+      setStatusMessage(`Caso descartado correctamente.${auditWarningMessage}`);
       return true;
     }
 
-    setStatusMessage("Estado actualizado correctamente.");
+    setStatusMessage(`Estado actualizado correctamente.${auditWarningMessage}`);
     return true;
   };
 
