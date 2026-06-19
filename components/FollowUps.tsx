@@ -22,6 +22,7 @@ import { createClient } from "../lib/supabase/client";
 import type { VisualTone } from "../lib/visualSystem";
 import type { FollowUp } from "../types";
 
+import { AutoDismissAlert } from "./AutoDismissAlert";
 import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
@@ -889,19 +890,24 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                 </div>
               ) : null}
 
-              {successMessage ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                  {successMessage}
-                </div>
-              ) : null}
+              <AutoDismissAlert
+                className="mt-4 font-medium"
+                message={successMessage}
+                onDismiss={() => setSuccessMessage("")}
+              />
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
-              <Button variant="ghost" onClick={handleCancelCreateForm}>
+              <Button
+                className="w-full justify-center sm:w-auto"
+                variant="secondary"
+                onClick={handleCancelCreateForm}
+              >
                 Cancelar
               </Button>
 
               <Button
+                className="w-full justify-center sm:w-auto"
                 onClick={handleSaveFollowUp}
                 disabled={
                   isCreating || (!isEditing && inquiryOptions.length === 0)
@@ -926,11 +932,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
         </div>
       ) : null}
 
-      {successMessage ? (
-        <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {successMessage}
-        </div>
-      ) : null}
+      <AutoDismissAlert
+        className="mb-4"
+        message={successMessage}
+        onDismiss={() => setSuccessMessage("")}
+      />
 
       {isLoading ? (
         <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
@@ -1045,28 +1051,28 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                           : "Sin caso asociado"}
                       </div>
 
-                      <div className="flex flex-wrap gap-2 md:justify-end">
+                      <div className="flex flex-col gap-2 md:flex-row md:justify-end">
                         {followUp.inquiryId ? (
-                          <button
-                            type="button"
+                          <Button
+                            className="w-full justify-center md:w-auto"
+                            variant="secondary"
                             onClick={() => openInquiry(followUp.inquiryId)}
-                            className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-50"
                           >
                             Abrir caso
-                          </button>
+                          </Button>
                         ) : null}
 
-                        <button
-                          type="button"
+                        <Button
+                          className="w-full justify-center md:w-auto"
+                          variant="secondary"
                           disabled={updatingFollowUpId === followUp.id}
                           onClick={() =>
                             handleUpdateFollowUpStatus(followUp.id, "pending")
                           }
-                          className="inline-flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <CheckCircle2 size={14} />
                           Reabrir
-                        </button>
+                        </Button>
                       </div>
                     </article>
                   );
