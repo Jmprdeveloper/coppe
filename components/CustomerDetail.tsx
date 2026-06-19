@@ -38,6 +38,7 @@ import { createClient } from "../lib/supabase/client";
 import { formatSourceChannel } from "../lib/sourceChannels";
 import type { Appointment, CustomerStatus, FollowUp, Inquiry } from "../types";
 
+import { AutoDismissAlert } from "./AutoDismissAlert";
 import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
@@ -139,19 +140,17 @@ function formatLanguage(language: string | null) {
 }
 
 function formatCustomerStatus(status: string) {
-  if (status === "new") {
-    return "Nuevo";
-  }
+  const normalizedStatus = normalizeCustomerStatus(status);
 
-  if (status === "active") {
+  if (normalizedStatus === "active") {
     return "Activo";
   }
 
-  if (status === "inactive") {
+  if (normalizedStatus === "inactive") {
     return "Inactivo";
   }
 
-  if (status === "archived") {
+  if (normalizedStatus === "archived") {
     return "Archivado";
   }
 
@@ -1227,7 +1226,6 @@ export function CustomerDetail({
                   }}
                   className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                 >
-                  <option value="new">Nuevo</option>
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
                   <option value="archived">Archivado</option>
@@ -1241,11 +1239,11 @@ export function CustomerDetail({
               </div>
             ) : null}
 
-            {customerMessage ? (
-              <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {customerMessage}
-              </div>
-            ) : null}
+            <AutoDismissAlert
+              className="mt-4 font-medium"
+              message={customerMessage}
+              onDismiss={() => setCustomerMessage("")}
+            />
 
             <Button
               className="mt-4 w-full"
@@ -1273,11 +1271,11 @@ export function CustomerDetail({
               </div>
             ) : null}
 
-            {noteMessage ? (
-              <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {noteMessage}
-              </div>
-            ) : null}
+            <AutoDismissAlert
+              className="mt-3 font-medium"
+              message={noteMessage}
+              onDismiss={() => setNoteMessage("")}
+            />
 
             <Button
               variant="secondary"
@@ -1309,11 +1307,11 @@ export function CustomerDetail({
               </div>
             ) : null}
 
-            {createFollowUpMessage ? (
-              <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {createFollowUpMessage}
-              </div>
-            ) : null}
+            <AutoDismissAlert
+              className="mb-4 font-medium"
+              message={createFollowUpMessage}
+              onDismiss={() => setCreateFollowUpMessage("")}
+            />
 
             {activeInquiries.length === 0 ? (
               <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
@@ -1422,11 +1420,11 @@ export function CustomerDetail({
               </div>
             ) : null}
 
-            {followUpMessage ? (
-              <div className="mb-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-                {followUpMessage}
-              </div>
-            ) : null}
+            <AutoDismissAlert
+              className="mb-4 font-medium"
+              message={followUpMessage}
+              onDismiss={() => setFollowUpMessage("")}
+            />
 
             <div className="grid gap-4 xl:grid-cols-2">
               <BoardColumn

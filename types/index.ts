@@ -21,7 +21,6 @@ export type InquiryStatus =
   | "discarded";
 
 export type CustomerStatus =
-  | "new"
   | "active"
   | "inactive"
   | "archived";

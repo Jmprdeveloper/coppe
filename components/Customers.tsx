@@ -7,7 +7,7 @@ import {
   Plus,
   Search,
   UserCheck,
-  UserPlus,
+  UserX,
   Users,
   X,
 } from "lucide-react";
@@ -26,6 +26,7 @@ import { formatSourceChannel } from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
 import type { CustomerStatus } from "../types";
 
+import { AutoDismissAlert } from "./AutoDismissAlert";
 import { Button } from "./Button";
 import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
@@ -75,7 +76,6 @@ const customerStatusFilters: {
 }[] = [
   { value: "all", label: "Todos" },
   { value: "active", label: "Activos" },
-  { value: "new", label: "Nuevos" },
   { value: "inactive", label: "Inactivos" },
   { value: "archived", label: "Archivados" },
 ];
@@ -519,8 +519,8 @@ export function Customers({ openCustomer }: CustomersProps) {
   const activeCustomers = customers.filter(
     (customer) => normalizeCustomerStatus(customer.status) === "active"
   ).length;
-  const newCustomers = customers.filter(
-    (customer) => normalizeCustomerStatus(customer.status) === "new"
+  const inactiveCustomers = customers.filter(
+    (customer) => normalizeCustomerStatus(customer.status) === "inactive"
   ).length;
   const archivedCustomers = customers.filter(
     (customer) => normalizeCustomerStatus(customer.status) === "archived"
@@ -562,11 +562,11 @@ export function Customers({ openCustomer }: CustomersProps) {
           />
 
           <MetricCard
-            title="Nuevos"
-            value={newCustomers}
-            caption="Clientes recién incorporados"
-            icon={UserPlus}
-            tone="info"
+            title="Inactivos"
+            value={inactiveCustomers}
+            caption="Sin actividad operativa reciente"
+            icon={UserX}
+            tone="neutral"
           />
 
           <MetricCard
@@ -699,19 +699,24 @@ export function Customers({ openCustomer }: CustomersProps) {
                 </div>
               ) : null}
 
-              {successMessage ? (
-                <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-700">
-                  {successMessage}
-                </div>
-              ) : null}
+              <AutoDismissAlert
+                className="mt-4 font-medium"
+                message={successMessage}
+                onDismiss={() => setSuccessMessage("")}
+              />
             </div>
 
             <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
-              <Button variant="ghost" onClick={handleCloseCreateForm}>
+              <Button
+                className="w-full justify-center sm:w-auto"
+                variant="secondary"
+                onClick={handleCloseCreateForm}
+              >
                 Cancelar
               </Button>
 
               <Button
+                className="w-full justify-center sm:w-auto"
                 onClick={handleCreateCustomer}
                 disabled={isCreatingCustomer}
               >
@@ -747,13 +752,9 @@ export function Customers({ openCustomer }: CustomersProps) {
 
             <div className="flex gap-2">
               {hasActiveSearch ? (
-                <button
-                  type="button"
-                  onClick={handleClearSearch}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
-                >
+                <Button variant="secondary" onClick={handleClearSearch}>
                   <X size={15} /> Limpiar
-                </button>
+                </Button>
               ) : null}
 
               <Button onClick={handleSearch}>
