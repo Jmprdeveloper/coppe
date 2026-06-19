@@ -88,6 +88,12 @@ type CustomerAppointment = Appointment & {
   scheduledAtValue: string;
 };
 
+type FollowUpActionMessage = {
+  followUpId: string;
+  message: string;
+  updatedFollowUp: FollowUp;
+};
+
 function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   const status = normalizeFollowUpStatus(row.status);
   const urgency = resolveFollowUpUrgency(row.due_at, status, row.urgency);
@@ -185,6 +191,29 @@ function formatInquiryStatus(status: string) {
   }
 
   return "Estado no indicado";
+}
+
+function getFollowUpStatusAuditAction(
+  previousStatus: FollowUp["status"],
+  nextStatus: FollowUp["status"]
+) {
+  if (nextStatus === "pending") {
+    return "reopen_follow_up";
+  }
+
+  if (nextStatus === "completed") {
+    return "complete_follow_up";
+  }
+
+  if (nextStatus === "cancelled") {
+    return "cancel_follow_up";
+  }
+
+  if (previousStatus !== nextStatus) {
+    return "update_follow_up_status";
+  }
+
+  return "update_follow_up";
 }
 
 function isActiveInquiry(inquiry: Inquiry) {
@@ -307,7 +336,8 @@ export function CustomerDetail({
   const [createFollowUpMessage, setCreateFollowUpMessage] = useState("");
   const [createFollowUpErrorMessage, setCreateFollowUpErrorMessage] =
     useState("");
-  const [followUpMessage, setFollowUpMessage] = useState("");
+  const [followUpActionMessage, setFollowUpActionMessage] =
+    useState<FollowUpActionMessage | null>(null);
   const [followUpErrorMessage, setFollowUpErrorMessage] = useState("");
   const [currentTimeMs, setCurrentTimeMs] = useState(0);
 
@@ -321,7 +351,7 @@ export function CustomerDetail({
       setNoteErrorMessage("");
       setCreateFollowUpMessage("");
       setCreateFollowUpErrorMessage("");
-      setFollowUpMessage("");
+      setFollowUpActionMessage(null);
       setFollowUpErrorMessage("");
       setCurrentTimeMs(Date.now());
       setCustomer(null);
@@ -512,6 +542,36 @@ export function CustomerDetail({
     activeInquiries[0] ??
     null;
 
+  const applyFollowUpActionMessage = () => {
+    if (!followUpActionMessage) {
+      return;
+    }
+
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) =>
+        followUp.id === followUpActionMessage.followUpId
+          ? followUpActionMessage.updatedFollowUp
+          : followUp
+      )
+    );
+    setFollowUpActionMessage(null);
+  };
+
+  const dismissFollowUpActionMessage = (followUpId: string) => {
+    if (followUpActionMessage?.followUpId !== followUpId) {
+      return;
+    }
+
+    setFollowUps((currentFollowUps) =>
+      currentFollowUps.map((followUp) =>
+        followUp.id === followUpActionMessage.followUpId
+          ? followUpActionMessage.updatedFollowUp
+          : followUp
+      )
+    );
+    setFollowUpActionMessage(null);
+  };
+
   const handleSaveCustomer = async () => {
     setCustomerMessage("");
     setCustomerErrorMessage("");
@@ -624,6 +684,10 @@ export function CustomerDetail({
     }
 
     const previousName = customer.name;
+    const previousEmail = customer.email ?? "";
+    const previousPhone = customer.phone ?? "";
+    const previousLanguage = customer.language ?? "es";
+    const previousStatus = normalizeCustomerStatus(customer.status);
 
     const { data: updatedCustomer, error: updateCustomerError } = await supabase
       .from("customers")
@@ -648,6 +712,63 @@ export function CustomerDetail({
         )}`
       );
       return;
+    }
+
+    const changedFields: string[] = [];
+
+    if (cleanName !== previousName) {
+      changedFields.push("name");
+    }
+
+    if (cleanEmail !== previousEmail) {
+      changedFields.push("email");
+    }
+
+    if (cleanPhone !== previousPhone) {
+      changedFields.push("phone");
+    }
+
+    if (cleanLanguage !== previousLanguage) {
+      changedFields.push("language");
+    }
+
+    if (cleanStatus !== previousStatus) {
+      changedFields.push("status");
+    }
+
+    let auditWarningMessage = "";
+
+    if (changedFields.length > 0) {
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: customer.company_id,
+        audit_action:
+          changedFields.length === 1 && changedFields[0] === "status"
+            ? "update_customer_status"
+            : "update_customer",
+        audit_entity_type: "customer",
+        audit_entity_id: customer.id,
+        audit_metadata: {
+          changed_fields: changedFields,
+          previous_status: previousStatus,
+          next_status: cleanStatus,
+          name_changed: changedFields.includes("name"),
+          email_changed: changedFields.includes("email"),
+          phone_changed: changedFields.includes("phone"),
+          language_changed: changedFields.includes("language"),
+          status_changed: changedFields.includes("status"),
+          source: "customer_detail",
+        },
+      });
+
+      if (auditLogError) {
+        console.error(
+          "Customer updated, but could not create audit log:",
+          auditLogError
+        );
+
+        auditWarningMessage =
+          " Advertencia: no se pudo registrar la auditoría del cliente.";
+      }
     }
 
     if (cleanName !== previousName) {
@@ -702,7 +823,9 @@ export function CustomerDetail({
       }))
     );
     setNewFollowUpTitle(`Revisar caso de ${cleanName}`);
-    setCustomerMessage("Datos del cliente guardados correctamente.");
+    setCustomerMessage(
+      `Datos del cliente guardados correctamente.${auditWarningMessage}`
+    );
   };
 
   const handleSaveNote = async () => {
@@ -747,9 +870,34 @@ export function CustomerDetail({
       return;
     }
 
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: customer.company_id,
+      audit_action: "create_internal_note",
+      audit_entity_type: "internal_note",
+      audit_entity_id: data.id,
+      audit_metadata: {
+        customer_id: customer.id,
+        inquiry_id: null,
+        body_length: cleanNote.length,
+        source: "customer_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Internal note created, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría de la nota.";
+    }
+
     setNotes((currentNotes) => [data, ...currentNotes]);
     setNote("");
-    setNoteMessage("Nota guardada correctamente.");
+    setNoteMessage(`Nota guardada correctamente.${auditWarningMessage}`);
   };
 
   const handleOpenCreateFollowUpForm = () => {
@@ -851,6 +999,33 @@ export function CustomerDetail({
       return;
     }
 
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: customer.company_id,
+      audit_action: "create_follow_up",
+      audit_entity_type: "follow_up",
+      audit_entity_id: data.id,
+      audit_metadata: {
+        inquiry_id: selectedInquiry.id,
+        customer_id: customer.id,
+        status: "pending",
+        due_at: dueAt,
+        title_length: cleanTitle.length,
+        source: "customer_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Follow-up created, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría del seguimiento.";
+    }
+
     setFollowUps((currentFollowUps) => [
       mapFollowUpRowToFollowUp(data),
       ...currentFollowUps,
@@ -859,15 +1034,38 @@ export function CustomerDetail({
     setShowCreateFollowUpForm(false);
     setNewFollowUpTitle(`Revisar caso de ${customer.name}`);
     setNewFollowUpDueAt(getDefaultFollowUpDateTimeLocal());
-    setCreateFollowUpMessage("Seguimiento creado correctamente.");
+    setCreateFollowUpMessage(
+      `Seguimiento creado correctamente.${auditWarningMessage}`
+    );
   };
 
   const handleUpdateFollowUpStatus = async (
     followUpId: string,
     status: "pending" | "completed" | "cancelled"
   ) => {
-    setFollowUpMessage("");
+    applyFollowUpActionMessage();
     setFollowUpErrorMessage("");
+
+    if (!customer) {
+      setFollowUpErrorMessage(
+        "No se puede actualizar el seguimiento porque no hay cliente cargado."
+      );
+      return;
+    }
+
+    const currentFollowUp = followUps.find(
+      (followUp) => followUp.id === followUpId
+    );
+
+    if (!currentFollowUp) {
+      setFollowUpErrorMessage(
+        "No se puede actualizar el seguimiento porque no se encontró en pantalla."
+      );
+      return;
+    }
+
+    const previousStatus = currentFollowUp.status;
+
     setUpdatingFollowUpId(followUpId);
 
     const { data: updatedFollowUp, error } = await supabase
@@ -900,23 +1098,55 @@ export function CustomerDetail({
     }
 
     const mappedUpdatedFollowUp = mapFollowUpRowToFollowUp(updatedFollowUp);
+    let auditWarningMessage = "";
 
-    setFollowUps((currentFollowUps) =>
-      currentFollowUps.map((followUp) =>
-        followUp.id === followUpId ? mappedUpdatedFollowUp : followUp
-      )
-    );
+    if (previousStatus !== mappedUpdatedFollowUp.status) {
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: customer.company_id,
+        audit_action: getFollowUpStatusAuditAction(
+          previousStatus,
+          mappedUpdatedFollowUp.status
+        ),
+        audit_entity_type: "follow_up",
+        audit_entity_id: followUpId,
+        audit_metadata: {
+          inquiry_id: updatedFollowUp.inquiry_id,
+          customer_id: customer.id,
+          previous_status: previousStatus,
+          next_status: mappedUpdatedFollowUp.status,
+          due_at: updatedFollowUp.due_at ?? null,
+          source: "customer_detail",
+        },
+      });
 
-    if (status === "pending") {
-      setFollowUpMessage("Seguimiento reabierto correctamente.");
+      if (auditLogError) {
+        console.error(
+          "Follow-up status updated, but could not create audit log:",
+          auditLogError
+        );
+
+        auditWarningMessage =
+          " Advertencia: no se pudo registrar la auditoría del seguimiento.";
+      }
+    }
+
+    if (mappedUpdatedFollowUp.status === "pending") {
+      setFollowUpActionMessage({
+        followUpId,
+        message: `Seguimiento reabierto correctamente.${auditWarningMessage}`,
+        updatedFollowUp: mappedUpdatedFollowUp,
+      });
       return;
     }
 
-    setFollowUpMessage(
-      status === "completed"
-        ? "Seguimiento completado correctamente."
-        : "Seguimiento cancelado correctamente."
-    );
+    setFollowUpActionMessage({
+      followUpId,
+      message:
+        mappedUpdatedFollowUp.status === "completed"
+          ? `Seguimiento completado correctamente.${auditWarningMessage}`
+          : `Seguimiento cancelado correctamente.${auditWarningMessage}`,
+      updatedFollowUp: mappedUpdatedFollowUp,
+    });
   };
 
   if (isLoading) {
@@ -1420,12 +1650,6 @@ export function CustomerDetail({
               </div>
             ) : null}
 
-            <AutoDismissAlert
-              className="mb-4 font-medium"
-              message={followUpMessage}
-              onDismiss={() => setFollowUpMessage("")}
-            />
-
             <div className="grid gap-4 xl:grid-cols-2">
               <BoardColumn
                 title="Seguimientos"
@@ -1457,7 +1681,20 @@ export function CustomerDetail({
                               onCancel={(id) =>
                                 handleUpdateFollowUpStatus(id, "cancelled")
                               }
-                              isUpdating={updatingFollowUpId === followUp.id}
+                              isUpdating={
+                                updatingFollowUpId === followUp.id ||
+                                followUpActionMessage?.followUpId ===
+                                  followUp.id
+                              }
+                              successMessage={
+                                followUpActionMessage?.followUpId ===
+                                followUp.id
+                                  ? followUpActionMessage.message
+                                  : ""
+                              }
+                              onDismissSuccessMessage={() =>
+                                dismissFollowUpActionMessage(followUp.id)
+                              }
                             />
                           ))}
                         </div>
@@ -1479,7 +1716,20 @@ export function CustomerDetail({
                               onReopen={(id) =>
                                 handleUpdateFollowUpStatus(id, "pending")
                               }
-                              isUpdating={updatingFollowUpId === followUp.id}
+                              isUpdating={
+                                updatingFollowUpId === followUp.id ||
+                                followUpActionMessage?.followUpId ===
+                                  followUp.id
+                              }
+                              successMessage={
+                                followUpActionMessage?.followUpId ===
+                                followUp.id
+                                  ? followUpActionMessage.message
+                                  : ""
+                              }
+                              onDismissSuccessMessage={() =>
+                                dismissFollowUpActionMessage(followUp.id)
+                              }
                             />
                           ))}
                         </div>

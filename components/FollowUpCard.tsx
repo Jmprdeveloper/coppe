@@ -9,6 +9,8 @@ import {
 import { classNames } from "../lib/utils";
 import type { FollowUp } from "../types";
 
+import { AutoDismissAlert } from "./AutoDismissAlert";
+
 type FollowUpCardProps = {
   followUp: FollowUp;
   onOpen?: (id: string) => void;
@@ -17,6 +19,8 @@ type FollowUpCardProps = {
   onCancel?: (id: string) => void;
   onReopen?: (id: string) => void;
   isUpdating?: boolean;
+  successMessage?: string;
+  onDismissSuccessMessage?: () => void;
 };
 
 function getFollowUpStatusLabel(followUp: FollowUp) {
@@ -87,6 +91,8 @@ export function FollowUpCard({
   onCancel,
   onReopen,
   isUpdating = false,
+  successMessage = "",
+  onDismissSuccessMessage,
 }: FollowUpCardProps) {
   const completed = followUp.status === "completed";
   const cancelled = followUp.status === "cancelled";
@@ -216,6 +222,12 @@ export function FollowUpCard({
           </button>
         </div>
       ) : null}
+
+      <AutoDismissAlert
+        className="mt-4 font-medium"
+        message={successMessage}
+        onDismiss={onDismissSuccessMessage ?? (() => undefined)}
+      />
 
       {completed || cancelled ? (
         <p className="mt-3 text-xs text-slate-500">
