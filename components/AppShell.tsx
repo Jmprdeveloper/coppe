@@ -26,6 +26,7 @@ import { FollowUps } from "./FollowUps";
 import { Inquiries } from "./Inquiries";
 import { InquiryDetail } from "./InquiryDetail";
 import { InquiryForm } from "./InquiryForm";
+import { ScrollToTopButton } from "./ScrollToTopButton";
 import { SettingsPage } from "./SettingsPage";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
@@ -65,6 +66,9 @@ export function AppShell({
   const [company, setCompany] = useState<CurrentCompany | null>(null);
   const [isCompanyLoading, setIsCompanyLoading] = useState(true);
   const [companyErrorMessage, setCompanyErrorMessage] = useState("");
+  const [isInquiryFormOpen, setIsInquiryFormOpen] = useState(
+    activeView === "InquiryForm"
+  );
 
   useEffect(() => {
     let mounted = true;
@@ -101,10 +105,20 @@ export function AppShell({
     };
   }, [supabase]);
 
+  const changeView = (view: string) => {
+    if (view === "InquiryForm") {
+      setIsInquiryFormOpen(true);
+      return;
+    }
+
+    setIsInquiryFormOpen(false);
+    setActiveView(view);
+  };
+
   const handleCompanyCreated = (createdCompany: CurrentCompany) => {
     setCompany(createdCompany);
     setCompanyErrorMessage("");
-    setActiveView("dashboard");
+    changeView("dashboard");
   };
 
   const handleCompanyUpdated = (updatedCompany: CurrentCompany) => {
@@ -113,11 +127,13 @@ export function AppShell({
   };
 
   const openInquiry = (id: string) => {
+    setIsInquiryFormOpen(false);
     setSelectedInquiryId(id);
     setActiveView("inquiryDetail");
   };
 
   const openCustomer = (id: string) => {
+    setIsInquiryFormOpen(false);
     setSelectedCustomerId(id);
     setActiveView("customerDetail");
   };
@@ -127,7 +143,7 @@ export function AppShell({
       case "dashboard":
         return (
           <Dashboard
-            setActiveView={setActiveView}
+            setActiveView={changeView}
             openInquiry={openInquiry}
           />
         );
@@ -136,7 +152,7 @@ export function AppShell({
         return (
           <Inquiries
             openInquiry={openInquiry}
-            setActiveView={setActiveView}
+            setActiveView={changeView}
           />
         );
 
@@ -144,7 +160,7 @@ export function AppShell({
         return (
           <InquiryDetail
             inquiryId={selectedInquiryId}
-            setActiveView={setActiveView}
+            setActiveView={changeView}
           />
         );
 
@@ -155,7 +171,7 @@ export function AppShell({
         return (
           <CustomerDetail
             customerId={selectedCustomerId}
-            setActiveView={setActiveView}
+            setActiveView={changeView}
             openInquiry={openInquiry}
           />
         );
@@ -171,8 +187,8 @@ export function AppShell({
 
       case "InquiryForm":
         return (
-          <InquiryForm
-            setActiveView={setActiveView}
+          <Dashboard
+            setActiveView={changeView}
             openInquiry={openInquiry}
           />
         );
@@ -180,7 +196,7 @@ export function AppShell({
       default:
         return (
           <Dashboard
-            setActiveView={setActiveView}
+            setActiveView={changeView}
             openInquiry={openInquiry}
           />
         );
@@ -232,11 +248,11 @@ export function AppShell({
   }
 
   return (
-    <div className="min-h-screen bg-[#F7F9FA] text-slate-900">
-      <div className="flex min-h-screen">
+    <div className="min-h-screen max-w-full overflow-x-clip bg-[#F7F9FA] text-slate-900">
+      <div className="flex min-h-screen min-w-0">
         <Sidebar
           activeView={activeView}
-          setActiveView={setActiveView}
+          setActiveView={changeView}
           navigation={navigation}
           onSignOut={onSignOut}
         />
@@ -244,7 +260,7 @@ export function AppShell({
         <div className="flex min-w-0 flex-1 flex-col">
           <Topbar
             activeView={activeView}
-            setActiveView={setActiveView}
+            setActiveView={changeView}
             navigation={navigation}
             company={company}
             userEmail={userEmail}
@@ -253,9 +269,11 @@ export function AppShell({
             openCustomer={openCustomer}
           />
 
-          <main className="flex-1 p-4 md:p-6 lg:p-8">
+          <main className="min-w-0 max-w-full flex-1 p-4 pb-24 md:p-6 md:pb-24 lg:p-8">
             {renderContent()}
           </main>
+
+          <ScrollToTopButton />
 
           <div className="fixed inset-x-0 bottom-0 z-30 border-t border-slate-200 bg-white px-2 py-2 lg:hidden">
             <div className="grid grid-cols-6 gap-1">
@@ -266,16 +284,16 @@ export function AppShell({
                 return (
                   <button
                     key={item.key}
-                    onClick={() => setActiveView(item.key)}
+                    onClick={() => changeView(item.key)}
                     className={classNames(
-                      "flex flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium",
+                      "flex min-w-0 flex-col items-center gap-1 rounded-xl px-1 py-2 text-[10px] font-medium",
                       active
                         ? "bg-[#E6F3F6] text-[#0F4C5C]"
                         : "text-slate-500"
                     )}
                   >
                     <Icon size={17} />
-                    <span className="truncate">
+                    <span className="block w-full truncate text-center">
                       {item.label.split(" ")[0]}
                     </span>
                   </button>
@@ -285,6 +303,20 @@ export function AppShell({
           </div>
         </div>
       </div>
+
+      {isInquiryFormOpen ? (
+        <InquiryForm
+          setActiveView={changeView}
+          openInquiry={openInquiry}
+          onClose={() => {
+            setIsInquiryFormOpen(false);
+
+            if (activeView === "InquiryForm") {
+              setActiveView("dashboard");
+            }
+          }}
+        />
+      ) : null}
     </div>
   );
 }

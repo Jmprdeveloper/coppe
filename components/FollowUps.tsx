@@ -4,10 +4,11 @@ import { useEffect, useMemo, useState, type KeyboardEvent } from "react";
 import {
   AlertTriangle,
   CalendarDays,
-  CheckCircle2,
+  ChevronRight,
   Clock3,
   History,
   Plus,
+  RotateCcw,
   Search,
   X,
 } from "lucide-react";
@@ -19,7 +20,7 @@ import {
 } from "../lib/followUpUtils";
 import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
-import type { VisualTone } from "../lib/visualSystem";
+import { actionStyles, type VisualTone } from "../lib/visualSystem";
 import type { FollowUp } from "../types";
 
 import { AutoDismissAlert } from "./AutoDismissAlert";
@@ -216,7 +217,7 @@ function getColumnTone(tone: FollowUpColumnTone): VisualTone {
     return "warning";
   }
 
-  return "info";
+  return "followUp";
 }
 
 function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
@@ -373,10 +374,51 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
   };
 
   const handleCancelCreateForm = () => {
+    if (isCreating) {
+      return;
+    }
+
     setShowCreateForm(false);
     setEditingFollowUpId(null);
     setFormErrorMessage("");
   };
+
+  const handleClearCreateForm = () => {
+    if (isCreating || isEditing) {
+      return;
+    }
+
+    setSelectedInquiryId("");
+    setTitle("");
+    setDueAt("");
+    setFormErrorMessage("");
+    setSuccessMessage("");
+  };
+
+  useEffect(() => {
+    if (!showCreateForm) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !isCreating) {
+        setShowCreateForm(false);
+        setEditingFollowUpId(null);
+        setFormErrorMessage("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCreating, showCreateForm]);
 
   const handleClearSearch = () => {
     setSearchTerm("");
@@ -723,7 +765,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             title="Próximos"
             value={allUpcomingCount}
             caption="Pendientes con fecha futura"
-            tone="info"
+            tone="followUp"
             icon={CalendarDays}
           />
 
@@ -731,13 +773,17 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             title="Historial"
             value={allHistoryCount}
             caption="Completados o cancelados"
-            tone="neutral"
+            tone="archived"
             icon={History}
           />
         </div>
       )}
 
-      <SectionCard className="mb-5">
+      <SectionCard
+        className="mb-5"
+        title="Buscar y filtrar seguimientos"
+        description="Localiza seguimientos por título, cliente, fecha o estado."
+      >
         <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
           <label className="text-sm font-medium text-slate-700">
             Buscar seguimiento
@@ -769,30 +815,30 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
       {showCreateForm ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="follow-up-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#062E36]/45 px-4 py-8 backdrop-blur-sm"
           onClick={handleCancelCreateForm}
         >
-          <div
-            className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="follow-up-modal-title"
+            className="max-h-[calc(100vh-4rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-[#B8D1D8] bg-white shadow-2xl shadow-[#062E36]/25"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E5F0F2] px-6 py-5">
               <div>
-                <div className="mb-2 inline-flex rounded-full border border-[#0F4C5C]/15 bg-[#0F4C5C]/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                <div className="mb-2 inline-flex rounded-full border border-[#B8D1D8] bg-[#F2FAFB] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
                   {isEditing ? "Editar seguimiento" : "Crear seguimiento"}
                 </div>
 
                 <h2
                   id="follow-up-modal-title"
-                  className="text-xl font-bold text-slate-950"
+                  className="text-xl font-bold text-[#062E36]"
                 >
                   {isEditing ? "Editar seguimiento" : "Crear seguimiento"}
                 </h2>
 
-                <p className="mt-1 text-sm leading-6 text-slate-500">
+                <p className="mt-1 text-sm leading-6 text-[#526D74]">
                   {isEditing
                     ? "Actualiza el título o la fecha de este seguimiento."
                     : "Asocia una tarea pendiente a un caso activo para no perder ninguna acción importante."}
@@ -802,8 +848,14 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
               <button
                 type="button"
                 onClick={handleCancelCreateForm}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                disabled={isCreating}
+                className="rounded-xl p-2 text-[#6B858C] transition hover:bg-[#F2FAFB] hover:text-[#0F4C5C] disabled:cursor-not-allowed disabled:opacity-50"
                 title="Cerrar ventana"
+                aria-label={
+                  isEditing
+                    ? "Cerrar formulario de edición de seguimiento"
+                    : "Cerrar formulario de nuevo seguimiento"
+                }
               >
                 <X size={18} />
               </button>
@@ -843,13 +895,17 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                       {inquiryOptions.length === 0 ? (
                         <option value="">No hay casos activos disponibles</option>
                       ) : (
-                        inquiryOptions.map((inquiry) => (
-                          <option key={inquiry.id} value={inquiry.id}>
-                            {inquiry.customer_name} ·{" "}
-                            {inquiry.subject || "Sin asunto"} ·{" "}
-                            {formatInquiryStatus(inquiry.status)}
-                          </option>
-                        ))
+                        <>
+                          <option value="">Selecciona un caso asociado</option>
+
+                          {inquiryOptions.map((inquiry) => (
+                            <option key={inquiry.id} value={inquiry.id}>
+                              {inquiry.customer_name} ·{" "}
+                              {inquiry.subject || "Sin asunto"} ·{" "}
+                              {formatInquiryStatus(inquiry.status)}
+                            </option>
+                          ))}
+                        </>
                       )}
                     </select>
                   </label>
@@ -897,14 +953,26 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
               />
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-[#E5F0F2] bg-[#F7FBFC] px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
               <Button
                 className="w-full justify-center sm:w-auto"
                 variant="secondary"
                 onClick={handleCancelCreateForm}
+                disabled={isCreating}
               >
                 Cancelar
               </Button>
+
+              {!isEditing ? (
+                <Button
+                  className="w-full justify-center sm:w-auto"
+                  variant="secondary"
+                  onClick={handleClearCreateForm}
+                  disabled={isCreating}
+                >
+                  Limpiar formulario
+                </Button>
+              ) : null}
 
               <Button
                 className="w-full justify-center sm:w-auto"
@@ -922,7 +990,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                     : "Guardar seguimiento"}
               </Button>
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
 
@@ -946,23 +1014,17 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
       {!isLoading && !errorMessage ? (
         <>
-          <section>
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">
-                  Tareas activas
-                </h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Seguimientos pendientes organizados por urgencia.
-                </p>
-              </div>
-
-              <div className="text-xs font-semibold text-slate-500">
+          <SectionCard
+            title="Tareas activas"
+            description="Seguimientos pendientes organizados por urgencia."
+            tone="followUp"
+            action={
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
                 {pendingFollowUps.length} pendiente
                 {pendingFollowUps.length === 1 ? "" : "s"}
-              </div>
-            </div>
-
+              </span>
+            }
+          >
             <div className="grid gap-5 xl:grid-cols-3">
               {renderFollowUpColumn({
                 title: "Vencidos",
@@ -991,35 +1053,32 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                 emptyMessage: "No hay seguimientos próximos.",
               })}
             </div>
-          </section>
+          </SectionCard>
 
-          <section className="mt-8">
-            <div className="mb-3 flex items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">Historial</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  Seguimientos completados o cancelados.
-                </p>
-              </div>
-
-              <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+          <SectionCard
+            className="mt-6"
+            title="Historial"
+            description="Seguimientos completados o cancelados."
+            tone="archived"
+            action={
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600 shadow-sm">
                 {historyFollowUps.length}
-              </div>
-            </div>
-
+              </span>
+            }
+          >
             {historyFollowUps.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm shadow-slate-200/60">
                 Todavía no hay seguimientos completados o cancelados.
               </div>
             ) : (
-              <div className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+              <div className="space-y-3">
                 {historyFollowUps.map((followUp) => {
                   const completed = followUp.status === "completed";
 
                   return (
                     <article
                       key={followUp.id}
-                      className="grid gap-3 px-4 py-4 md:grid-cols-[160px_1fr_220px_auto] md:items-center"
+                      className="grid gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-4 shadow-sm shadow-slate-200/60 md:grid-cols-[160px_1fr_220px_auto] md:items-center"
                     >
                       <div>
                         <span
@@ -1053,13 +1112,14 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
                       <div className="flex flex-col gap-2 md:flex-row md:justify-end">
                         {followUp.inquiryId ? (
-                          <Button
-                            className="w-full justify-center md:w-auto"
-                            variant="secondary"
+                          <button
+                            type="button"
+                            className={`${actionStyles.openCase} w-full md:w-auto`}
                             onClick={() => openInquiry(followUp.inquiryId)}
                           >
                             Abrir caso
-                          </Button>
+                            <ChevronRight size={14} />
+                          </button>
                         ) : null}
 
                         <Button
@@ -1070,7 +1130,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                             handleUpdateFollowUpStatus(followUp.id, "pending")
                           }
                         >
-                          <CheckCircle2 size={14} />
+                          <RotateCcw size={14} />
                           Reabrir
                         </Button>
                       </div>
@@ -1079,7 +1139,7 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
                 })}
               </div>
             )}
-          </section>
+          </SectionCard>
         </>
       ) : null}
     </div>

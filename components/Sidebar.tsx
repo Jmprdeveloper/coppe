@@ -64,12 +64,12 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="mx-4 mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
-        <div className="text-sm font-semibold text-emerald-900">
+      <div className="mx-4 mt-4 rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] p-4">
+        <div className="text-sm font-semibold text-[#083640]">
           Espacio activo
         </div>
 
-        <p className="mt-1 text-xs leading-5 text-emerald-700">
+        <p className="mt-1 text-xs leading-5 text-[#315F69]">
           Clientes, casos, mensajes, notas y seguimientos centralizados en tu
           espacio de trabajo.
         </p>

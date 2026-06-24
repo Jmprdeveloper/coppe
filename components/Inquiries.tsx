@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   AlertTriangle,
+  ChevronRight,
   ClipboardList,
   Inbox,
   MessageSquareText,
@@ -24,15 +25,13 @@ import {
   sourceChannelOptions,
 } from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
+import { actionStyles } from "../lib/visualSystem";
 
 import { BoardColumn } from "./BoardColumn";
 import { Button } from "./Button";
-import { CategoryBadge } from "./CategoryBadge";
 import { MetricCard } from "./MetricCard";
 import { PageHeader } from "./PageHeader";
-import { PriorityBadge } from "./PriorityBadge";
 import { SectionCard } from "./SectionCard";
-import { StatusBadge } from "./StatusBadge";
 
 type InquiriesProps = {
   openInquiry: (id: string) => void;
@@ -56,10 +55,71 @@ function SourceChannelBadge({ channel }: { channel: string | null }) {
   const label = formatSourceChannel(channel);
 
   return (
-    <span className="inline-flex max-w-full items-center rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-semibold text-slate-600">
+    <span className="inline-flex max-w-full items-center rounded-full border border-[#D2E4E8] bg-white px-2.5 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5">
       <span className="truncate">{label}</span>
     </span>
   );
+}
+
+function CaseBadge({ children }: { children: ReactNode }) {
+  return (
+    <span className="inline-flex max-w-full items-center rounded-full border border-[#D2E4E8] bg-white px-2.5 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5">
+      <span className="truncate">{children}</span>
+    </span>
+  );
+}
+
+function formatPriorityLabel(priority: string | null) {
+  const normalizedPriority = normalizePriority(priority);
+
+  if (normalizedPriority === "high") {
+    return "Alta";
+  }
+
+  if (normalizedPriority === "medium") {
+    return "Media";
+  }
+
+  return "Baja";
+}
+
+function formatCaseStatusLabel(status: string | null) {
+  const normalizedStatus = normalizeInquiryStatus(status ?? "");
+
+  if (normalizedStatus === "new") {
+    return "Nuevo";
+  }
+
+  if (normalizedStatus === "pending") {
+    return "En seguimiento";
+  }
+
+  if (normalizedStatus === "waiting_customer") {
+    return "Esperando al cliente";
+  }
+
+  if (normalizedStatus === "replied") {
+    return "Respondido";
+  }
+
+  if (normalizedStatus === "closed") {
+    return "Cerrado";
+  }
+
+  if (normalizedStatus === "discarded") {
+    return "Descartado";
+  }
+
+  return "Estado no indicado";
+}
+
+function formatCaseCategoryLabel(category: string | null) {
+  const normalizedCategory = normalizeInquiryCategory(category);
+  const categoryOption = inquiryCategoryOptions.find(
+    (option) => option.value === normalizedCategory
+  );
+
+  return categoryOption?.label ?? normalizedCategory ?? "Sin categoría";
 }
 
 function isActiveInquiryStatus(status: string | null | undefined) {
@@ -74,25 +134,20 @@ function isActiveInquiryStatus(status: string | null | undefined) {
 
 function getCaseCardAccentClassName(inquiry: InquiryRow) {
   const status = normalizeInquiryStatus(inquiry.status);
-  const priority = normalizePriority(inquiry.ai_priority);
-
-  if (priority === "high" && isActiveInquiryStatus(status)) {
-    return "border-red-200 ring-1 ring-red-100";
-  }
 
   if (status === "new") {
-    return "border-sky-200 ring-1 ring-sky-100";
+    return "border-[#B8D1D8] border-l-[#0F4C5C] ring-1 ring-[#D2E4E8]";
   }
 
   if (status === "pending") {
-    return "border-amber-200 ring-1 ring-amber-100";
+    return "border-[#9FC4CC] border-l-[#0B3F4C] ring-1 ring-[#C4DADF]";
   }
 
   if (status === "waiting_customer") {
-    return "border-[#0F4C5C]/25 ring-1 ring-[#0F4C5C]/10";
+    return "border-[#86B2BD] border-l-[#083640] ring-1 ring-[#B8D1D8]";
   }
 
-  return "border-slate-200";
+  return "border-[#D2E4E8] border-l-[#8FB8C2]";
 }
 
 function CaseBoardCard({
@@ -103,45 +158,55 @@ function CaseBoardCard({
   openInquiry: (id: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => openInquiry(inquiry.id)}
-      className={`w-full rounded-2xl border bg-white p-4 text-left shadow-sm transition hover:border-[#0F4C5C]/30 hover:shadow-md ${getCaseCardAccentClassName(
+    <article
+      className={`w-full rounded-2xl border border-l-4 bg-white p-4 text-left shadow-sm shadow-[#0F4C5C]/10 transition hover:border-[#8FB8C2] hover:bg-[#F7FBFC] hover:shadow-md ${getCaseCardAccentClassName(
         inquiry
       )}`}
     >
       <div className="flex flex-wrap items-center gap-2">
         <SourceChannelBadge channel={inquiry.source_channel} />
 
-        <PriorityBadge priority={normalizePriority(inquiry.ai_priority)} />
-        <CategoryBadge category={normalizeInquiryCategory(inquiry.ai_category)} />
-        <StatusBadge status={normalizeInquiryStatus(inquiry.status)} />
+        <CaseBadge>{formatPriorityLabel(inquiry.ai_priority)}</CaseBadge>
+        <CaseBadge>{formatCaseCategoryLabel(inquiry.ai_category)}</CaseBadge>
+        <CaseBadge>{formatCaseStatusLabel(inquiry.status)}</CaseBadge>
       </div>
 
-      <h3 className="mt-3 font-bold text-slate-950">
+      <h3 className="mt-3 font-bold text-[#073540]">
         {inquiry.customer_name}
       </h3>
 
-      <div className="mt-1 text-sm font-semibold text-slate-800">
+      <div className="mt-1 text-sm font-semibold text-[#153F48]">
         {inquiry.subject || "Sin asunto"}
       </div>
 
-      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
+      <p className="mt-2 line-clamp-3 text-sm leading-6 text-[#456C75]">
         {inquiry.ai_summary ||
           inquiry.original_message ||
           "Sin resumen disponible"}
       </p>
 
-      <div className="mt-3 text-xs font-medium text-slate-400">
+      <div className="mt-3 text-xs font-medium text-[#6B858C]">
         {formatDateTime(inquiry.created_at)}
       </div>
-    </button>
+
+      <div className="mt-4 flex justify-end">
+        <button
+          type="button"
+          onClick={() => openInquiry(inquiry.id)}
+          className={actionStyles.openCase}
+          title="Abrir caso"
+        >
+          Abrir caso
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </article>
   );
 }
 
 function EmptyColumnState({ children }: { children: string }) {
   return (
-    <div className="rounded-2xl border border-white/70 bg-white/80 px-4 py-5 text-sm leading-6 text-slate-600 shadow-sm">
+    <div className="rounded-2xl border border-[#D2E4E8] bg-white px-4 py-5 text-sm leading-6 text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
       {children}
     </div>
   );
@@ -153,7 +218,7 @@ function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
-          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+          className="h-[116px] animate-pulse rounded-2xl border border-[#D2E4E8] bg-[#EAF5F7] shadow-sm shadow-[#0F4C5C]/5"
         />
       ))}
     </div>
@@ -168,13 +233,9 @@ function HistoryInquiryRow({
   openInquiry: (id: string) => void;
 }) {
   return (
-    <button
-      type="button"
-      onClick={() => openInquiry(inquiry.id)}
-      className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-slate-50 md:grid-cols-[1fr_1.5fr_0.9fr_0.9fr_0.8fr] md:items-center"
-    >
+    <article className="grid w-full gap-3 px-4 py-4 text-left transition hover:bg-[#F7FBFC] md:grid-cols-[1fr_1.5fr_0.8fr_0.8fr_0.75fr_auto] md:items-center">
       <div className="min-w-0">
-        <div className="truncate font-semibold text-slate-950">
+        <div className="truncate font-semibold text-[#073540]">
           {inquiry.customer_name}
         </div>
 
@@ -184,11 +245,11 @@ function HistoryInquiryRow({
       </div>
 
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-slate-800">
+        <div className="truncate text-sm font-medium text-[#153F48]">
           {inquiry.subject || "Sin asunto"}
         </div>
 
-        <div className="mt-1 line-clamp-1 text-xs text-slate-500">
+        <div className="mt-1 line-clamp-1 text-xs text-[#6B858C]">
           {inquiry.ai_summary ||
             inquiry.original_message ||
             "Sin resumen disponible"}
@@ -200,13 +261,25 @@ function HistoryInquiryRow({
       </div>
 
       <div>
-        <StatusBadge status={normalizeInquiryStatus(inquiry.status)} />
+        <CaseBadge>{formatCaseStatusLabel(inquiry.status)}</CaseBadge>
       </div>
 
-      <div className="text-xs text-slate-500">
+      <div className="text-xs text-[#6B858C]">
         {formatDateTime(inquiry.created_at)}
       </div>
-    </button>
+
+      <div className="flex justify-start md:justify-end">
+        <button
+          type="button"
+          onClick={() => openInquiry(inquiry.id)}
+          className={actionStyles.openCase}
+          title="Abrir caso"
+        >
+          Abrir caso
+          <ChevronRight size={14} />
+        </button>
+      </div>
+    </article>
   );
 }
 
@@ -395,7 +468,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
             value={waitingCustomerCount}
             caption="La empresa ya respondió"
             icon={MessageSquareText}
-            tone="brand"
+            tone="customer"
           />
 
           <MetricCard
@@ -415,8 +488,8 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
       >
         <div className="space-y-3">
           <div className="flex flex-col gap-2 md:flex-row md:items-center">
-            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-[#0F4C5C] focus-within:bg-white">
-              <Search size={16} className="shrink-0 text-slate-400" />
+            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 focus-within:border-[#0F4C5C] focus-within:bg-white">
+              <Search size={16} className="shrink-0 text-[#8AA5AC]" />
 
               <input
                 value={searchTerm}
@@ -426,7 +499,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                     handleSearch();
                   }
                 }}
-                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm text-[#153F48] outline-none placeholder:text-[#8AA5AC]"
                 placeholder="Buscar por cliente, asunto, mensaje, categoría o canal..."
               />
             </div>
@@ -436,7 +509,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                 <button
                   type="button"
                   onClick={handleClearSearch}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#B8D1D8] bg-white px-4 py-2 text-sm font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5 transition hover:bg-[#F2FAFB] hover:text-[#0F4C5C]"
                 >
                   <X size={15} /> Limpiar
                 </button>
@@ -449,12 +522,12 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
           </div>
 
           <div className="grid gap-2 md:grid-cols-4">
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#5C7780]">
               Estado
               <select
                 value={statusFilter}
                 onChange={(event) => setStatusFilter(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm font-normal normal-case text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
               >
                 <option value="all">Todos</option>
                 <option value="new">Nuevo</option>
@@ -466,12 +539,12 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               </select>
             </label>
 
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#5C7780]">
               Prioridad
               <select
                 value={priorityFilter}
                 onChange={(event) => setPriorityFilter(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm font-normal normal-case text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
               >
                 <option value="all">Todas</option>
                 <option value="low">Baja</option>
@@ -480,12 +553,12 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               </select>
             </label>
 
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#5C7780]">
               Categoría
               <select
                 value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm font-normal normal-case text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
               >
                 <option value="all">Todas</option>
 
@@ -500,12 +573,12 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               </select>
             </label>
 
-            <label className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label className="text-xs font-semibold uppercase tracking-wide text-[#5C7780]">
               Canal
               <select
                 value={sourceChannelFilter}
                 onChange={(event) => setSourceChannelFilter(event.target.value)}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal normal-case text-slate-700 outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm font-normal normal-case text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
               >
                 <option value="all">Todos los canales</option>
 
@@ -524,40 +597,40 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
       </SectionCard>
 
       {errorMessage ? (
-        <div className="mb-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mb-5 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm font-medium text-[#083640]">
           {errorMessage}
         </div>
       ) : null}
 
       {isLoading ? (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+        <div className="rounded-2xl border border-[#D2E4E8] bg-white p-6 text-sm text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
           Cargando casos...
         </div>
       ) : null}
 
       {!isLoading && !errorMessage ? (
         <>
-          <section>
-            <div className="mb-3 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-950">
-                  Casos activos
-                </h2>
-
-                <p className="mt-1 text-sm text-slate-500">
-                  {hasActiveFilters
-                    ? `Mostrando ${activeFilteredCount} casos activos filtrados.`
-                    : "Casos que todavía requieren revisión, respuesta o seguimiento."}
-                </p>
-              </div>
-
-              {sourceChannelFilter !== "all" ? (
-                <div className="inline-flex w-fit items-center rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-600">
+          <SectionCard
+            title="Casos activos"
+            description={
+              hasActiveFilters
+                ? `Mostrando ${activeFilteredCount} casos activos filtrados.`
+                : "Casos que todavía requieren revisión, respuesta o seguimiento."
+            }
+            tone="brand"
+            action={
+              sourceChannelFilter !== "all" ? (
+                <span className="inline-flex w-fit items-center rounded-full border border-[#B8D1D8] bg-white px-3 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5">
                   Canal: {formatSourceChannel(sourceChannelFilter)}
-                </div>
-              ) : null}
-            </div>
-
+                </span>
+              ) : (
+                <span className="rounded-full border border-[#B8D1D8] bg-white px-3 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5">
+                  {activeFilteredCount} activo
+                  {activeFilteredCount === 1 ? "" : "s"}
+                </span>
+              )
+            }
+          >
             <div className="grid gap-5 xl:grid-cols-3">
               <BoardColumn
                 title="Nuevos"
@@ -609,7 +682,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                 title="Esperando cliente"
                 description="La empresa ya respondió y espera datos del cliente."
                 count={waitingCustomerInquiries.length}
-                tone="brand"
+                tone="customer"
               >
                 {waitingCustomerInquiries.length === 0 ? (
                   <EmptyColumnState>
@@ -628,7 +701,7 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                 )}
               </BoardColumn>
             </div>
-          </section>
+          </SectionCard>
 
           <SectionCard
             title="Historial de casos"
@@ -642,24 +715,26 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
                 : "Casos respondidos, cerrados o descartados aparecerán aquí."
             }
             className="mt-8"
+            tone="archived"
           >
             {historyInquiries.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+              <div className="rounded-2xl border border-[#D2E4E8] bg-white p-6 text-sm text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
                 {hasActiveFilters
                   ? "No hay casos de historial que coincidan con los filtros actuales."
                   : "Todavía no hay casos en el historial."}
               </div>
             ) : (
-              <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-                <div className="hidden grid-cols-[1fr_1.5fr_0.9fr_0.9fr_0.8fr] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 md:grid">
+              <div className="overflow-hidden rounded-2xl border border-[#D2E4E8] bg-white shadow-sm shadow-[#0F4C5C]/5">
+                <div className="hidden grid-cols-[1fr_1.5fr_0.8fr_0.8fr_0.75fr_auto] gap-4 border-b border-[#D2E4E8] bg-[#F7FBFC] px-4 py-3 text-xs font-semibold uppercase tracking-wide text-[#5C7780] md:grid">
                   <div>Cliente</div>
                   <div>Resumen</div>
                   <div>Canal</div>
                   <div>Estado</div>
                   <div>Fecha</div>
+                  <div className="text-right">Acción</div>
                 </div>
 
-                <div className="divide-y divide-slate-100">
+                <div className="divide-y divide-[#EAF5F7]">
                   {historyInquiries.map((inquiry) => (
                     <HistoryInquiryRow
                       key={inquiry.id}

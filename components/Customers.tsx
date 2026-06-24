@@ -24,6 +24,7 @@ import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { normalizeSearchText } from "../lib/searchUtils";
 import { formatSourceChannel } from "../lib/sourceChannels";
 import { createClient } from "../lib/supabase/client";
+import { classNames } from "../lib/utils";
 import type { CustomerStatus } from "../types";
 
 import { AutoDismissAlert } from "./AutoDismissAlert";
@@ -306,9 +307,37 @@ export function Customers({ openCustomer }: CustomersProps) {
   };
 
   const handleCloseCreateForm = () => {
+    if (isCreatingCustomer) {
+      return;
+    }
+
     setShowCreateForm(false);
     setCreateErrorMessage("");
   };
+
+  useEffect(() => {
+    if (!showCreateForm) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !isCreatingCustomer) {
+        setShowCreateForm(false);
+        setCreateErrorMessage("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isCreatingCustomer, showCreateForm]);
 
   const handleCreateCustomer = async () => {
     setCreateErrorMessage("");
@@ -566,7 +595,7 @@ export function Customers({ openCustomer }: CustomersProps) {
             value={inactiveCustomers}
             caption="Sin actividad operativa reciente"
             icon={UserX}
-            tone="neutral"
+            tone="info"
           />
 
           <MetricCard
@@ -582,37 +611,37 @@ export function Customers({ openCustomer }: CustomersProps) {
             value={archivedCustomers}
             caption="Fuera de la operativa diaria"
             icon={Archive}
-            tone="neutral"
+            tone="danger"
           />
         </div>
       )}
 
       {showCreateForm ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="new-customer-title"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#062E36]/45 px-4 py-8 backdrop-blur-sm"
           onClick={handleCloseCreateForm}
         >
-          <div
-            className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="new-customer-title"
+            className="max-h-[calc(100vh-4rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-[#B8D1D8] bg-white shadow-2xl shadow-[#062E36]/25"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E5F0F2] px-6 py-5">
               <div>
-                <div className="mb-2 inline-flex rounded-full border border-[#0F4C5C]/15 bg-[#0F4C5C]/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                <div className="mb-2 inline-flex rounded-full border border-[#B8D1D8] bg-[#F2FAFB] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
                   Nuevo cliente
                 </div>
 
                 <h2
                   id="new-customer-title"
-                  className="text-xl font-bold text-slate-950"
+                  className="text-xl font-bold text-[#062E36]"
                 >
                   Crear cliente
                 </h2>
 
-                <p className="mt-1 text-sm leading-6 text-slate-500">
+                <p className="mt-1 text-sm leading-6 text-[#526D74]">
                   Añade un cliente para asociarle casos, notas, citas internas y
                   seguimientos.
                 </p>
@@ -621,8 +650,10 @@ export function Customers({ openCustomer }: CustomersProps) {
               <button
                 type="button"
                 onClick={handleCloseCreateForm}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                disabled={isCreatingCustomer}
+                className="rounded-xl p-2 text-[#6B858C] transition hover:bg-[#F2FAFB] hover:text-[#0F4C5C] disabled:cursor-not-allowed disabled:opacity-50"
                 title="Cerrar ventana"
+                aria-label="Cerrar formulario de nuevo cliente"
               >
                 <X size={18} />
               </button>
@@ -706,13 +737,23 @@ export function Customers({ openCustomer }: CustomersProps) {
               />
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+            <div className="flex flex-col-reverse gap-2 border-t border-[#E5F0F2] bg-[#F7FBFC] px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
               <Button
                 className="w-full justify-center sm:w-auto"
                 variant="secondary"
                 onClick={handleCloseCreateForm}
+                disabled={isCreatingCustomer}
               >
                 Cancelar
+              </Button>
+
+              <Button
+                className="w-full justify-center sm:w-auto"
+                variant="secondary"
+                onClick={resetCreateCustomerForm}
+                disabled={isCreatingCustomer}
+              >
+                Limpiar formulario
               </Button>
 
               <Button
@@ -723,7 +764,7 @@ export function Customers({ openCustomer }: CustomersProps) {
                 {isCreatingCustomer ? "Creando cliente..." : "Guardar cliente"}
               </Button>
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
 
@@ -763,7 +804,7 @@ export function Customers({ openCustomer }: CustomersProps) {
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
+          <div className="mx-auto grid w-full max-w-xs grid-cols-2 gap-2 sm:mx-0 sm:flex sm:max-w-none sm:flex-wrap">
             {customerStatusFilters.map((customerStatusFilter) => (
               <button
                 key={customerStatusFilter.value}
@@ -771,8 +812,8 @@ export function Customers({ openCustomer }: CustomersProps) {
                 onClick={() => setStatusFilter(customerStatusFilter.value)}
                 className={
                   statusFilter === customerStatusFilter.value
-                    ? "rounded-xl bg-[#0F4C5C] px-3 py-2 text-sm font-semibold text-white transition"
-                    : "rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950"
+                    ? "w-full rounded-xl bg-[#0F4C5C] px-3 py-2 text-sm font-semibold text-white transition sm:w-auto"
+                    : "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-semibold text-slate-600 transition hover:bg-slate-50 hover:text-slate-950 sm:w-auto"
                 }
               >
                 {customerStatusFilter.label}
@@ -827,6 +868,7 @@ export function Customers({ openCustomer }: CustomersProps) {
       {!isLoading && !errorMessage && filteredCustomers.length > 0 ? (
         <SectionCard
           title="Listado de clientes"
+          tone="brand"
           description={
             hasActiveSearch || hasActiveStatusFilter
               ? `Mostrando ${filteredCustomers.length} de ${customers.length} cliente${
@@ -847,8 +889,13 @@ export function Customers({ openCustomer }: CustomersProps) {
                 <button
                   key={customer.id}
                   onClick={() => openCustomer(customer.id)}
-                  className="rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-sm shadow-slate-200/50 transition hover:border-[#0F4C5C]/30 hover:shadow-md"
+                  className="relative overflow-hidden rounded-2xl border border-slate-300 bg-white p-5 pl-6 text-left shadow-sm shadow-slate-200/70 transition hover:border-[#0F4C5C]/40 hover:shadow-md"
                 >
+                  <span
+                    aria-hidden="true"
+                    className="absolute inset-y-0 left-0 w-1 bg-[#0F4C5C]"
+                  />
+
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <h3 className="truncate font-bold text-slate-950">
@@ -870,22 +917,29 @@ export function Customers({ openCustomer }: CustomersProps) {
                   </div>
 
                   <div className="mt-4 grid gap-2 text-xs text-slate-500 sm:grid-cols-2">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="font-semibold text-slate-700">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2">
+                      <div className="text-sm font-bold text-slate-900">
                         {customer.caseCount}
                       </div>
-                      <div>
+                      <div className="font-medium">
                         {customer.caseCount === 1
                           ? "caso total"
                           : "casos totales"}
                       </div>
                     </div>
 
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-                      <div className="font-semibold text-slate-700">
+                    <div
+                      className={classNames(
+                        "rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2",
+                        customer.activeCaseCount > 0
+                          ? "text-amber-800"
+                          : "text-slate-600"
+                      )}
+                    >
+                      <div className="text-sm font-bold">
                         {customer.activeCaseCount}
                       </div>
-                      <div>
+                      <div className="font-medium">
                         {customer.activeCaseCount === 1
                           ? "caso activo"
                           : "casos activos"}
@@ -894,11 +948,11 @@ export function Customers({ openCustomer }: CustomersProps) {
                   </div>
 
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                    <span className="rounded-full border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-700">
                       Último canal: {latestSourceChannel}
                     </span>
 
-                    <span className="rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 font-medium text-slate-600">
+                    <span className="rounded-full border border-slate-300 bg-white px-2.5 py-1 font-semibold text-slate-700">
                       {formatCustomerLanguage(customer.language)}
                     </span>
                   </div>

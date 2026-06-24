@@ -3,6 +3,8 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   CalendarClock,
+  ChevronLeft,
+  ChevronRight,
   ClipboardList,
   MessageSquareText,
   NotebookText,
@@ -36,6 +38,7 @@ import {
 } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
 import { formatSourceChannel } from "../lib/sourceChannels";
+import { actionStyles } from "../lib/visualSystem";
 import type { Appointment, CustomerStatus, FollowUp, Inquiry } from "../types";
 
 import { AutoDismissAlert } from "./AutoDismissAlert";
@@ -240,7 +243,7 @@ function getLatestSourceChannel(inquiries: Inquiry[]) {
 
 function EmptyActivityCard({ children }: { children: ReactNode }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-5 text-sm leading-6 text-slate-600 shadow-sm shadow-slate-200/50">
+    <div className="rounded-2xl border border-[#D2E4E8] bg-white px-4 py-5 text-sm leading-6 text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
       {children}
     </div>
   );
@@ -254,12 +257,12 @@ function CustomerInfoItem({
   value: string;
 }) {
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-sm shadow-slate-200/40">
-      <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+    <div className="rounded-2xl border border-[#B8D1D8] bg-gradient-to-br from-[#E2F0F3] via-[#F2FAFB] to-white px-4 py-3 shadow-sm shadow-[#0F4C5C]/10">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[#315F69]">
         {label}
       </div>
 
-      <div className="mt-1 truncate text-sm font-bold text-slate-800">
+      <div className="mt-1 truncate text-sm font-bold text-[#073540]">
         {value}
       </div>
     </div>
@@ -268,12 +271,12 @@ function CustomerInfoItem({
 
 function NoteCard({ note }: { note: InternalNoteRow }) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
-      <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+    <article className="rounded-2xl border border-[#B8D1D8] bg-[#F7FBFC] p-4 shadow-sm shadow-[#0F4C5C]/5">
+      <p className="whitespace-pre-wrap text-sm leading-6 text-[#153F48]">
         {note.body}
       </p>
 
-      <div className="mt-3 text-xs font-medium text-slate-400">
+      <div className="mt-3 text-xs font-medium text-[#6B858C]">
         {formatDateTime(note.created_at)}
       </div>
     </article>
@@ -286,11 +289,46 @@ function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
-          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+          className="h-[116px] animate-pulse rounded-2xl border border-[#D2E4E8] bg-[#EAF5F7] shadow-sm shadow-[#0F4C5C]/5"
         />
       ))}
     </div>
   );
+}
+
+function getAppointmentCardStyles(
+  appointment: CustomerAppointment,
+  isPendingClosure: boolean
+) {
+  if (isPendingClosure) {
+    return {
+      rail: "bg-[#083640]",
+      card: "border-[#8FB8C2] shadow-[#0F4C5C]/10",
+      badge: "border-[#6D9BA7] bg-white text-[#083640]",
+    };
+  }
+
+  if (appointment.status === "confirmed") {
+    return {
+      rail: "bg-[#0F4C5C]",
+      card: "border-[#B8D1D8] shadow-[#0F4C5C]/10",
+      badge: "border-[#A7C9D1] bg-white text-[#0F4C5C]",
+    };
+  }
+
+  if (appointment.status === "proposed") {
+    return {
+      rail: "bg-[#0B3F4C]",
+      card: "border-[#A7C9D1] shadow-[#0F4C5C]/10",
+      badge: "border-[#8FB8C2] bg-white text-[#0B3F4C]",
+    };
+  }
+
+  return {
+    rail: "bg-[#B8D1D8]",
+    card: "border-[#D2E4E8] shadow-[#0F4C5C]/5",
+    badge: "border-[#D2E4E8] bg-white text-[#5C7780]",
+  };
 }
 
 export function CustomerDetail({
@@ -1152,12 +1190,14 @@ export function CustomerDetail({
   if (isLoading) {
     return (
       <div>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => setActiveView("customers")}
-          className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
+          className="mb-4"
         >
-          ← Volver a clientes
-        </button>
+          <ChevronLeft size={16} />
+          Volver a clientes
+        </Button>
 
         <PageHeader
           title="Detalle de cliente"
@@ -1166,7 +1206,7 @@ export function CustomerDetail({
 
         <MetricCardsSkeleton />
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+        <div className="rounded-2xl border border-[#B8D1D8] bg-white p-6 text-sm font-medium text-[#456C75] shadow-md shadow-[#0F4C5C]/10">
           Cargando cliente...
         </div>
       </div>
@@ -1176,14 +1216,16 @@ export function CustomerDetail({
   if (errorMessage || !customer) {
     return (
       <div>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => setActiveView("customers")}
-          className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
+          className="mb-4"
         >
-          ← Volver a clientes
-        </button>
+          <ChevronLeft size={16} />
+          Volver a clientes
+        </Button>
 
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640] shadow-sm shadow-[#0F4C5C]/10">
           {errorMessage || "No se pudo cargar el cliente."}
         </div>
       </div>
@@ -1232,34 +1274,36 @@ export function CustomerDetail({
     appointment: CustomerAppointment,
     isPendingClosure = false
   ) => {
+    const appointmentCardStyles = getAppointmentCardStyles(
+      appointment,
+      isPendingClosure
+    );
+
     return (
       <article
         key={appointment.id}
-        className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50"
+        className={`relative overflow-hidden rounded-2xl border bg-white p-4 pl-5 shadow-sm ${appointmentCardStyles.card}`}
       >
+        <span
+          aria-hidden="true"
+          className={`absolute inset-y-0 left-0 w-1 ${appointmentCardStyles.rail}`}
+        />
+
         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div className="min-w-0">
             <span
-              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${
-                isPendingClosure
-                  ? "border-amber-200 bg-amber-50 text-amber-700"
-                  : appointment.status === "confirmed"
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                    : appointment.status === "proposed"
-                      ? "border-sky-200 bg-sky-50 text-sky-700"
-                      : "border-slate-200 bg-slate-50 text-slate-600"
-              }`}
+              className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${appointmentCardStyles.badge}`}
             >
               {isPendingClosure
                 ? "Pendiente de cerrar"
                 : getAppointmentStatusLabel(appointment.status)}
             </span>
 
-            <h3 className="mt-3 text-sm font-bold text-slate-950">
+            <h3 className="mt-3 text-sm font-bold text-[#073540]">
               {appointment.title}
             </h3>
 
-            <p className="mt-1 text-xs text-slate-500">
+            <p className="mt-1 text-xs text-[#6B858C]">
               {appointment.scheduledAt}
             </p>
           </div>
@@ -1268,22 +1312,23 @@ export function CustomerDetail({
             <button
               type="button"
               onClick={() => openInquiry(appointment.inquiryId)}
-              className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-[#0F4C5C] transition hover:bg-slate-50"
+              className={`${actionStyles.openCase} shrink-0`}
             >
               Abrir caso
+              <ChevronRight size={14} />
             </button>
           ) : null}
         </div>
 
         {isPendingClosure ? (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50/70 px-3 py-2 text-xs leading-5 text-amber-800">
+          <div className="mt-3 rounded-xl border border-[#8FB8C2] bg-[#F2FAFB] px-3 py-2 text-xs leading-5 text-[#0B3F4C]">
             Esta cita interna ya ha pasado y sigue activa. Revísala desde la
             agenda interna o desde el caso asociado.
           </div>
         ) : null}
 
         {appointment.notes ? (
-          <p className="mt-3 rounded-xl border border-slate-200 bg-slate-50/80 px-3 py-2 text-xs leading-5 text-slate-600">
+          <p className="mt-3 rounded-xl border border-[#D2E4E8] bg-[#F7FBFC]/80 px-3 py-2 text-xs leading-5 text-[#456C75]">
             {appointment.notes}
           </p>
         ) : null}
@@ -1293,12 +1338,14 @@ export function CustomerDetail({
 
   return (
     <div>
-      <button
+      <Button
+        variant="secondary"
         onClick={() => setActiveView("customers")}
-        className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
+        className="mb-4"
       >
-        ← Volver a clientes
-      </button>
+        <ChevronLeft size={16} />
+        Volver a clientes
+      </Button>
 
       <PageHeader
         title={customer.name}
@@ -1313,7 +1360,7 @@ export function CustomerDetail({
           value={inquiries.length}
           caption="Historial completo del cliente"
           icon={ClipboardList}
-          tone="brand"
+          tone="case"
         />
 
         <MetricCard
@@ -1321,7 +1368,7 @@ export function CustomerDetail({
           value={activeInquiryCount}
           caption="Requieren seguimiento o respuesta"
           icon={MessageSquareText}
-          tone="info"
+          tone="case"
         />
 
         <MetricCard
@@ -1329,7 +1376,7 @@ export function CustomerDetail({
           value={pendingFollowUpCount}
           caption="Pendientes de atender"
           icon={CalendarClock}
-          tone="warning"
+          tone="followUp"
         />
 
         <MetricCard
@@ -1337,7 +1384,7 @@ export function CustomerDetail({
           value={pendingAppointmentCount}
           caption="Activas o pendientes"
           icon={NotebookText}
-          tone="success"
+          tone="appointment"
         />
 
         <MetricCard
@@ -1347,7 +1394,7 @@ export function CustomerDetail({
             customer.language
           )}`}
           icon={UserRound}
-          tone="brand"
+          tone="customer"
         />
       </div>
 
@@ -1355,6 +1402,7 @@ export function CustomerDetail({
         title="Ficha del cliente"
         description="Información principal, estado interno y último canal de contacto."
         className="mb-5"
+        tone="customer"
       >
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <CustomerInfoItem
@@ -1384,9 +1432,10 @@ export function CustomerDetail({
           <SectionCard
             title="Datos del cliente"
             description="Edita la información de contacto y estado interno."
+            tone="customer"
           >
             <div className="space-y-4 text-sm">
-              <label className="block font-medium text-slate-700">
+              <label className="block font-medium text-[#315F69]">
                 Nombre
                 <input
                   value={editName}
@@ -1395,11 +1444,11 @@ export function CustomerDetail({
                     setCustomerMessage("");
                     setCustomerErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                 />
               </label>
 
-              <label className="block font-medium text-slate-700">
+              <label className="block font-medium text-[#315F69]">
                 Email
                 <input
                   type="email"
@@ -1409,12 +1458,12 @@ export function CustomerDetail({
                     setCustomerMessage("");
                     setCustomerErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                   placeholder="Sin email"
                 />
               </label>
 
-              <label className="block font-medium text-slate-700">
+              <label className="block font-medium text-[#315F69]">
                 Teléfono
                 <input
                   type="tel"
@@ -1424,12 +1473,12 @@ export function CustomerDetail({
                     setCustomerMessage("");
                     setCustomerErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                   placeholder="Sin teléfono"
                 />
               </label>
 
-              <label className="block font-medium text-slate-700">
+              <label className="block font-medium text-[#315F69]">
                 Idioma
                 <select
                   value={editLanguage}
@@ -1438,14 +1487,14 @@ export function CustomerDetail({
                     setCustomerMessage("");
                     setCustomerErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                 >
                   <option value="es">Español</option>
                   <option value="en">Inglés</option>
                 </select>
               </label>
 
-              <label className="block font-medium text-slate-700">
+              <label className="block font-medium text-[#315F69]">
                 Estado
                 <select
                   value={editStatus}
@@ -1454,7 +1503,7 @@ export function CustomerDetail({
                     setCustomerMessage("");
                     setCustomerErrorMessage("");
                   }}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                  className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                 >
                   <option value="active">Activo</option>
                   <option value="inactive">Inactivo</option>
@@ -1464,7 +1513,7 @@ export function CustomerDetail({
             </div>
 
             {customerErrorMessage ? (
-              <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-4 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {customerErrorMessage}
               </div>
             ) : null}
@@ -1487,16 +1536,17 @@ export function CustomerDetail({
           <SectionCard
             title="Nota rápida"
             description="Guarda información interna útil para futuras gestiones."
+            tone="note"
           >
             <textarea
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              className="min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+              className="min-h-[120px] w-full rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-3 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
               placeholder="Añadir nota sobre este cliente..."
             />
 
             {noteErrorMessage ? (
-              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-3 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {noteErrorMessage}
               </div>
             ) : null}
@@ -1522,6 +1572,7 @@ export function CustomerDetail({
           <SectionCard
             title="Crear seguimiento"
             description="Crea una tarea pendiente asociada a un caso activo de este cliente."
+            tone="followUp"
             action={
               !showCreateFollowUpForm && activeInquiries.length > 0 ? (
                 <Button onClick={handleOpenCreateFollowUpForm}>
@@ -1532,7 +1583,7 @@ export function CustomerDetail({
             }
           >
             {createFollowUpErrorMessage ? (
-              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {createFollowUpErrorMessage}
               </div>
             ) : null}
@@ -1544,7 +1595,7 @@ export function CustomerDetail({
             />
 
             {activeInquiries.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-600">
+              <div className="rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-4 text-sm leading-6 text-[#456C75]">
                 Este cliente no tiene casos activos. Para crear un seguimiento
                 desde el cliente, primero debe existir un caso nuevo, en
                 seguimiento o esperando al cliente asociado a él.
@@ -1553,7 +1604,7 @@ export function CustomerDetail({
 
             {showCreateFollowUpForm && activeInquiries.length > 0 ? (
               <div className="space-y-4">
-                <label className="block text-sm font-medium text-slate-700">
+                <label className="block text-sm font-medium text-[#315F69]">
                   Caso asociado
                   <select
                     value={selectedInquiry?.id ?? ""}
@@ -1571,7 +1622,7 @@ export function CustomerDetail({
                         );
                       }
                     }}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                   >
                     {activeInquiries.map((inquiry) => (
                       <option key={inquiry.id} value={inquiry.id}>
@@ -1583,18 +1634,18 @@ export function CustomerDetail({
                 </label>
 
                 <div className="grid gap-4 md:grid-cols-2">
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Título
                     <input
                       value={newFollowUpTitle}
                       onChange={(event) =>
                         setNewFollowUpTitle(event.target.value)
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                     />
                   </label>
 
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Fecha y hora
                     <input
                       type="datetime-local"
@@ -1602,7 +1653,7 @@ export function CustomerDetail({
                       onChange={(event) =>
                         setNewFollowUpDueAt(event.target.value)
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                     />
                   </label>
                 </div>
@@ -1632,20 +1683,13 @@ export function CustomerDetail({
             ) : null}
           </SectionCard>
 
-          <section>
-            <div className="mb-3">
-              <h2 className="text-lg font-bold text-slate-950">
-                Operativa pendiente
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Seguimientos y citas internas que todavía pueden requerir
-                acción.
-              </p>
-            </div>
-
+          <SectionCard
+            title="Operativa pendiente"
+            description="Seguimientos y citas internas que todavía pueden requerir acción."
+            tone="brand"
+          >
             {followUpErrorMessage ? (
-              <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mb-4 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {followUpErrorMessage}
               </div>
             ) : null}
@@ -1655,7 +1699,7 @@ export function CustomerDetail({
                 title="Seguimientos"
                 description="Tareas pendientes e historial de seguimiento."
                 count={followUps.length}
-                tone={pendingFollowUps.length > 0 ? "warning" : "neutral"}
+                tone={pendingFollowUps.length > 0 ? "followUp" : "neutral"}
               >
                 {followUps.length === 0 ? (
                   <EmptyActivityCard>
@@ -1665,7 +1709,7 @@ export function CustomerDetail({
                   <div className="space-y-4">
                     {pendingFollowUps.length > 0 ? (
                       <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#6B858C]">
                           Pendientes
                         </h3>
 
@@ -1703,7 +1747,7 @@ export function CustomerDetail({
 
                     {historyFollowUps.length > 0 ? (
                       <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#6B858C]">
                           Historial
                         </h3>
 
@@ -1743,7 +1787,7 @@ export function CustomerDetail({
                 title="Citas internas"
                 description="Validaciones, cierres e historial de agenda."
                 count={appointments.length}
-                tone={pendingAppointmentCount > 0 ? "info" : "neutral"}
+                tone={pendingAppointmentCount > 0 ? "appointment" : "neutral"}
               >
                 {appointments.length === 0 ? (
                   <EmptyActivityCard>
@@ -1753,7 +1797,7 @@ export function CustomerDetail({
                   <div className="space-y-4">
                     {pendingClosureAppointments.length > 0 ? (
                       <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#6B858C]">
                           Pendientes de cerrar
                         </h3>
 
@@ -1767,7 +1811,7 @@ export function CustomerDetail({
 
                     {pendingConfirmationAppointments.length > 0 ? (
                       <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#6B858C]">
                           Pendientes de confirmar
                         </h3>
 
@@ -1781,7 +1825,7 @@ export function CustomerDetail({
 
                     {confirmedAppointments.length > 0 ? (
                       <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#6B858C]">
                           Confirmadas internamente
                         </h3>
 
@@ -1795,7 +1839,7 @@ export function CustomerDetail({
 
                     {historyAppointments.length > 0 ? (
                       <section>
-                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-slate-500">
+                        <h3 className="mb-3 text-xs font-bold uppercase tracking-wide text-[#6B858C]">
                           Historial
                         </h3>
 
@@ -1810,25 +1854,19 @@ export function CustomerDetail({
                 )}
               </BoardColumn>
             </div>
-          </section>
+          </SectionCard>
 
-          <section>
-            <div className="mb-3">
-              <h2 className="text-lg font-bold text-slate-950">
-                Historial y conocimiento
-              </h2>
-
-              <p className="mt-1 text-sm text-slate-500">
-                Notas internas y casos asociados al cliente.
-              </p>
-            </div>
-
+          <SectionCard
+            title="Historial y conocimiento"
+            description="Notas internas y casos asociados al cliente."
+            tone="archived"
+          >
             <div className="grid gap-4 xl:grid-cols-2">
               <BoardColumn
                 title="Notas internas"
                 description="Información privada del equipo sobre este cliente."
                 count={notes.length}
-                tone={notes.length > 0 ? "brand" : "neutral"}
+                tone={notes.length > 0 ? "note" : "neutral"}
               >
                 {notes.length === 0 ? (
                   <EmptyActivityCard>
@@ -1847,7 +1885,7 @@ export function CustomerDetail({
                 title="Casos del cliente"
                 description="Historial de casos asociados y estado actual."
                 count={inquiries.length}
-                tone={activeInquiryCount > 0 ? "success" : "neutral"}
+                tone={inquiries.length > 0 ? "case" : "neutral"}
               >
                 {inquiries.length === 0 ? (
                   <EmptyActivityCard>
@@ -1866,7 +1904,7 @@ export function CustomerDetail({
                 )}
               </BoardColumn>
             </div>
-          </section>
+          </SectionCard>
         </main>
       </div>
     </div>

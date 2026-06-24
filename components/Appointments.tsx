@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   CalendarCheck2,
   CheckCircle2,
+  ChevronRight,
   Clock3,
   History,
   Plus,
@@ -21,6 +22,8 @@ import {
 } from "../lib/appointmentUtils";
 import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { createClient } from "../lib/supabase/client";
+import { classNames } from "../lib/utils";
+import { actionStyles } from "../lib/visualSystem";
 import type { Appointment, AppointmentStatus } from "../types";
 
 import { AutoDismissAlert } from "./AutoDismissAlert";
@@ -56,7 +59,7 @@ type AppointmentStatusFilter =
   | "completed"
   | "cancelled";
 
-type AppointmentColumnTone = "warning" | "info" | "success";
+type AppointmentColumnTone = "warning" | "appointment" | "success";
 
 function getDefaultDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
@@ -192,22 +195,22 @@ function getStatusBadgeClassName(
   isPendingClosure = false,
 ) {
   if (isPendingClosure) {
-    return "border-amber-200 bg-amber-50 text-amber-700";
+    return "border-[#6D9BA7] bg-white text-[#083640]";
   }
 
   if (status === "proposed") {
-    return "border-sky-200 bg-sky-50 text-sky-700";
+    return "border-[#8FB8C2] bg-white text-[#0B3F4C]";
   }
 
   if (status === "confirmed") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-[#A7C9D1] bg-white text-[#0F4C5C]";
   }
 
   if (status === "completed") {
-    return "border-teal-200 bg-teal-50 text-teal-700";
+    return "border-[#B8D1D8] bg-white text-[#315F69]";
   }
 
-  return "border-slate-200 bg-slate-50 text-slate-600";
+  return "border-[#D2E4E8] bg-white text-[#5C7780]";
 }
 
 function AppointmentStatusBadge({
@@ -219,10 +222,12 @@ function AppointmentStatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold ${getStatusBadgeClassName(
-        status,
-        isPendingClosure,
-      )}`}
+      className={classNames(
+        isPendingClosure
+          ? "inline-flex w-fit items-center whitespace-nowrap rounded-xl border px-3 py-2 text-xs font-bold shadow-sm shadow-[#0F4C5C]/10"
+          : "inline-flex w-fit items-center rounded-full border px-2.5 py-1 text-xs font-semibold",
+        getStatusBadgeClassName(status, isPendingClosure),
+      )}
     >
       {isPendingClosure
         ? "Pendiente de cerrar"
@@ -236,26 +241,32 @@ function getAppointmentCardClassName(
   isPendingClosure = false,
 ) {
   if (isPendingClosure || tone === "warning") {
-    return "border-amber-200 bg-white shadow-sm ring-1 ring-amber-100";
+    return {
+      rail: "bg-[#083640]",
+    };
   }
 
-  if (tone === "info") {
-    return "border-sky-200 bg-white shadow-sm ring-1 ring-sky-100";
+  if (tone === "appointment") {
+    return {
+      rail: "bg-[#0B3F4C]",
+    };
   }
 
-  return "border-emerald-200 bg-white shadow-sm ring-1 ring-emerald-100";
+  return {
+    rail: "bg-[#0F4C5C]",
+  };
 }
 
 function getHistoryStatusClassName(status: AppointmentStatus) {
   if (status === "completed") {
-    return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    return "border-[#B8D1D8] bg-white text-[#0B3F4C]";
   }
 
   if (status === "cancelled") {
-    return "border-slate-200 bg-slate-50 text-slate-600";
+    return "border-[#D2E4E8] bg-white text-[#5C7780]";
   }
 
-  return "border-slate-200 bg-white text-slate-600";
+  return "border-[#D2E4E8] bg-white text-[#315F69]";
 }
 
 function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
@@ -264,7 +275,7 @@ function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
-          className="h-[116px] animate-pulse rounded-2xl border border-slate-200 bg-slate-100/80 shadow-sm shadow-slate-200/60"
+          className="h-[116px] animate-pulse rounded-2xl border border-[#D2E4E8] bg-[#EAF5F7] shadow-sm shadow-[#0F4C5C]/5"
         />
       ))}
     </div>
@@ -483,9 +494,51 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   };
 
   const handleCancelForm = () => {
+    if (isSaving) {
+      return;
+    }
+
     setShowForm(false);
     resetForm();
   };
+
+  const handleClearCreateForm = () => {
+    if (isSaving || isEditing) {
+      return;
+    }
+
+    resetForm();
+    setSelectedInquiryId("");
+    setSuccessMessage("");
+  };
+
+  useEffect(() => {
+    if (!showForm) {
+      return;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: globalThis.KeyboardEvent) => {
+      if (event.key === "Escape" && !isSaving) {
+        setShowForm(false);
+        setEditingAppointmentId(null);
+        setTitle("");
+        setScheduledAt("");
+        setNotes("");
+        setFormErrorMessage("");
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSaving, showForm]);
 
   const handleClearFilters = () => {
     setSearchTerm("");
@@ -755,7 +808,12 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     isUpdating: boolean,
     variant: "primary" | "secondary" | "ghost" = "secondary",
   ) => (
-    <Button variant={variant} onClick={onClick} disabled={isUpdating}>
+    <Button
+      className="min-h-10 min-w-[104px] px-4"
+      variant={variant}
+      onClick={onClick}
+      disabled={isUpdating}
+    >
       {label}
     </Button>
   );
@@ -766,15 +824,18 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     isPendingClosure = false,
   ) => {
     const isUpdating = updatingAppointmentId === appointment.id;
+    const cardClasses = getAppointmentCardClassName(tone, isPendingClosure);
 
     return (
       <article
         key={appointment.id}
-        className={`rounded-2xl border p-4 ${getAppointmentCardClassName(
-          tone,
-          isPendingClosure,
-        )}`}
+        className="relative overflow-hidden rounded-2xl border border-[#B8D1D8] bg-white p-4 pl-5 shadow-sm shadow-[#0F4C5C]/10 transition hover:border-[#8FB8C2] hover:bg-[#F7FBFC] hover:shadow-md"
       >
+        <span
+          aria-hidden="true"
+          className={classNames("absolute inset-y-0 left-0 w-1", cardClasses.rail)}
+        />
+
         <div className="flex items-start justify-between gap-3">
           <AppointmentStatusBadge
             status={appointment.status}
@@ -785,98 +846,101 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             <button
               type="button"
               onClick={() => openInquiry(appointment.inquiryId)}
-              className="shrink-0 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-[#0F4C5C] transition hover:bg-slate-50"
+              className={actionStyles.openCase}
             >
               Abrir caso
+              <ChevronRight size={14} />
             </button>
           ) : null}
         </div>
 
-        <h3 className="mt-3 text-base font-bold text-slate-950">
+        <h3 className="mt-3 text-base font-bold text-[#073540]">
           {appointment.title}
         </h3>
 
-        <div className="mt-1 text-sm font-medium text-slate-700">
+        <div className="mt-1 text-sm font-medium text-[#456C75]">
           {appointment.scheduledAt}
         </div>
 
         {isPendingClosure ? (
-          <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800">
+          <div className="mt-3 rounded-xl border border-[#A7C9D1] bg-[#F2FAFB] px-3 py-2 text-xs leading-5 text-[#0B3F4C]">
             Ya ha pasado y sigue activa. Cierra la cita como realizada o
             cancelada.
           </div>
         ) : null}
 
         <div className="mt-3 grid gap-2 text-xs md:grid-cols-2">
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <div className="font-semibold uppercase tracking-wide text-slate-500">
+          <div className="rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2">
+            <div className="font-semibold uppercase tracking-wide text-[#5C7780]">
               Caso asociado
             </div>
-            <div className="mt-1 line-clamp-2 font-medium text-slate-700">
+            <div className="mt-1 line-clamp-2 font-medium text-[#153F48]">
               {appointment.inquiryLabel}
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2">
-            <div className="font-semibold uppercase tracking-wide text-slate-500">
+          <div className="rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2">
+            <div className="font-semibold uppercase tracking-wide text-[#5C7780]">
               Estado del caso
             </div>
-            <div className="mt-1 font-medium text-slate-700">
+            <div className="mt-1 font-medium text-[#153F48]">
               {appointment.inquiryStatus}
             </div>
           </div>
         </div>
 
         {appointment.notes ? (
-          <div className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs leading-5 text-slate-600">
+          <div className="mt-3 rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-xs leading-5 text-[#456C75]">
             {appointment.notes}
           </div>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-3">
-          {renderActionButton(
-            "Editar",
-            () => handleOpenEditForm(appointment),
-            isUpdating,
-          )}
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#EAF5F7] pt-3">
+          <div className="flex flex-wrap gap-2">
+            {renderActionButton(
+              "Editar",
+              () => handleOpenEditForm(appointment),
+              isUpdating,
+            )}
 
-          {appointment.status === "proposed" ? (
-            <>
-              {renderActionButton(
-                "Confirmar internamente",
-                () =>
-                  handleUpdateAppointmentStatus(appointment.id, "confirmed"),
-                isUpdating,
-                "primary",
-              )}
-              {renderActionButton(
-                "Cancelar",
-                () =>
-                  handleUpdateAppointmentStatus(appointment.id, "cancelled"),
-                isUpdating,
-                "ghost",
-              )}
-            </>
-          ) : null}
+            {appointment.status === "proposed" ? (
+              <>
+                {renderActionButton(
+                  "Confirmar",
+                  () =>
+                    handleUpdateAppointmentStatus(appointment.id, "confirmed"),
+                  isUpdating,
+                  "primary",
+                )}
+                {renderActionButton(
+                  "Cancelar",
+                  () =>
+                    handleUpdateAppointmentStatus(appointment.id, "cancelled"),
+                  isUpdating,
+                  "secondary",
+                )}
+              </>
+            ) : null}
 
-          {appointment.status === "confirmed" ? (
-            <>
-              {renderActionButton(
-                "Marcar realizada",
-                () =>
-                  handleUpdateAppointmentStatus(appointment.id, "completed"),
-                isUpdating,
-                "primary",
-              )}
-              {renderActionButton(
-                "Cancelar",
-                () =>
-                  handleUpdateAppointmentStatus(appointment.id, "cancelled"),
-                isUpdating,
-                "ghost",
-              )}
-            </>
-          ) : null}
+            {appointment.status === "confirmed" ? (
+              <>
+                {renderActionButton(
+                  "Marcar realizada",
+                  () =>
+                    handleUpdateAppointmentStatus(appointment.id, "completed"),
+                  isUpdating,
+                  "primary",
+                )}
+                {renderActionButton(
+                  "Cancelar",
+                  () =>
+                    handleUpdateAppointmentStatus(appointment.id, "cancelled"),
+                  isUpdating,
+                  "secondary",
+                )}
+              </>
+            ) : null}
+          </div>
         </div>
       </article>
     );
@@ -888,7 +952,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     return (
       <article
         key={appointment.id}
-        className="grid gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm lg:grid-cols-[160px_1fr_1fr_auto] lg:items-center"
+        className="grid gap-3 rounded-2xl border border-[#D2E4E8] bg-white p-4 shadow-sm shadow-[#0F4C5C]/5 transition hover:border-[#B8D1D8] hover:bg-[#F7FBFC] lg:grid-cols-[160px_1fr_1fr_auto] lg:items-center"
       >
         <div>
           <span
@@ -898,41 +962,43 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           >
             {getAppointmentStatusLabel(appointment.status)}
           </span>
-          <div className="mt-2 text-xs font-medium text-slate-500">
+          <div className="mt-2 text-xs font-medium text-[#6B858C]">
             {appointment.scheduledAt}
           </div>
         </div>
 
         <div className="min-w-0">
-          <h3 className="font-semibold text-slate-950">{appointment.title}</h3>
+          <h3 className="font-semibold text-[#073540]">{appointment.title}</h3>
           {appointment.notes ? (
-            <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+            <p className="mt-1 line-clamp-2 text-xs leading-5 text-[#6B858C]">
               {appointment.notes}
             </p>
           ) : null}
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-600">
-          <div className="font-semibold text-slate-700">Caso asociado</div>
+        <div className="rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-xs leading-5 text-[#456C75]">
+          <div className="font-semibold text-[#153F48]">Caso asociado</div>
           <div className="line-clamp-1">{appointment.inquiryLabel}</div>
-          <div className="mt-1 text-slate-500">
+          <div className="mt-1 text-[#6B858C]">
             Estado del caso: {appointment.inquiryStatus}
           </div>
         </div>
 
         <div className="flex flex-wrap gap-2 lg:justify-end">
           {appointment.inquiryId ? (
-            <Button
-              variant="secondary"
+            <button
+              type="button"
+              className={actionStyles.openCase}
               onClick={() => openInquiry(appointment.inquiryId)}
               disabled={isUpdating}
             >
               Abrir caso
-            </Button>
+              <ChevronRight size={14} />
+            </button>
           ) : null}
 
           <Button
-            variant="ghost"
+            variant="secondary"
             onClick={() =>
               handleUpdateAppointmentStatus(appointment.id, "proposed")
             }
@@ -969,7 +1035,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       tone={tone}
     >
       {columnAppointments.length === 0 ? (
-        <div className="rounded-2xl border border-white/70 bg-white/75 p-4 text-sm leading-6 text-slate-600 shadow-sm">
+        <div className="rounded-2xl border border-[#D2E4E8] bg-white p-4 text-sm leading-6 text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
           {emptyMessage}
         </div>
       ) : (
@@ -1009,7 +1075,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             value={totalPendingConfirmationAppointments.length}
             caption="Citas internas todavía no validadas"
             icon={Clock3}
-            tone="info"
+            tone="appointment"
           />
 
           <MetricCard
@@ -1025,38 +1091,42 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             value={totalHistoryAppointments.length}
             caption="Realizadas o canceladas"
             icon={History}
-            tone="neutral"
+            tone="note"
           />
         </div>
       )}
 
-      <SectionCard className="mt-5">
+      <SectionCard
+        className="mt-5"
+        title="Buscar y filtrar citas"
+        description="Localiza citas internas por título, caso, estado o notas."
+      >
         <div className="grid gap-4 md:grid-cols-[1fr_220px_auto] md:items-end">
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-[#315F69]">
             Buscar cita
-            <div className="mt-1 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 focus-within:border-[#0F4C5C]">
-              <Search size={16} className="shrink-0 text-slate-400" />
+            <div className="mt-1 flex items-center gap-2 rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 focus-within:border-[#0F4C5C] focus-within:bg-white">
+              <Search size={16} className="shrink-0 text-[#8AA5AC]" />
               <input
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
-                className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-sm text-[#153F48] outline-none placeholder:text-[#8AA5AC]"
                 placeholder="Buscar por título, caso o notas..."
               />
             </div>
           </label>
 
-          <label className="text-sm font-medium text-slate-700">
+          <label className="text-sm font-medium text-[#315F69]">
             Estado
             <select
               value={statusFilter}
               onChange={(event) =>
                 setStatusFilter(event.target.value as AppointmentStatusFilter)
               }
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+              className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
             >
               <option value="all">Todas</option>
               <option value="proposed">Pendientes de confirmar</option>
-              <option value="confirmed">Confirmadas internamente</option>
+              <option value="confirmed">Confirmadas</option>
               <option value="completed">Realizadas</option>
               <option value="cancelled">Canceladas</option>
             </select>
@@ -1071,7 +1141,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           </Button>
         </div>
 
-        <p className="mt-3 text-xs text-slate-500">
+        <p className="mt-3 text-xs text-[#6B858C]">
           Mostrando {filteredAppointments.length} de {appointments.length} citas
           internas.
         </p>
@@ -1079,30 +1149,30 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
       {showForm ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-6 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="appointment-modal-title"
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#062E36]/45 px-4 py-8 backdrop-blur-sm"
           onClick={handleCancelForm}
         >
-          <div
-            className="max-h-[calc(100vh-3rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-200 bg-white shadow-2xl shadow-slate-950/20"
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="appointment-modal-title"
+            className="max-h-[calc(100vh-4rem)] w-full max-w-3xl overflow-y-auto rounded-3xl border border-[#B8D1D8] bg-white shadow-2xl shadow-[#062E36]/25"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4 border-b border-slate-100 px-6 py-5">
+            <div className="flex items-start justify-between gap-4 border-b border-[#E5F0F2] px-6 py-5">
               <div>
-                <div className="mb-2 inline-flex rounded-full border border-[#0F4C5C]/15 bg-[#0F4C5C]/[0.06] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                <div className="mb-2 inline-flex rounded-full border border-[#B8D1D8] bg-[#F2FAFB] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
                   {isEditing ? "Editar cita interna" : "Crear cita interna"}
                 </div>
 
                 <h2
                   id="appointment-modal-title"
-                  className="text-xl font-bold text-slate-950"
+                  className="text-xl font-bold text-[#073540]"
                 >
                   {isEditing ? "Editar cita interna" : "Crear cita interna"}
                 </h2>
 
-                <p className="mt-1 text-sm leading-6 text-slate-500">
+                <p className="mt-1 text-sm leading-6 text-[#456C75]">
                   {isEditing
                     ? "Actualiza el título, la fecha o las notas de esta cita interna."
                     : "Asocia una cita interna a un caso existente. COPPE no enviará ninguna confirmación automática al cliente."}
@@ -1112,8 +1182,14 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               <button
                 type="button"
                 onClick={handleCancelForm}
-                className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                disabled={isSaving}
+                className="rounded-xl p-2 text-[#6B858C] transition hover:bg-[#F2FAFB] hover:text-[#0F4C5C] disabled:cursor-not-allowed disabled:opacity-50"
                 title="Cerrar ventana"
+                aria-label={
+                  isEditing
+                    ? "Cerrar formulario de edición de cita interna"
+                    : "Cerrar formulario de nueva cita interna"
+                }
               >
                 <X size={18} />
               </button>
@@ -1122,14 +1198,14 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             <div className="px-6 py-5">
               <div className="grid gap-4 md:grid-cols-2">
                 {isEditing ? (
-                  <div className="text-sm font-medium text-slate-700 md:col-span-2">
+                  <div className="text-sm font-medium text-[#315F69] md:col-span-2">
                     Caso asociado
-                    <div className="mt-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-normal text-slate-600">
+                    <div className="mt-1 rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm font-normal text-[#456C75]">
                       {editingAppointment?.inquiryLabel || "Caso no indicado"}
                     </div>
                   </div>
                 ) : (
-                  <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                  <label className="text-sm font-medium text-[#315F69] md:col-span-2">
                     Caso asociado
                     <select
                       value={selectedInquiryId}
@@ -1137,7 +1213,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                       onChange={(event) => {
                         setSelectedInquiryId(event.target.value);
                       }}
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                     >
                       {inquiryOptions.length === 0 ? (
                         <option value="">No hay casos activos disponibles</option>
@@ -1158,47 +1234,47 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                   </label>
                 )}
 
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-[#315F69]">
                   Título
                   <input
                     value={title}
                     onChange={(event) => setTitle(event.target.value)}
                     onKeyDown={handleAppointmentFormKeyDown}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition placeholder:text-[#8AA5AC] focus:border-[#0F4C5C] focus:bg-white"
                     placeholder="Escribe el título de la cita"
                     autoFocus
                   />
                 </label>
 
-                <label className="text-sm font-medium text-slate-700">
+                <label className="text-sm font-medium text-[#315F69]">
                   Fecha y hora
                   <input
                     type="datetime-local"
                     value={scheduledAt}
                     onChange={(event) => setScheduledAt(event.target.value)}
                     onKeyDown={handleAppointmentFormKeyDown}
-                    className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                   />
                 </label>
 
-                <label className="text-sm font-medium text-slate-700 md:col-span-2">
+                <label className="text-sm font-medium text-[#315F69] md:col-span-2">
                   Notas
                   <textarea
                     value={notes}
                     onChange={(event) => setNotes(event.target.value)}
-                    className="mt-1 min-h-[100px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+                    className="mt-1 min-h-[100px] w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition placeholder:text-[#8AA5AC] focus:border-[#0F4C5C] focus:bg-white"
                     placeholder="Añade detalles relevantes para preparar la cita..."
                   />
                 </label>
               </div>
 
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs leading-5 text-slate-500">
+              <div className="mt-4 rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] px-4 py-3 text-xs leading-5 text-[#456C75]">
                 Esta cita es solo de uso interno. El cliente no recibe ninguna
                 confirmación automática desde COPPE.
               </div>
 
               {formErrorMessage ? (
-                <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                <div className="mt-4 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                   {formErrorMessage}
                 </div>
               ) : null}
@@ -1210,10 +1286,24 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               />
             </div>
 
-            <div className="flex flex-col-reverse gap-2 border-t border-slate-100 bg-slate-50/70 px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
-              <Button variant="ghost" onClick={handleCancelForm}>
+            <div className="flex flex-col-reverse gap-2 border-t border-[#E5F0F2] bg-[#F7FBFC] px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+              <Button
+                variant="secondary"
+                onClick={handleCancelForm}
+                disabled={isSaving}
+              >
                 Cancelar
               </Button>
+
+              {!isEditing ? (
+                <Button
+                  variant="secondary"
+                  onClick={handleClearCreateForm}
+                  disabled={isSaving}
+                >
+                  Limpiar formulario
+                </Button>
+              ) : null}
 
               <Button
                 onClick={handleSaveAppointment}
@@ -1228,12 +1318,12 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                     : "Guardar cita interna"}
               </Button>
             </div>
-          </div>
+          </section>
         </div>
       ) : null}
 
       {errorMessage ? (
-        <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-5 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
           {errorMessage}
         </div>
       ) : null}
@@ -1245,29 +1335,24 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       />
 
       {isLoading ? (
-        <div className="mt-5 rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+        <div className="mt-5 rounded-2xl border border-[#D2E4E8] bg-white p-6 text-sm text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
           Cargando agenda interna...
         </div>
       ) : null}
 
       {!isLoading && !errorMessage ? (
-        <section className="mt-6">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">
-                Agenda activa
-              </h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Citas que todavía requieren validación, ejecución o cierre
-                interno.
-              </p>
-            </div>
-
-            <div className="hidden items-center gap-2 text-xs text-slate-500 md:flex">
+        <SectionCard
+          className="mt-6"
+          title="Agenda activa"
+          description="Citas que todavía requieren validación, ejecución o cierre interno."
+          tone="appointment"
+          action={
+            <div className="hidden items-center gap-2 rounded-full border border-[#B8D1D8] bg-white px-3 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5 md:flex">
               <CheckCircle2 size={15} />
               No se envía ninguna confirmación automática al cliente.
             </div>
-          </div>
+          }
+        >
 
           <div className="grid gap-5 xl:grid-cols-3">
             {renderAppointmentColumn({
@@ -1286,7 +1371,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               title: "Por confirmar",
               description: "Citas creadas pero aún no validadas internamente.",
               count: pendingConfirmationAppointments.length,
-              tone: "info",
+              tone: "appointment",
               appointments: pendingConfirmationAppointments,
               emptyMessage: hasActiveFilters
                 ? "No hay citas pendientes con estos filtros."
@@ -1304,26 +1389,23 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                 : "No hay citas internas confirmadas.",
             })}
           </div>
-        </section>
+        </SectionCard>
       ) : null}
 
       {!isLoading && !errorMessage ? (
-        <section className="mt-8">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">Historial</h2>
-              <p className="mt-1 text-sm text-slate-500">
-                Citas internas realizadas o canceladas, en formato compacto.
-              </p>
-            </div>
-
-            <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold text-slate-500">
+        <SectionCard
+          className="mt-6"
+          title="Historial"
+          description="Citas internas realizadas o canceladas, en formato compacto."
+          tone="archived"
+          action={
+            <span className="rounded-full border border-[#B8D1D8] bg-white px-3 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5">
               {historyAppointments.length}
             </span>
-          </div>
-
+          }
+        >
           {historyAppointments.length === 0 ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+            <div className="rounded-2xl border border-[#D2E4E8] bg-white p-6 text-sm text-[#456C75] shadow-sm shadow-[#0F4C5C]/5">
               {hasActiveFilters
                 ? "No hay citas internas del historial que coincidan con los filtros."
                 : "Todavía no hay citas internas realizadas o canceladas."}
@@ -1333,7 +1415,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
               {historyAppointments.map(renderHistoryAppointmentRow)}
             </div>
           )}
-        </section>
+        </SectionCard>
       ) : null}
     </div>
   );

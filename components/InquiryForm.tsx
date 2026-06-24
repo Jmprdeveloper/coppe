@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Sparkles } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Sparkles, X } from "lucide-react";
 
 import { getCurrentCompany } from "../lib/currentCompany";
 import {
@@ -16,11 +16,11 @@ import { createClient } from "../lib/supabase/client";
 import { sourceChannelOptions } from "../lib/sourceChannels";
 
 import { Button } from "./Button";
-import { PageHeader } from "./PageHeader";
 
 type InquiryFormProps = {
   setActiveView: (view: string) => void;
   openInquiry: (id: string) => void;
+  onClose: () => void;
 };
 
 type CustomerRow = {
@@ -91,7 +91,11 @@ async function requestInquiryAnalysis(
   };
 }
 
-export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
+export function InquiryForm({
+  setActiveView,
+  openInquiry,
+  onClose,
+}: InquiryFormProps) {
   const supabase = useMemo(() => createClient(), []);
 
   const [customerName, setCustomerName] = useState("");
@@ -104,6 +108,25 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+
+    document.body.style.overflow = "hidden";
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isSubmitting) {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isSubmitting, onClose]);
 
   const resetForm = () => {
     setCreatedInquiryId(null);
@@ -354,87 +377,145 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
   };
 
   return (
-    <div className="mx-auto max-w-3xl">
-      <PageHeader
-        title="Registrar mensaje"
-        description="Registra un mensaje recibido de un cliente para que COPPE lo convierta en un caso de atención."
-      />
+    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-[#062E36]/45 px-4 py-8 backdrop-blur-sm">
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="inquiry-form-title"
+        className="w-full max-w-3xl overflow-hidden rounded-3xl border border-[#B8D1D8] bg-white shadow-2xl shadow-[#062E36]/25"
+      >
+        <div className="border-b border-[#E5F0F2] px-6 py-5">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <span className="inline-flex rounded-full border border-[#B8D1D8] bg-[#F2FAFB] px-3 py-1 text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                {createdInquiryId ? "Caso registrado" : "Nuevo caso"}
+              </span>
 
-      <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
-        {!createdInquiryId ? (
-          <>
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="text-sm font-medium text-slate-700">
-                Nombre
-                <input
-                  value={customerName}
-                  onChange={(event) => setCustomerName(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Nombre del cliente"
-                />
-              </label>
+              <h1
+                id="inquiry-form-title"
+                className="mt-3 text-xl font-bold text-[#062E36]"
+              >
+                {createdInquiryId ? "Caso creado" : "Registrar mensaje"}
+              </h1>
 
-              <label className="text-sm font-medium text-slate-700">
-                Email
-                <input
-                  value={email}
-                  onChange={(event) => setEmail(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="cliente@email.com"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Teléfono
-                <input
-                  value={phone}
-                  onChange={(event) => setPhone(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="+34 600 000 000"
-                />
-              </label>
-
-              <label className="text-sm font-medium text-slate-700">
-                Canal
-                <select
-                  value={sourceChannel}
-                  onChange={(event) => setSourceChannel(event.target.value)}
-                  className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                >
-                  {sourceChannelOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-medium text-slate-700 md:col-span-2">
-                Mensaje
-                <textarea
-                  value={message}
-                  onChange={(event) => setMessage(event.target.value)}
-                  maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
-                  className="mt-1 min-h-[140px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
-                  placeholder="Pega aquí el mensaje recibido del cliente..."
-                />
-
-                <p className="mt-1 text-right text-xs text-slate-500">
-                  {message.length}/{MAX_ANALYSIS_MESSAGE_LENGTH} caracteres
-                </p>
-              </label>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-[#526D74]">
+                {createdInquiryId
+                  ? "COPPE ha registrado el mensaje y ha generado la primera clasificación del caso."
+                  : "Registra un mensaje recibido de un cliente para que COPPE lo convierta en un caso de atención."}
+              </p>
             </div>
 
-            {errorMessage ? (
-              <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                {errorMessage}
-              </div>
-            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={isSubmitting}
+              className="rounded-xl p-2 text-[#6B858C] transition hover:bg-[#F2FAFB] hover:text-[#0F4C5C] disabled:cursor-not-allowed disabled:opacity-50"
+              title="Cancelar"
+              aria-label="Cerrar formulario"
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
 
-            <div className="mt-5 flex flex-wrap gap-2">
-              <Button onClick={handleSubmit} disabled={isSubmitting}>
-                <Sparkles size={16} />
-                {isSubmitting ? "Registrando mensaje..." : "Registrar mensaje"}
+        <div className="px-6 py-5">
+          {!createdInquiryId ? (
+            <>
+              <div className="grid gap-4 md:grid-cols-2">
+                <label className="text-sm font-medium text-[#315F69]">
+                  Nombre
+                  <input
+                    value={customerName}
+                    onChange={(event) => setCustomerName(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition placeholder:text-[#8AA5AC] focus:border-[#0F4C5C] focus:bg-white focus:ring-2 focus:ring-[#0F4C5C]/10"
+                    placeholder="Nombre del cliente"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-[#315F69]">
+                  Email
+                  <input
+                    value={email}
+                    onChange={(event) => setEmail(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition placeholder:text-[#8AA5AC] focus:border-[#0F4C5C] focus:bg-white focus:ring-2 focus:ring-[#0F4C5C]/10"
+                    placeholder="cliente@email.com"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-[#315F69]">
+                  Teléfono
+                  <input
+                    value={phone}
+                    onChange={(event) => setPhone(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition placeholder:text-[#8AA5AC] focus:border-[#0F4C5C] focus:bg-white focus:ring-2 focus:ring-[#0F4C5C]/10"
+                    placeholder="+34 600 000 000"
+                  />
+                </label>
+
+                <label className="text-sm font-medium text-[#315F69]">
+                  Canal
+                  <select
+                    value={sourceChannel}
+                    onChange={(event) => setSourceChannel(event.target.value)}
+                    className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white focus:ring-2 focus:ring-[#0F4C5C]/10"
+                  >
+                    {sourceChannelOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+
+                <label className="text-sm font-medium text-[#315F69] md:col-span-2">
+                  Mensaje
+                  <textarea
+                    value={message}
+                    onChange={(event) => setMessage(event.target.value)}
+                    maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
+                    className="mt-1 min-h-[150px] w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition placeholder:text-[#8AA5AC] focus:border-[#0F4C5C] focus:bg-white focus:ring-2 focus:ring-[#0F4C5C]/10"
+                    placeholder="Pega aquí el mensaje recibido del cliente..."
+                  />
+
+                  <p className="mt-1 text-right text-xs text-[#6B858C]">
+                    {message.length}/{MAX_ANALYSIS_MESSAGE_LENGTH} caracteres
+                  </p>
+                </label>
+              </div>
+
+              {errorMessage ? (
+                <div className="mt-5 rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
+                  {errorMessage}
+                </div>
+              ) : null}
+            </>
+          ) : (
+            <div className="py-6 text-center">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] text-[#0F4C5C] shadow-sm shadow-[#062E36]/10">
+                <Sparkles />
+              </div>
+
+              <h2 className="mt-4 text-xl font-bold text-[#062E36]">
+                Caso creado correctamente
+              </h2>
+
+              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#526D74]">
+                {successMessage ||
+                  "COPPE ha registrado el mensaje, ha creado el caso y ha generado una clasificación inicial."}
+              </p>
+            </div>
+          )}
+        </div>
+
+        <div className="flex flex-col-reverse gap-2 border-t border-[#E5F0F2] bg-[#F7FBFC] px-6 py-4 sm:flex-row sm:items-center sm:justify-end">
+          {!createdInquiryId ? (
+            <>
+              <Button
+                variant="secondary"
+                onClick={onClose}
+                disabled={isSubmitting}
+              >
+                Cancelar
               </Button>
 
               <Button
@@ -444,26 +525,16 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
               >
                 Limpiar formulario
               </Button>
-            </div>
-          </>
-        ) : (
-          <div className="text-center">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-3xl bg-[#E6F3F6] text-[#0F4C5C]">
-              <Sparkles />
-            </div>
 
-            <h2 className="mt-4 text-xl font-bold text-slate-950">
-              Caso creado
-            </h2>
-
-            <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-slate-500">
-              {successMessage ||
-                "COPPE ha registrado el mensaje, ha creado el caso y ha generado una clasificación inicial."}
-            </p>
-
-            <div className="mt-5 flex flex-wrap justify-center gap-2">
-              <Button onClick={() => openInquiry(createdInquiryId)}>
-                Ver caso analizado
+              <Button onClick={handleSubmit} disabled={isSubmitting}>
+                <Sparkles size={16} />
+                {isSubmitting ? "Registrando mensaje..." : "Registrar mensaje"}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Button variant="ghost" onClick={resetForm}>
+                Registrar otro mensaje
               </Button>
 
               <Button
@@ -473,13 +544,13 @@ export function InquiryForm({ setActiveView, openInquiry }: InquiryFormProps) {
                 Ir al dashboard
               </Button>
 
-              <Button variant="ghost" onClick={resetForm}>
-                Registrar otro mensaje
+              <Button onClick={() => openInquiry(createdInquiryId)}>
+                Ver caso analizado
               </Button>
-            </div>
-          </div>
-        )}
-      </div>
+            </>
+          )}
+        </div>
+      </section>
     </div>
   );
 }
