@@ -23,6 +23,7 @@ import {
 import { canManageCompanySettings } from "../lib/companyPermissions";
 import { getCurrentCompany, type CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
+import { classNames } from "../lib/utils";
 import { AutoDismissAlert } from "./AutoDismissAlert";
 import { Button } from "./Button";
 import { MetricCard } from "./MetricCard";
@@ -148,6 +149,18 @@ function getChannelStatusClassName(status: ChannelStatus) {
   return "border-slate-200 bg-slate-50 text-slate-600";
 }
 
+function getChannelCardRailClassName(status: ChannelStatus) {
+  if (status === "active") {
+    return "bg-[#0F4C5C]";
+  }
+
+  if (status === "inactive") {
+    return "bg-[#6D9BA7]";
+  }
+
+  return "bg-[#B8D1D8]";
+}
+
 function ChannelStatusPill({ status }: { status: ChannelStatus }) {
   return (
     <span
@@ -168,9 +181,17 @@ function ChannelSettingsCard({
   actions,
 }: ChannelSettingsCardProps) {
   return (
-    <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/50">
+    <article className="relative min-w-0 max-w-full overflow-hidden rounded-2xl border border-slate-300 bg-white p-4 pl-5 shadow-sm shadow-slate-200/70 transition hover:bg-[#F7FBFC] hover:shadow-md">
+      <span
+        aria-hidden="true"
+        className={classNames(
+          "absolute inset-y-0 left-0 w-1",
+          getChannelCardRailClassName(status)
+        )}
+      />
+
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <div>
+        <div className="min-w-0">
           <h3 className="font-bold text-slate-950">{title}</h3>
 
           <p className="mt-1 text-sm leading-6 text-slate-500">
@@ -181,10 +202,10 @@ function ChannelSettingsCard({
         <ChannelStatusPill status={status} />
       </div>
 
-      <div className="mt-4">{children}</div>
+      <div className="mt-4 min-w-0">{children}</div>
 
       {actions ? (
-        <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
+        <div className="mt-4 flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:flex-wrap sm:justify-end">
           {actions}
         </div>
       ) : null}
@@ -194,7 +215,7 @@ function ChannelSettingsCard({
 
 function MetricCardsSkeleton({ count = 6 }: { count?: number }) {
   return (
-    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
       {Array.from({ length: count }).map((_, index) => (
         <div
           key={index}
@@ -1207,7 +1228,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   };
 
   return (
-    <div>
+    <div className="min-w-0 max-w-full">
       <PageHeader
         title="Configuración"
         description="Administra los datos de empresa, equipo, canales de entrada y preferencias del asistente."
@@ -1223,7 +1244,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
         </div>
       ) : (
         <div className="space-y-5">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <div className="grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-6">
             <MetricCard
               title="Empresa"
               value={name || "Sin nombre"}
@@ -1253,7 +1274,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               value={getChannelStatusLabel(publicChatChannelStatus)}
               caption="Experiencia tipo conversación"
               icon={MessageSquareText}
-              tone="neutral"
+              tone="brand"
             />
 
             <MetricCard
@@ -1293,11 +1314,12 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
             />
           </div>
 
-          <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
-            <div className="space-y-5">
+          <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="min-w-0 space-y-5">
               <SectionCard
                 title="Información de empresa"
                 description="Estos datos ayudan a COPPE a contextualizar los mensajes, casos y respuestas de la empresa."
+                tone="info"
               >
                 {!canEditCompanySettings ? (
                   <div className="mb-5 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
@@ -1386,7 +1408,8 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
               <SectionCard
                 title="Canales de entrada"
-                description="Gestiona formulario, chat, email entrante y WhatsApp. Las tarjetas son blancas; el estado se muestra en badges y acciones."
+                description="Gestiona formulario, chat, email entrante y WhatsApp. El estado se muestra en badges y en la banda lateral de cada canal."
+                tone="brand"
                 action={
                   <div className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-700">
                     Activos: {activeChannelCountLabel}
@@ -1441,7 +1464,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       <input
                         value={publicIntakeUrl || "Enlace no disponible"}
                         readOnly
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                        className="mt-1 min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
                       />
                     </label>
 
@@ -1504,7 +1527,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                       <input
                         value={publicChatUrl || "Enlace no disponible"}
                         readOnly
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                        className="mt-1 min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
                       />
                     </label>
 
@@ -1585,7 +1608,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                     <div className="grid gap-4 md:grid-cols-2">
                       <label className="block text-sm font-medium text-slate-700">
                         Identificador
-                        <div className="mt-1 flex overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-[#0F4C5C] focus-within:bg-white">
+                        <div className="mt-1 flex min-w-0 flex-col overflow-hidden rounded-xl border border-slate-200 bg-slate-50 focus-within:border-[#0F4C5C] focus-within:bg-white sm:flex-row">
                           <input
                             value={emailLocalPart}
                             disabled={!canEditCompanySettings}
@@ -1600,7 +1623,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                             placeholder="ej. taller-lopez"
                           />
 
-                          <span className="flex shrink-0 items-center border-l border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500">
+                          <span className="flex min-w-0 items-center break-all border-t border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500 sm:shrink-0 sm:border-l sm:border-t-0 sm:py-0">
                             @{inboundEmailDomain || "dominio-no-configurado"}
                           </span>
                         </div>
@@ -1614,7 +1637,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                             "Dirección no configurada"
                           }
                           readOnly
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                          className="mt-1 min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
                         />
                       </label>
 
@@ -1623,7 +1646,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                         <input
                           value={resendWebhookUrl || "URL no disponible"}
                           readOnly
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                          className="mt-1 min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
                         />
                       </label>
                     </div>
@@ -1714,7 +1737,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                         <input
                           value={whatsAppWebhookUrl || "URL no disponible"}
                           readOnly
-                          className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
+                          className="mt-1 min-w-0 w-full max-w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700 outline-none"
                         />
                       </label>
 
@@ -1803,7 +1826,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
                     <Button
                       className="w-full sm:w-auto"
-                      variant="ghost"
+                      variant="secondary"
                       onClick={handleRegeneratePublicIntakeToken}
                       disabled={
                         isUpdatingPublicChannels ||
@@ -1818,12 +1841,13 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
               </SectionCard>
             </div>
 
-            <aside className="space-y-5">
+            <aside className="min-w-0 space-y-5">
               <TeamSettingsCard />
 
               <SectionCard
                 title="Preferencias del asistente"
                 description="Define el tono y el idioma principal que COPPE usará como base al preparar respuestas."
+                tone="warning"
               >
                 <div className="space-y-4">
                   <label className="block text-sm font-medium text-slate-700">
@@ -1868,7 +1892,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
                 </div>
               </SectionCard>
 
-              <SectionCard title="Cómo se aplican estos ajustes">
+              <SectionCard title="Cómo se aplican estos ajustes" tone="neutral">
                 <div className="space-y-3 text-sm leading-6 text-slate-600">
                   <p>
                     La información de empresa se usa para contextualizar nuevos

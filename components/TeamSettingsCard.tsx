@@ -11,6 +11,7 @@ import {
 import { getCurrentCompany, type CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
+import { AutoDismissAlert } from "./AutoDismissAlert";
 import { Button } from "./Button";
 
 type TeamMemberRow = {
@@ -263,9 +264,9 @@ export function TeamSettingsCard() {
     }
 
     setInviteEmail("");
+    await loadTeamData();
     setCreatedInvitation(data);
     setMessage("Invitación creada correctamente.");
-    await loadTeamData();
   };
 
   const handleCancelInvitation = async (invitationId: string) => {
@@ -303,8 +304,8 @@ export function TeamSettingsCard() {
       return;
     }
 
-    setMessage("Invitación cancelada correctamente.");
     await loadTeamData();
+    setMessage("Invitación cancelada correctamente.");
   };
 
   const handleCopyInvitationUrl = async (token: string) => {
@@ -322,13 +323,13 @@ export function TeamSettingsCard() {
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+    <div className="min-w-0 max-w-full rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-6">
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-[#E6F3F6] text-[#0F4C5C]">
           <UsersRound size={19} />
         </div>
 
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-bold text-slate-950">Equipo</h2>
 
           <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -360,13 +361,15 @@ export function TeamSettingsCard() {
                 className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="font-semibold text-slate-900">
+                  <div className="min-w-0">
+                    <div className="break-words font-semibold text-slate-900">
                       {member.full_name || member.email}
                     </div>
 
                     {member.full_name ? (
-                      <div className="mt-1 text-slate-500">{member.email}</div>
+                      <div className="mt-1 break-all text-slate-500">
+                        {member.email}
+                      </div>
                     ) : null}
                   </div>
 
@@ -421,38 +424,40 @@ export function TeamSettingsCard() {
         </div>
       ) : null}
 
-      {errorMessage ? (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {errorMessage}
-        </div>
-      ) : null}
+      <AutoDismissAlert
+        className="mt-4"
+        message={errorMessage}
+        variant="error"
+        onDismiss={() => setErrorMessage("")}
+      />
 
-      {message ? (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {message}
-        </div>
-      ) : null}
+      <AutoDismissAlert
+        className="mt-4"
+        message={message}
+        onDismiss={() => setMessage("")}
+      />
 
-      {copyErrorMessage ? (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {copyErrorMessage}
-        </div>
-      ) : null}
+      <AutoDismissAlert
+        className="mt-4"
+        message={copyErrorMessage}
+        variant="error"
+        onDismiss={() => setCopyErrorMessage("")}
+      />
 
-      {copyMessage ? (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {copyMessage}
-        </div>
-      ) : null}
+      <AutoDismissAlert
+        className="mt-4"
+        message={copyMessage}
+        onDismiss={() => setCopyMessage("")}
+      />
 
       {createdInvitation ? (
-        <div className="mt-4 rounded-2xl border border-cyan-200 bg-cyan-50 px-4 py-3 text-sm text-cyan-900">
+        <div className="mt-4 min-w-0 rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
           <div className="font-semibold">Enlace de invitación creado</div>
 
           <input
             readOnly
             value={getInvitationUrl(createdInvitation.token)}
-            className="mt-2 w-full rounded-xl border border-cyan-200 bg-white px-3 py-2 text-xs text-cyan-950 outline-none"
+            className="mt-2 min-w-0 w-full max-w-full rounded-xl border border-[#B8D1D8] bg-white px-3 py-2 text-xs text-[#062E36] outline-none"
           />
 
           <Button
@@ -478,12 +483,12 @@ export function TeamSettingsCard() {
                   className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm"
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-slate-900">
+                    <div className="min-w-0">
+                      <div className="break-all font-semibold text-slate-900">
                         {invitation.email}
                       </div>
 
-                      <div className="mt-1 text-xs text-slate-500">
+                      <div className="mt-1 break-words text-xs text-slate-500">
                         {getRoleLabel(invitation.role)} ·{" "}
                         {getInvitationStatusLabel(invitation.status)} · caduca{" "}
                         {formatDateTime(invitation.expires_at)}

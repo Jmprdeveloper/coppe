@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
 
-import {
-  type VisualTone,
-  visualToneStyles,
-} from "../lib/visualSystem";
+import { type VisualTone, visualToneStyles } from "../lib/visualSystem";
 import { classNames } from "../lib/utils";
 
 type BoardColumnProps = {
@@ -18,27 +15,27 @@ export function BoardColumn({
   title,
   description,
   count,
-  tone = "neutral",
+  tone = "brand",
   children,
 }: BoardColumnProps) {
   const toneStyles = visualToneStyles[tone];
 
   return (
-    <section className="rounded-3xl border border-slate-200 bg-white p-4 shadow-sm shadow-slate-200/60">
+    <section className="self-start rounded-2xl border border-[#D5E8EC] bg-gradient-to-br from-[#F7FBFC] via-white to-[#EEF7F9] p-3 shadow-sm shadow-[#0F4C5C]/5">
       <div
         className={classNames(
-          "mb-4 rounded-2xl border px-4 py-3 shadow-sm",
+          "mb-3 rounded-xl border px-4 py-3 shadow-sm shadow-[#0F4C5C]/5",
           toneStyles.header
         )}
       >
         <div className="flex items-start justify-between gap-3">
-          <div>
+          <div className="min-w-0">
             <h3 className={classNames("font-bold", toneStyles.text)}>
               {title}
             </h3>
 
             {description ? (
-              <p className="mt-1 text-xs leading-5 text-slate-600">
+              <p className="mt-1 text-xs leading-5 text-[#456C75]">
                 {description}
               </p>
             ) : null}
@@ -47,8 +44,9 @@ export function BoardColumn({
           {typeof count === "number" ? (
             <span
               className={classNames(
-                "inline-flex h-7 min-w-7 items-center justify-center rounded-full border bg-white px-2 text-xs font-bold shadow-sm",
-                toneStyles.badge
+                "inline-flex h-7 min-w-7 items-center justify-center rounded-full border bg-white px-2 text-xs font-bold shadow-sm shadow-[#0F4C5C]/10",
+                toneStyles.border,
+                toneStyles.text
               )}
             >
               {count}

@@ -1,4 +1,6 @@
 import { ButtonHTMLAttributes, ReactNode } from "react";
+
+import { actionStyles } from "../lib/visualSystem";
 import { classNames } from "../lib/utils";
 
 type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
@@ -16,23 +18,14 @@ export function Button({
   ...props
 }: ButtonProps) {
   const variants: Record<ButtonVariant, string> = {
-    primary: "bg-[#0F4C5C] text-white hover:bg-[#0b3c49]",
-    secondary:
-      "border border-slate-200 bg-white text-slate-800 hover:bg-slate-50",
-    ghost: "text-slate-600 hover:bg-slate-100",
-    danger: "bg-red-600 text-white hover:bg-red-700",
+    primary: actionStyles.primary,
+    secondary: actionStyles.secondary,
+    ghost: actionStyles.ghost,
+    danger: actionStyles.danger,
   };
 
   return (
-    <button
-      className={classNames(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
-        "disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50",
-        variants[variant],
-        className
-      )}
-      {...props}
-    >
+    <button className={classNames(variants[variant], className)} {...props}>
       {children}
     </button>
   );

@@ -5,60 +5,65 @@ type AIBlockProps = {
   inquiry: Inquiry;
 };
 
-export function AIBlock({ inquiry }: AIBlockProps) {
+function AIField({
+  label,
+  children,
+}: {
+  label: string;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-2xl border border-[#B9DCE4] bg-[#E6F3F6] p-5">
-      <div className="mb-4 flex items-center gap-2 text-[#0F4C5C]">
-        <Sparkles size={18} />
-        <h3 className="font-bold">Asistente COPPE</h3>
+    <div className="rounded-2xl border border-[#D2E4E8] bg-white/75 px-4 py-3 shadow-sm shadow-[#0F4C5C]/5">
+      <div className="text-xs font-semibold uppercase tracking-wide text-[#315F69]">
+        {label}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="mt-1 text-sm leading-6 text-[#153F48]">{children}</div>
+    </div>
+  );
+}
+
+export function AIBlock({ inquiry }: AIBlockProps) {
+  return (
+    <section className="rounded-2xl border border-[#8FB8C2] bg-gradient-to-br from-[#C9E2E7] via-[#E2F0F3] to-[#F7FBFC] p-5 shadow-md shadow-[#0F4C5C]/10">
+      <div className="mb-4 flex items-center gap-2 text-[#073540]">
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-[#B8D1D8] bg-white shadow-sm shadow-[#0F4C5C]/10">
+          <Sparkles size={18} />
+        </span>
+
         <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#0F4C5C]/70">
-            Resumen
-          </div>
-          <p className="mt-1 text-sm leading-6 text-slate-800">
-            {inquiry.aiSummary}
+          <h3 className="font-bold">Asistente COPPE</h3>
+          <p className="mt-0.5 text-xs font-medium text-[#456C75]">
+            Lectura asistida del caso y próximos pasos sugeridos.
           </p>
         </div>
+      </div>
 
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#0F4C5C]/70">
-            Acción recomendada
-          </div>
-          <p className="mt-1 text-sm leading-6 text-slate-800">
-            {inquiry.recommendedAction}
-          </p>
-        </div>
+      <div className="grid gap-3 md:grid-cols-2">
+        <AIField label="Resumen">
+          {inquiry.aiSummary || "Sin resumen disponible."}
+        </AIField>
 
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#0F4C5C]/70">
-            Intención detectada
-          </div>
-          <p className="mt-1 text-sm leading-6 text-slate-800">
-            {inquiry.aiIntent}
-          </p>
-        </div>
+        <AIField label="Acción recomendada">
+          {inquiry.recommendedAction || "Sin acción recomendada."}
+        </AIField>
 
-        <div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[#0F4C5C]/70">
-            Información faltante
-          </div>
+        <AIField label="Intención detectada">
+          {inquiry.aiIntent || "Sin intención detectada."}
+        </AIField>
 
+        <AIField label="Información faltante">
           {inquiry.missingInformation.length ? (
-            <ul className="mt-1 list-inside list-disc text-sm leading-6 text-slate-800">
+            <ul className="list-inside list-disc">
               {inquiry.missingInformation.map((item) => (
                 <li key={item}>{item}</li>
               ))}
             </ul>
           ) : (
-            <p className="mt-1 text-sm text-slate-800">
-              No se detecta información crítica faltante.
-            </p>
+            "No se detecta información crítica faltante."
           )}
-        </div>
+        </AIField>
       </div>
-    </div>
+    </section>
   );
 }

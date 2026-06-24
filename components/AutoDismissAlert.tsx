@@ -2,6 +2,8 @@
 
 import { useEffect, type ReactNode } from "react";
 
+type AutoDismissAlertVariant = "success" | "error";
+
 type AutoDismissAlertProps = {
   message: string;
   onDismiss: () => void;
@@ -9,6 +11,7 @@ type AutoDismissAlertProps = {
   children?: ReactNode;
   durationMs?: number;
   fadeOutMs?: number;
+  variant?: AutoDismissAlertVariant;
 };
 
 const autoDismissAlertFadeOutStyle = `
@@ -23,8 +26,12 @@ const autoDismissAlertFadeOutStyle = `
 }
 `;
 
-const successAlertClassName =
-  "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700";
+const alertClassNames: Record<AutoDismissAlertVariant, string> = {
+  success:
+    "rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700",
+  error:
+    "rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700",
+};
 
 export function AutoDismissAlert({
   message,
@@ -33,6 +40,7 @@ export function AutoDismissAlert({
   children,
   durationMs = 4200,
   fadeOutMs = 350,
+  variant = "success",
 }: AutoDismissAlertProps) {
   useEffect(() => {
     if (!message) {
@@ -59,7 +67,9 @@ export function AutoDismissAlert({
       <style>{autoDismissAlertFadeOutStyle}</style>
 
       <div
-        className={`${successAlertClassName} ${className}`.trim()}
+        role={variant === "error" ? "alert" : "status"}
+        aria-live={variant === "error" ? "assertive" : "polite"}
+        className={`${alertClassNames[variant]} ${className}`.trim()}
         style={{
           animation: `coppe-auto-dismiss-alert-fade-out ${fadeOutMs}ms ease-in forwards`,
           animationDelay: `${fadeDelayMs}ms`,

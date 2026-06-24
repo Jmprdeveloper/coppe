@@ -16,24 +16,29 @@ export function MetricCard({
   value,
   caption,
   icon: Icon,
-  tone = "neutral",
+  tone = "brand",
 }: MetricCardProps) {
   const toneStyles = visualToneStyles[tone];
 
   return (
     <article
       className={classNames(
-        "rounded-2xl border p-3.5 shadow-sm shadow-slate-200/60 transition",
+        "rounded-2xl border p-3.5 shadow-sm transition hover:-translate-y-px hover:shadow-md",
         toneStyles.softCard
       )}
     >
       <div className="flex items-start justify-between gap-2.5">
         <div className="min-w-0">
-          <div className="text-[11px] font-bold uppercase leading-4 tracking-wide text-slate-500">
+          <div className="text-[11px] font-bold uppercase leading-4 tracking-wide text-[#5C7780]">
             {title}
           </div>
 
-          <div className="mt-1.5 break-words text-xl font-bold leading-6 text-slate-950">
+          <div
+            className={classNames(
+              "mt-1.5 break-words text-xl font-bold leading-6",
+              toneStyles.text
+            )}
+          >
             {value}
           </div>
         </div>
@@ -41,7 +46,7 @@ export function MetricCard({
         {Icon ? (
           <div
             className={classNames(
-              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/70 shadow-sm",
+              "flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/80 shadow-sm",
               toneStyles.icon
             )}
           >
@@ -51,7 +56,7 @@ export function MetricCard({
       </div>
 
       {caption ? (
-        <p className="mt-2 break-words text-[11px] leading-4 text-slate-600">
+        <p className="mt-2 break-words text-[11px] leading-4 text-[#456C75]">
           {caption}
         </p>
       ) : null}

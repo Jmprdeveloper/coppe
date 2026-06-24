@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, Sparkles, XCircle } from "lucide-react";
+import { CalendarClock, ChevronLeft, Sparkles, XCircle } from "lucide-react";
 
 import {
   compareAppointmentsByScheduledAt,
@@ -14,6 +14,7 @@ import {
   normalizeFollowUpStatus,
   resolveFollowUpUrgency,
 } from "../lib/followUpUtils";
+import { getCategoryLabel } from "../lib/inquiryCategories";
 import { type AnalyzeInquiryResponse } from "../lib/inquiryAnalysisApi";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../lib/inquiryAnalysisLimits";
 import {
@@ -38,11 +39,9 @@ import type {
 
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
-import { CategoryBadge } from "./CategoryBadge";
 import { FollowUpCard } from "./FollowUpCard";
-import { PriorityBadge } from "./PriorityBadge";
 import { ResponseEditor } from "./ResponseEditor";
-import { StatusBadge } from "./StatusBadge";
+import { SectionCard } from "./SectionCard";
 
 type InquiryDetailProps = {
   inquiryId: string;
@@ -174,7 +173,7 @@ function AutoDismissSuccessMessage({
     <>
       <style>{successMessageFadeOutStyle}</style>
       <div
-        className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700"
+        className="mt-3 rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] px-4 py-3 text-sm text-[#0F4C5C]"
         style={{
           animation: `coppeSuccessMessageFadeOut ${SUCCESS_MESSAGE_FADE_MS}ms ease-in ${SUCCESS_MESSAGE_VISIBLE_MS}ms forwards`,
         }}
@@ -266,6 +265,58 @@ function getMessageDirectionLabel(direction: string, wasSentByEmail = false) {
   }
 
   return "Mensaje";
+}
+
+function formatPriorityLabel(priority: string | null | undefined) {
+  if (priority === "high") {
+    return "Alta";
+  }
+
+  if (priority === "medium") {
+    return "Media";
+  }
+
+  if (priority === "low") {
+    return "Baja";
+  }
+
+  return "Sin prioridad";
+}
+
+function formatStatusLabel(status: InquiryStatus) {
+  if (status === "new") {
+    return "Nuevo";
+  }
+
+  if (status === "pending") {
+    return "En seguimiento";
+  }
+
+  if (status === "waiting_customer") {
+    return "Esperando al cliente";
+  }
+
+  if (status === "replied") {
+    return "Respondido";
+  }
+
+  if (status === "closed") {
+    return "Cerrado";
+  }
+
+  if (status === "discarded") {
+    return "Descartado";
+  }
+
+  return "Estado no indicado";
+}
+
+function TealBadge({ children }: { children: string }) {
+  return (
+    <span className="rounded-full border border-[#B8D1D8] bg-white px-2.5 py-1 text-xs font-semibold text-[#315F69] shadow-sm shadow-[#0F4C5C]/5">
+      {children}
+    </span>
+  );
 }
 
 function getRawPayloadStringValue(value: unknown) {
@@ -2127,14 +2178,16 @@ export function InquiryDetail({
   if (isLoading) {
     return (
       <div>
-        <button
+        <Button
+          variant="secondary"
           onClick={() => setActiveView("inquiries")}
-          className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
+          className="mb-4"
         >
-          ← Volver a casos
-        </button>
+          <ChevronLeft size={16} />
+          Volver a casos
+        </Button>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-sm text-slate-600 shadow-sm">
+        <div className="rounded-2xl border border-[#B8D1D8] bg-white p-6 text-sm font-medium text-[#456C75] shadow-md shadow-[#0F4C5C]/10">
           Cargando caso...
         </div>
       </div>
@@ -2143,12 +2196,12 @@ export function InquiryDetail({
 
   if (errorMessage || !inquiry) {
     return (
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center">
-        <XCircle className="mx-auto text-slate-400" />
+      <div className="rounded-2xl border border-[#B8D1D8] bg-white p-8 text-center shadow-md shadow-[#0F4C5C]/10">
+        <XCircle className="mx-auto text-[#8AA5AC]" />
 
-        <h2 className="mt-3 font-bold text-slate-950">Caso no encontrado</h2>
+        <h2 className="mt-3 font-bold text-[#073540]">Caso no encontrado</h2>
 
-        <p className="mt-2 text-sm text-slate-500">
+        <p className="mt-2 text-sm text-[#6B858C]">
           {errorMessage || "No se pudo cargar este caso."}
         </p>
 
@@ -2213,98 +2266,104 @@ export function InquiryDetail({
 
   return (
     <div>
-      <div className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <button
+      <section className="mb-6 overflow-hidden rounded-2xl border border-[#8FB8C2] bg-white shadow-md shadow-[#0F4C5C]/10">
+        <div className="border-b border-[#8FB8C2] bg-gradient-to-r from-[#C9E2E7] via-[#E2F0F3] to-[#F7FBFC] px-5 py-4">
+          <Button
+            variant="secondary"
             onClick={() => setActiveView("inquiries")}
-            className="mb-3 text-sm font-semibold text-[#0F4C5C] hover:underline"
+            className="mb-4"
           >
-            ← Volver a casos
-          </button>
+            <ChevronLeft size={16} />
+            Volver a casos
+          </Button>
 
-          <h1 className="text-2xl font-bold tracking-tight text-slate-950 md:text-3xl">
-            Caso de {inquiry.customerName}
-          </h1>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <h1 className="text-2xl font-bold tracking-tight text-[#073540] md:text-3xl">
+                Caso de {inquiry.customerName}
+              </h1>
 
-          <div className="mt-2 text-sm font-medium text-slate-600">
-            {inquiry.subject}
-          </div>
+              <div className="mt-2 text-sm font-medium text-[#315F69]">
+                {inquiry.subject}
+              </div>
 
-          <div className="mt-3 flex flex-wrap gap-2">
-            <PriorityBadge priority={inquiry.aiPriority} />
-            <CategoryBadge category={inquiry.aiCategory} />
-            <StatusBadge status={inquiryStatus} />
+              <div className="mt-3 flex flex-wrap gap-2">
+                <TealBadge>{formatPriorityLabel(inquiry.aiPriority)}</TealBadge>
+                <TealBadge>{getCategoryLabel(inquiry.aiCategory)}</TealBadge>
+                <TealBadge>{formatStatusLabel(inquiryStatus)}</TealBadge>
 
-            <span className="rounded-full border border-slate-200 bg-white px-2.5 py-1 text-xs font-medium text-slate-600">
-              {inquiry.createdAt}
-            </span>
-          </div>
-
-          {statusErrorMessage ? (
-            <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-              {statusErrorMessage}
+                <span className="rounded-full border border-[#B8D1D8] bg-white px-2.5 py-1 text-xs font-semibold text-[#315F69] shadow-sm">
+                  {inquiry.createdAt}
+                </span>
+              </div>
             </div>
-          ) : null}
 
-          <AutoDismissSuccessMessage
-            message={statusMessage}
-            onDismiss={setStatusMessage}
-          />
+            <div className="flex flex-wrap gap-2">
+              {canReopenInquiry ? (
+                <Button
+                  variant="secondary"
+                  onClick={() => handleUpdateStatus("pending")}
+                  disabled={isUpdatingStatus}
+                >
+                  Reabrir caso
+                </Button>
+              ) : null}
+
+              {canUseFinalActions ? (
+                <>
+                  <Button
+                    variant="secondary"
+                    onClick={() => handleUpdateStatus("closed")}
+                    disabled={isUpdatingStatus}
+                  >
+                    Cerrar
+                  </Button>
+
+                  <Button
+                    variant="danger"
+                    onClick={() => handleUpdateStatus("discarded")}
+                    disabled={isUpdatingStatus}
+                  >
+                    Descartar caso
+                  </Button>
+                </>
+              ) : null}
+            </div>
+          </div>
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {canReopenInquiry ? (
-            <Button
-              variant="secondary"
-              onClick={() => handleUpdateStatus("pending")}
-              disabled={isUpdatingStatus}
-            >
-              Reabrir caso
-            </Button>
-          ) : null}
+        {(statusErrorMessage || statusMessage) ? (
+          <div className="px-5 pb-5">
+            {statusErrorMessage ? (
+              <div className="mt-4 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
+                {statusErrorMessage}
+              </div>
+            ) : null}
 
-          {canUseFinalActions ? (
-            <>
-              <Button
-                variant="secondary"
-                onClick={() => handleUpdateStatus("closed")}
-                disabled={isUpdatingStatus}
-              >
-                Cerrar
-              </Button>
-
-              <Button
-                variant="ghost"
-                onClick={() => handleUpdateStatus("discarded")}
-                disabled={isUpdatingStatus}
-              >
-                Descartar caso
-              </Button>
-            </>
-          ) : null}
-        </div>
-      </div>
+            <AutoDismissSuccessMessage
+              message={statusMessage}
+              onDismiss={setStatusMessage}
+            />
+          </div>
+        ) : null}
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
         <main className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">
-              Mensajes del caso
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Historial de mensajes recibidos o registrados dentro de este caso.
-            </p>
-
-            <div className="mt-4 space-y-3">
+          <SectionCard
+            title="Mensajes del caso"
+            description="Historial de mensajes recibidos o registrados dentro de este caso."
+            tone="info"
+          >
+            <div className="space-y-3">
               {inquiryMessages.length > 0 ? (
                 inquiryMessages.map((message) => (
                   <article
                     key={message.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    className="rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-4 shadow-sm shadow-[#0F4C5C]/5"
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      <div className="text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
                         {getMessageAuthorLabel(message.author_type)} ·{" "}
                         {getMessageDirectionLabel(
                           message.direction,
@@ -2312,48 +2371,42 @@ export function InquiryDetail({
                         )}
                       </div>
 
-                      <div className="text-xs text-slate-500">
+                      <div className="text-xs text-[#6B858C]">
                         {formatDateTime(message.created_at)}
                       </div>
                     </div>
 
-                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                    <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#153F48]">
                       {message.body}
                     </p>
 
                     {message.source_channel ? (
-                      <div className="mt-3 text-xs text-slate-500">
+                      <div className="mt-3 text-xs text-[#6B858C]">
                         Canal: {formatSourceChannel(message.source_channel)}
                       </div>
                     ) : null}
                   </article>
                 ))
               ) : (
-                <article className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <article className="rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-4 shadow-sm shadow-[#0F4C5C]/5">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
                     Cliente · Recibido
                   </div>
 
-                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-slate-800">
+                  <p className="mt-3 whitespace-pre-wrap text-sm leading-6 text-[#153F48]">
                     {inquiry.originalMessage}
                   </p>
                 </article>
               )}
             </div>
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-slate-950">
-              Nuevo mensaje del cliente
-            </h2>
-
-            <p className="mt-2 text-sm leading-6 text-slate-600">
-              Usa este bloque cuando el cliente aporte datos nuevos sobre este
-              mismo caso. COPPE guardará el nuevo mensaje y reanalizará el
-              contexto completo sin crear un caso nuevo.
-            </p>
-
-            <label className="mt-5 block text-sm font-medium text-slate-700">
+          <SectionCard
+            title="Nuevo mensaje del cliente"
+            description="Usa este bloque cuando el cliente aporte datos nuevos sobre este mismo caso. COPPE guardará el nuevo mensaje y reanalizará el contexto completo sin crear un caso nuevo."
+            tone="customer"
+          >
+            <label className="block text-sm font-medium text-[#315F69]">
               Canal del nuevo mensaje
               <select
                 value={normalizeSourceChannelValue(
@@ -2364,7 +2417,7 @@ export function InquiryDetail({
                   setReanalysisMessage("");
                   setReanalysisErrorMessage("");
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
               >
                 {sourceChannelOptions.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -2382,16 +2435,16 @@ export function InquiryDetail({
                 setReanalysisErrorMessage("");
               }}
               maxLength={MAX_ANALYSIS_MESSAGE_LENGTH}
-              className="mt-4 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
+              className="mt-4 min-h-[120px] w-full rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-3 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
               placeholder="Pega aquí el nuevo mensaje recibido del cliente..."
             />
 
-            <p className="mt-1 text-right text-xs text-slate-500">
+            <p className="mt-1 text-right text-xs text-[#6B858C]">
               {additionalCustomerInfo.length}/{MAX_ANALYSIS_MESSAGE_LENGTH} caracteres
             </p>
 
             {reanalysisErrorMessage ? (
-              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-3 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {reanalysisErrorMessage}
               </div>
             ) : null}
@@ -2425,7 +2478,7 @@ export function InquiryDetail({
                 Limpiar
               </Button>
             </div>
-          </div>
+          </SectionCard>
 
           <AIBlock inquiry={inquiry} />
 
@@ -2444,29 +2497,26 @@ export function InquiryDetail({
         </main>
 
         <aside className="space-y-5">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Cliente</h3>
-
-            <p className="mt-2 font-semibold text-slate-900">
+          <SectionCard title="Cliente" tone="customer">
+            <p className="mt-2 font-semibold text-[#153F48]">
               {customer?.name || inquiry.customerName}
             </p>
 
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#6B858C]">
               {customer?.email || "Sin email"}
             </p>
 
-            <p className="text-sm text-slate-500">
+            <p className="text-sm text-[#6B858C]">
               {customer?.phone || "Sin teléfono"}
             </p>
-          </div>
+          </SectionCard>
 
           {inboundReceivedDetails ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
-              <h3 className="font-bold text-amber-950">
-                Datos recibidos de {inboundReceivedDetails.sourceChannel}
-              </h3>
-
-              <p className="mt-2 text-sm leading-6 text-amber-900">
+            <SectionCard
+              title={`Datos recibidos de ${inboundReceivedDetails.sourceChannel}`}
+              tone="warning"
+            >
+              <p className="mt-2 text-sm leading-6 text-[#083640]">
                 Este mensaje se ha asociado al cliente existente mostrado arriba
                 porque coincidía un dato de contacto, pero el mensaje llegó
                 desde {inboundReceivedDetails.sourceChannel} con estos datos:
@@ -2475,10 +2525,10 @@ export function InquiryDetail({
               <div className="mt-4 space-y-2 text-sm">
                 {inboundReceivedDetails.customerName ? (
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-[#315F69]">
                       Nombre recibido
                     </div>
-                    <div className="mt-0.5 text-amber-950">
+                    <div className="mt-0.5 text-[#073540]">
                       {inboundReceivedDetails.customerName}
                     </div>
                   </div>
@@ -2486,10 +2536,10 @@ export function InquiryDetail({
 
                 {inboundReceivedDetails.email ? (
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-[#315F69]">
                       Email recibido
                     </div>
-                    <div className="mt-0.5 text-amber-950">
+                    <div className="mt-0.5 text-[#073540]">
                       {inboundReceivedDetails.email}
                     </div>
                   </div>
@@ -2497,47 +2547,45 @@ export function InquiryDetail({
 
                 {inboundReceivedDetails.phone ? (
                   <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    <div className="text-xs font-semibold uppercase tracking-wide text-[#315F69]">
                       Teléfono recibido
                     </div>
-                    <div className="mt-0.5 text-amber-950">
+                    <div className="mt-0.5 text-[#073540]">
                       {inboundReceivedDetails.phone}
                     </div>
                   </div>
                 ) : null}
               </div>
 
-              <p className="mt-4 text-xs leading-5 text-amber-800">
+              <p className="mt-4 text-xs leading-5 text-[#0B3F4C]">
                 Revisa si conviene actualizar el cliente, mantenerlo como está
                 o crear un cliente separado manualmente.
               </p>
-            </div>
+            </SectionCard>
           ) : null}
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Cita interna</h3>
-
+          <SectionCard title="Crear cita interna" tone="appointment">
             {canCreateAppointment ? (
               <>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <p className="mt-2 text-sm leading-6 text-[#456C75]">
                   Registra una fecha y hora interna para este caso. COPPE no
                   confirma la cita automáticamente al cliente.
                 </p>
 
                 <div className="mt-4 space-y-3">
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Título
                     <input
                       value={appointmentTitle}
                       onChange={(event) =>
                         setAppointmentTitle(event.target.value)
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
                       placeholder="Escribe el título de la cita"
                     />
                   </label>
 
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Fecha y hora
                     <input
                       type="datetime-local"
@@ -2545,25 +2593,25 @@ export function InquiryDetail({
                       onChange={(event) =>
                         setAppointmentScheduledAt(event.target.value)
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
                     />
                   </label>
 
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Notas
                     <textarea
                       value={appointmentNotes}
                       onChange={(event) =>
                         setAppointmentNotes(event.target.value)
                       }
-                      className="mt-1 min-h-[90px] w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      className="mt-1 min-h-[90px] w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
                       placeholder="Añade detalles relevantes para preparar la cita..."
                     />
                   </label>
                 </div>
 
                 {appointmentErrorMessage ? (
-                  <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                  <div className="mt-3 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                     {appointmentErrorMessage}
                   </div>
                 ) : null}
@@ -2583,30 +2631,28 @@ export function InquiryDetail({
                 </Button>
               </>
             ) : (
-              <p className="mt-2 text-sm leading-6 text-slate-600">
+              <p className="mt-2 text-sm leading-6 text-[#456C75]">
                 Este caso está finalizado. Para crear una cita, primero reabre
                 el caso.
               </p>
             )}
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Citas del caso</h3>
-
+          <SectionCard title="Citas del caso" tone="appointment">
             <AutoDismissSuccessMessage
               message={appointmentActionMessage}
               onDismiss={setAppointmentActionMessage}
             />
 
             {appointments.length === 0 ? (
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-[#456C75]">
                 Todavía no hay citas asociadas a este caso.
               </p>
             ) : (
               <div className="mt-4 space-y-4">
                 {activeAppointments.length > 0 ? (
                   <section>
-                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
                       Activas
                     </h4>
 
@@ -2614,32 +2660,37 @@ export function InquiryDetail({
                       {activeAppointments.map((appointment) => (
                         <article
                           key={appointment.id}
-                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          className="relative overflow-hidden rounded-2xl border border-[#A7C9D1] bg-white p-4 pl-5 shadow-sm shadow-[#0F4C5C]/10"
                         >
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-1 bg-[#0B3F4C]"
+                          />
+
                           {editingAppointment?.id === appointment.id ? (
                             <>
-                              <h4 className="text-sm font-bold text-slate-950">
+                              <h4 className="text-sm font-bold text-[#073540]">
                                 Editar cita interna
                               </h4>
 
-                              <p className="mt-1 text-xs leading-5 text-slate-500">
+                              <p className="mt-1 text-xs leading-5 text-[#6B858C]">
                                 Actualiza el título, la fecha/hora o las notas
                                 internas de esta cita.
                               </p>
 
                               <div className="mt-4 space-y-3">
-                                <label className="block text-sm font-medium text-slate-700">
+                                <label className="block text-sm font-medium text-[#315F69]">
                                   Título
                                   <input
                                     value={editAppointmentTitle}
                                     onChange={(event) =>
                                       setEditAppointmentTitle(event.target.value)
                                     }
-                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                                    className="mt-1 w-full rounded-xl border border-[#B8D1D8] bg-white px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C]"
                                   />
                                 </label>
 
-                                <label className="block text-sm font-medium text-slate-700">
+                                <label className="block text-sm font-medium text-[#315F69]">
                                   Fecha y hora
                                   <input
                                     type="datetime-local"
@@ -2649,18 +2700,18 @@ export function InquiryDetail({
                                         event.target.value
                                       )
                                     }
-                                    className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                                    className="mt-1 w-full rounded-xl border border-[#B8D1D8] bg-white px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C]"
                                   />
                                 </label>
 
-                                <label className="block text-sm font-medium text-slate-700">
+                                <label className="block text-sm font-medium text-[#315F69]">
                                   Notas
                                   <textarea
                                     value={editAppointmentNotes}
                                     onChange={(event) =>
                                       setEditAppointmentNotes(event.target.value)
                                     }
-                                    className="mt-1 min-h-[90px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                                    className="mt-1 min-h-[90px] w-full rounded-xl border border-[#B8D1D8] bg-white px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C]"
                                     placeholder="Añade detalles relevantes para preparar la cita..."
                                   />
                                 </label>
@@ -2689,11 +2740,11 @@ export function InquiryDetail({
                             </>
                           ) : (
                             <>
-                              <div className="text-sm font-semibold text-slate-950">
+                              <div className="text-sm font-semibold text-[#073540]">
                                 {appointment.title}
                               </div>
 
-                              <p className="mt-1 text-xs text-slate-500">
+                              <p className="mt-1 text-xs text-[#6B858C]">
                                 {appointment.scheduledAt} ·{" "}
                                 {getAppointmentStatusLabel(
                                   appointment.status
@@ -2701,7 +2752,7 @@ export function InquiryDetail({
                               </p>
 
                               {appointment.notes ? (
-                                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                                <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#456C75]">
                                   {appointment.notes}
                                 </p>
                               ) : null}
@@ -2800,7 +2851,7 @@ export function InquiryDetail({
 
                 {historyAppointments.length > 0 ? (
                   <section>
-                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
                       Historial
                     </h4>
 
@@ -2808,19 +2859,24 @@ export function InquiryDetail({
                       {historyAppointments.map((appointment) => (
                         <article
                           key={appointment.id}
-                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          className="relative overflow-hidden rounded-2xl border border-[#B8D1D8] bg-white p-4 pl-5 shadow-sm shadow-[#0F4C5C]/5"
                         >
-                          <div className="text-sm font-semibold text-slate-950">
+                          <span
+                            aria-hidden="true"
+                            className="absolute inset-y-0 left-0 w-1 bg-[#B8D1D8]"
+                          />
+
+                          <div className="text-sm font-semibold text-[#073540]">
                             {appointment.title}
                           </div>
 
-                          <p className="mt-1 text-xs text-slate-500">
+                          <p className="mt-1 text-xs text-[#6B858C]">
                             {appointment.scheduledAt} ·{" "}
                             {getAppointmentStatusLabel(appointment.status)}
                           </p>
 
                           {appointment.notes ? (
-                            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                            <p className="mt-2 whitespace-pre-wrap text-xs leading-5 text-[#456C75]">
                               {appointment.notes}
                             </p>
                           ) : null}
@@ -2845,17 +2901,18 @@ export function InquiryDetail({
                 ) : null}
               </div>
             )}
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">
-              {pendingFollowUps.length > 0
+          <SectionCard
+            title={
+              pendingFollowUps.length > 0
                 ? "Crear otro seguimiento"
-                : "Crear seguimiento"}
-            </h3>
-
+                : "Crear seguimiento"
+            }
+            tone="followUp"
+          >
             {followUpCreateErrorMessage ? (
-              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-3 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {followUpCreateErrorMessage}
               </div>
             ) : null}
@@ -2868,32 +2925,32 @@ export function InquiryDetail({
             {canCreateFollowUp ? (
               shouldShowCreateFollowUpForm ? (
                 <>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 text-sm leading-6 text-[#456C75]">
                     Crea una nueva tarea para volver a revisar este caso en una
                     fecha concreta.
                   </p>
 
                   {pendingFollowUps.length > 0 ? (
-                    <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <div className="mt-3 rounded-2xl border border-[#8FB8C2] bg-[#F2FAFB] px-4 py-3 text-sm text-[#0B3F4C]">
                       Ya existe un seguimiento pendiente para este caso. Crea
                       otro solo si necesitas un recordatorio adicional.
                     </div>
                   ) : null}
 
                   <div className="mt-4 space-y-3">
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label className="block text-sm font-medium text-[#315F69]">
                       Título
                       <input
                         value={followUpTitle}
                         onChange={(event) =>
                           setFollowUpTitle(event.target.value)
                         }
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                        className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
                         placeholder="Escribe el título del seguimiento"
                       />
                     </label>
 
-                    <label className="block text-sm font-medium text-slate-700">
+                    <label className="block text-sm font-medium text-[#315F69]">
                       Fecha y hora
                       <input
                         type="datetime-local"
@@ -2901,7 +2958,7 @@ export function InquiryDetail({
                         onChange={(event) =>
                           setFollowUpDueAt(event.target.value)
                         }
-                        className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                        className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
                       />
                     </label>
                   </div>
@@ -2941,7 +2998,7 @@ export function InquiryDetail({
                 </>
               ) : (
                 <>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                  <p className="mt-2 text-sm leading-6 text-[#456C75]">
                     Este caso ya tiene un seguimiento pendiente. Si necesitas
                     programar otro recordatorio distinto, puedes crear uno
                     adicional.
@@ -2958,22 +3015,18 @@ export function InquiryDetail({
               )
             ) : (
               <>
-                <p className="mt-2 text-sm leading-6 text-slate-600">
+                <p className="mt-2 text-sm leading-6 text-[#456C75]">
                   Este caso está finalizado. Para crear un seguimiento, primero
                   reabre el caso.
                 </p>
 
               </>
             )}
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">
-              Seguimientos del caso
-            </h3>
-
+          <SectionCard title="Seguimientos del caso" tone="followUp">
             {followUpActionErrorMessage ? (
-              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-3 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {followUpActionErrorMessage}
               </div>
             ) : null}
@@ -2984,28 +3037,28 @@ export function InquiryDetail({
             />
 
             {editingFollowUp ? (
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                <h4 className="text-sm font-bold text-slate-950">
+              <div className="mt-4 rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] p-4">
+                <h4 className="text-sm font-bold text-[#073540]">
                   Editar seguimiento
                 </h4>
 
-                <p className="mt-1 text-xs leading-5 text-slate-500">
+                <p className="mt-1 text-xs leading-5 text-[#6B858C]">
                   Actualiza el título o la fecha de este seguimiento.
                 </p>
 
                 <div className="mt-4 space-y-3">
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Título
                     <input
                       value={editFollowUpTitle}
                       onChange={(event) =>
                         setEditFollowUpTitle(event.target.value)
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      className="mt-1 w-full rounded-xl border border-[#B8D1D8] bg-white px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C]"
                     />
                   </label>
 
-                  <label className="block text-sm font-medium text-slate-700">
+                  <label className="block text-sm font-medium text-[#315F69]">
                     Fecha y hora
                     <input
                       type="datetime-local"
@@ -3013,7 +3066,7 @@ export function InquiryDetail({
                       onChange={(event) =>
                         setEditFollowUpDueAt(event.target.value)
                       }
-                      className="mt-1 w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-[#0F4C5C]"
+                      className="mt-1 w-full rounded-xl border border-[#B8D1D8] bg-white px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C]"
                     />
                   </label>
                 </div>
@@ -3036,14 +3089,14 @@ export function InquiryDetail({
             ) : null}
 
             {followUps.length === 0 ? (
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-[#456C75]">
                 Todavía no hay seguimientos asociados a este caso.
               </p>
             ) : (
               <div className="mt-4 space-y-4">
                 {pendingFollowUps.length > 0 ? (
                   <section>
-                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
                       Pendientes
                     </h4>
 
@@ -3072,7 +3125,7 @@ export function InquiryDetail({
 
                 {historyFollowUps.length > 0 ? (
                   <section>
-                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                    <h4 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
                       Historial
                     </h4>
 
@@ -3092,20 +3145,18 @@ export function InquiryDetail({
                 ) : null}
               </div>
             )}
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Nota interna</h3>
-
+          <SectionCard title="Nota interna" tone="note">
             <textarea
               value={note}
               onChange={(event) => setNote(event.target.value)}
-              className="mt-3 min-h-[120px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-3 text-sm outline-none focus:border-[#0F4C5C]"
+              className="min-h-[120px] w-full rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-3 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
               placeholder="Añadir nota interna..."
             />
 
             {noteErrorMessage ? (
-              <div className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              <div className="mt-3 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
                 {noteErrorMessage}
               </div>
             ) : null}
@@ -3123,13 +3174,11 @@ export function InquiryDetail({
             >
               {isSavingNote ? "Guardando nota..." : "Guardar nota"}
             </Button>
-          </div>
+          </SectionCard>
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-            <h3 className="font-bold text-slate-950">Notas del caso</h3>
-
+          <SectionCard title="Notas del caso" tone="note">
             {notes.length === 0 ? (
-              <p className="mt-3 text-sm leading-6 text-slate-600">
+              <p className="mt-3 text-sm leading-6 text-[#456C75]">
                 Todavía no hay notas internas para este caso.
               </p>
             ) : (
@@ -3137,20 +3186,20 @@ export function InquiryDetail({
                 {notes.map((internalNote) => (
                   <article
                     key={internalNote.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                    className="rounded-2xl border border-[#B8D1D8] bg-[#F7FBFC] p-4 shadow-sm shadow-[#0F4C5C]/5"
                   >
-                    <p className="whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                    <p className="whitespace-pre-wrap text-sm leading-6 text-[#315F69]">
                       {internalNote.body}
                     </p>
 
-                    <div className="mt-3 text-xs text-slate-500">
+                    <div className="mt-3 text-xs text-[#6B858C]">
                       {formatDateTime(internalNote.created_at)}
                     </div>
                   </article>
                 ))}
               </div>
             )}
-          </div>
+          </SectionCard>
         </aside>
       </div>
     </div>

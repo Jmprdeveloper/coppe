@@ -364,19 +364,19 @@ function ResponseEditorContent({
   };
 
   return (
-    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <section className="rounded-2xl border border-[#8FB8C2] bg-white p-5 shadow-md shadow-[#0F4C5C]/10">
       <div className="mb-3 flex items-center justify-between gap-4">
         <div>
-          <h3 className="font-bold text-slate-950">Borrador de respuesta</h3>
+          <h3 className="font-bold text-[#073540]">Borrador de respuesta</h3>
 
-          <p className="text-xs leading-5 text-slate-500">
+          <p className="text-xs leading-5 text-[#456C75]">
             {canSendEmailResponse
               ? "Edita el texto y elige si quieres enviarlo por email desde COPPE o copiarlo para responder manualmente."
               : "Edita el texto, cópialo y envíalo manualmente por el canal correspondiente. COPPE registrará la respuesta en el historial del caso."}
           </p>
         </div>
 
-        <span className="rounded-full bg-[#E6F3F6] px-2.5 py-1 text-xs font-medium text-[#0F4C5C]">
+        <span className="rounded-full border border-[#B8D1D8] bg-[#F2FAFB] px-2.5 py-1 text-xs font-bold text-[#0F4C5C] shadow-sm shadow-[#0F4C5C]/5">
           IA
         </span>
       </div>
@@ -388,24 +388,24 @@ function ResponseEditorContent({
           setSuccessMessage("");
           setErrorMessage("");
         }}
-        className="min-h-[150px] w-full rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800 outline-none transition focus:border-[#0F4C5C] focus:bg-white"
+        className="min-h-[150px] w-full rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-4 text-sm leading-6 text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
       />
 
       {canSendEmailResponse && hasAlreadySentCurrentText ? (
-        <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+        <div className="mt-4 rounded-2xl border border-[#8FB8C2] bg-[#F2FAFB] px-4 py-3 text-sm text-[#0B3F4C]">
           Este borrador ya fue enviado por email en este caso. Edita el texto
           si necesitas enviar una nueva respuesta.
         </div>
       ) : null}
 
       {errorMessage ? (
-        <div className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="mt-4 rounded-2xl border border-[#6D9BA7] bg-[#F2FAFB] px-4 py-3 text-sm text-[#083640]">
           {errorMessage}
         </div>
       ) : null}
 
       {successMessage ? (
-        <div className="mt-4 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+        <div className="mt-4 rounded-2xl border border-[#B8D1D8] bg-[#F2FAFB] px-4 py-3 text-sm text-[#0F4C5C]">
           {successMessage}
         </div>
       ) : null}
@@ -470,6 +470,6 @@ function ResponseEditorContent({
           </Button>
         ) : null}
       </div>
-    </div>
+    </section>
   );
 }
