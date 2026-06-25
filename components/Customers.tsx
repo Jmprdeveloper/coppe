@@ -174,6 +174,16 @@ function formatCustomerLanguage(language: string | null) {
   return (language || "es").toUpperCase();
 }
 
+type CustomerAuditAction = "create_customer";
+
+type CustomerAuditMetadata = {
+  status?: string;
+  language?: string;
+  had_email?: boolean;
+  had_phone?: boolean;
+  name_length?: number;
+};
+
 function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
   return (
     <div className="mb-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
@@ -189,6 +199,30 @@ function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
 
 export function Customers({ openCustomer }: CustomersProps) {
   const supabase = useMemo(() => createClient(), []);
+
+  const createCustomerAuditLog = async ({
+    companyId,
+    customerId,
+    action,
+    metadata,
+  }: {
+    companyId: string;
+    customerId: string;
+    action: CustomerAuditAction;
+    metadata: CustomerAuditMetadata;
+  }) => {
+    const { error } = await supabase.rpc("create_audit_log", {
+      target_company_id: companyId,
+      audit_action: action,
+      audit_entity_type: "customer",
+      audit_entity_id: customerId,
+      audit_metadata: metadata,
+    });
+
+    if (error) {
+      console.error("Customer created, but could not create audit log:", error);
+    }
+  };
 
   const [customers, setCustomers] = useState<CustomerWithActivity[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
@@ -478,6 +512,19 @@ export function Customers({ openCustomer }: CustomersProps) {
       );
       return;
     }
+
+    await createCustomerAuditLog({
+      companyId: company.id,
+      customerId: createdCustomer.id,
+      action: "create_customer",
+      metadata: {
+        status: "active",
+        language: cleanLanguage,
+        had_email: Boolean(cleanEmail),
+        had_phone: Boolean(cleanPhone),
+        name_length: cleanName.length,
+      },
+    });
 
     setCustomers((currentCustomers) => [
       {
