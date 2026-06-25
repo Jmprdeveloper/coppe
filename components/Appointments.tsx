@@ -46,7 +46,12 @@ type InquiryOptionRow = {
   status: string;
 };
 
+type AppointmentRowWithCompany = AppointmentRow & {
+  company_id: string;
+};
+
 type InternalAppointment = Appointment & {
+  companyId: string;
   inquiryLabel: string;
   inquiryStatus: string;
   scheduledAtValue: string;
@@ -148,7 +153,7 @@ function buildInquiryLabel(inquiry: InquiryOptionRow | undefined) {
 }
 
 function mapAppointmentRowToInternalAppointment(
-  row: AppointmentRow,
+  row: AppointmentRowWithCompany,
   inquiryById: Map<string, InquiryOptionRow>,
 ): InternalAppointment {
   const appointment = mapAppointmentRowToAppointment(row);
@@ -158,6 +163,7 @@ function mapAppointmentRowToInternalAppointment(
 
   return {
     ...appointment,
+    companyId: row.company_id,
     inquiryLabel: buildInquiryLabel(relatedInquiry),
     inquiryStatus: relatedInquiry
       ? formatInquiryStatus(relatedInquiry.status)
@@ -282,8 +288,76 @@ function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
   );
 }
 
+type AppointmentAuditAction =
+  | "create_appointment"
+  | "update_appointment"
+  | "confirm_appointment"
+  | "complete_appointment"
+  | "cancel_appointment"
+  | "reopen_appointment";
+
+type AppointmentAuditMetadata = {
+  inquiry_id?: string;
+  customer_id?: string;
+  scheduled_at?: string;
+  previous_status?: AppointmentStatus;
+  next_status?: AppointmentStatus;
+  changed_fields?: string[];
+  title_length?: number;
+};
+
+function getAppointmentStatusAuditAction(
+  previousStatus: AppointmentStatus | null | undefined,
+  nextStatus: AppointmentStatus,
+): AppointmentAuditAction {
+  if (nextStatus === "confirmed") {
+    return "confirm_appointment";
+  }
+
+  if (nextStatus === "completed") {
+    return "complete_appointment";
+  }
+
+  if (nextStatus === "cancelled") {
+    return "cancel_appointment";
+  }
+
+  if (nextStatus === "proposed" && previousStatus !== "proposed") {
+    return "reopen_appointment";
+  }
+
+  return "update_appointment";
+}
+
 export function Appointments({ openInquiry }: AppointmentsProps) {
   const supabase = useMemo(() => createClient(), []);
+
+  const createAppointmentAuditLog = async ({
+    companyId,
+    appointmentId,
+    action,
+    metadata,
+  }: {
+    companyId: string;
+    appointmentId: string;
+    action: AppointmentAuditAction;
+    metadata: AppointmentAuditMetadata;
+  }) => {
+    const { error } = await supabase.rpc("create_audit_log", {
+      target_company_id: companyId,
+      audit_action: action,
+      audit_entity_type: "appointment",
+      audit_entity_id: appointmentId,
+      audit_metadata: metadata,
+    });
+
+    if (error) {
+      console.error(
+        "Appointment updated, but could not create audit log:",
+        error,
+      );
+    }
+  };
 
   const [appointments, setAppointments] = useState<InternalAppointment[]>([]);
   const [inquiryOptions, setInquiryOptions] = useState<InquiryOptionRow[]>([]);
@@ -352,6 +426,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           .select(
             [
               "id",
+              "company_id",
               "inquiry_id",
               "customer_id",
               "title",
@@ -376,7 +451,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       }
 
       const mappedAppointments = (
-        (appointmentsData ?? []) as unknown as AppointmentRow[]
+        (appointmentsData ?? []) as unknown as AppointmentRowWithCompany[]
       )
         .map((appointmentRow) =>
           mapAppointmentRowToInternalAppointment(appointmentRow, inquiryById),
@@ -591,6 +666,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         .select(
           [
             "id",
+            "company_id",
             "inquiry_id",
             "customer_id",
             "title",
@@ -602,7 +678,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             "updated_at",
           ].join(", "),
         )
-        .single<AppointmentRow>();
+        .single<AppointmentRowWithCompany>();
 
       setIsSaving(false);
 
@@ -632,6 +708,37 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           )
           .sort(compareAppointmentsByScheduledAt),
       );
+
+      const changedFields = [];
+
+      if (editingAppointment.title !== mappedAppointment.title) {
+        changedFields.push("title");
+      }
+
+      if (
+        editingAppointment.scheduledAtIso !== mappedAppointment.scheduledAtIso
+      ) {
+        changedFields.push("scheduled_at");
+      }
+
+      if (editingAppointment.notes !== mappedAppointment.notes) {
+        changedFields.push("notes");
+      }
+
+      await createAppointmentAuditLog({
+        companyId: mappedAppointment.companyId,
+        appointmentId: mappedAppointment.id,
+        action: "update_appointment",
+        metadata: {
+          inquiry_id: mappedAppointment.inquiryId || undefined,
+          customer_id: mappedAppointment.customerId || undefined,
+          scheduled_at: mappedAppointment.scheduledAtIso,
+          previous_status: editingAppointment.status,
+          next_status: mappedAppointment.status,
+          changed_fields: changedFields,
+          title_length: mappedAppointment.title.length,
+        },
+      });
 
       setSuccessMessage("Cita interna actualizada correctamente.");
 
@@ -665,6 +772,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       .select(
         [
           "id",
+          "company_id",
           "inquiry_id",
           "customer_id",
           "title",
@@ -676,7 +784,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           "updated_at",
         ].join(", "),
       )
-      .single<AppointmentRow>();
+      .single<AppointmentRowWithCompany>();
 
     setIsSaving(false);
 
@@ -703,6 +811,19 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       ),
     );
 
+    await createAppointmentAuditLog({
+      companyId: mappedAppointment.companyId,
+      appointmentId: mappedAppointment.id,
+      action: "create_appointment",
+      metadata: {
+        inquiry_id: mappedAppointment.inquiryId || undefined,
+        customer_id: mappedAppointment.customerId || undefined,
+        scheduled_at: mappedAppointment.scheduledAtIso,
+        next_status: mappedAppointment.status,
+        title_length: mappedAppointment.title.length,
+      },
+    });
+
     setSuccessMessage("Cita interna creada como pendiente de confirmar.");
 
     window.setTimeout(() => {
@@ -713,7 +834,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
   };
 
   const handleAppointmentFormKeyDown = (
-    event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>
+    event: KeyboardEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     if (event.key !== "Enter") {
       return;
@@ -737,6 +858,10 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
     setFormErrorMessage("");
     setUpdatingAppointmentId(appointmentId);
 
+    const previousAppointment = appointments.find(
+      (appointment) => appointment.id === appointmentId,
+    );
+
     const { data, error } = await supabase
       .from("appointments")
       .update({ status })
@@ -744,6 +869,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       .select(
         [
           "id",
+          "company_id",
           "inquiry_id",
           "customer_id",
           "title",
@@ -755,7 +881,7 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
           "updated_at",
         ].join(", "),
       )
-      .single<AppointmentRow>();
+      .single<AppointmentRowWithCompany>();
 
     setUpdatingAppointmentId(null);
 
@@ -783,6 +909,22 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
         )
         .sort(compareAppointmentsByScheduledAt),
     );
+
+    await createAppointmentAuditLog({
+      companyId: mappedAppointment.companyId,
+      appointmentId: mappedAppointment.id,
+      action: getAppointmentStatusAuditAction(
+        previousAppointment?.status,
+        mappedAppointment.status,
+      ),
+      metadata: {
+        inquiry_id: mappedAppointment.inquiryId || undefined,
+        customer_id: mappedAppointment.customerId || undefined,
+        scheduled_at: mappedAppointment.scheduledAtIso,
+        previous_status: previousAppointment?.status,
+        next_status: mappedAppointment.status,
+      },
+    });
 
     if (status === "proposed") {
       setSuccessMessage("Cita interna reabierta como pendiente.");
@@ -833,7 +975,10 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
       >
         <span
           aria-hidden="true"
-          className={classNames("absolute inset-y-0 left-0 w-1", cardClasses.rail)}
+          className={classNames(
+            "absolute inset-y-0 left-0 w-1",
+            cardClasses.rail,
+          )}
         />
 
         <div className="flex items-start justify-between gap-3">
@@ -1216,7 +1361,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
                       className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
                     >
                       {inquiryOptions.length === 0 ? (
-                        <option value="">No hay casos activos disponibles</option>
+                        <option value="">
+                          No hay casos activos disponibles
+                        </option>
                       ) : (
                         <>
                           <option value="">Selecciona un caso asociado</option>
@@ -1307,7 +1454,9 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
 
               <Button
                 onClick={handleSaveAppointment}
-                disabled={isSaving || (!isEditing && inquiryOptions.length === 0)}
+                disabled={
+                  isSaving || (!isEditing && inquiryOptions.length === 0)
+                }
               >
                 {isSaving
                   ? isEditing
@@ -1353,7 +1502,6 @@ export function Appointments({ openInquiry }: AppointmentsProps) {
             </div>
           }
         >
-
           <div className="grid gap-5 xl:grid-cols-3">
             {renderAppointmentColumn({
               title: "Pendientes de cerrar",
