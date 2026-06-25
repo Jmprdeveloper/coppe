@@ -41,7 +41,9 @@ type PublicIntakeCompany = {
   public_chat_enabled: boolean;
 };
 
-type PublicIntakeAnalysis = Awaited<ReturnType<typeof analyzeInquiryForCompany>>;
+type PublicIntakeAnalysis = Awaited<
+  ReturnType<typeof analyzeInquiryForCompany>
+>;
 
 type CustomerRow = {
   id: string;
@@ -64,6 +66,20 @@ type PublicIntakeRateLimitRow = {
   current_count: number;
   retry_after_seconds: number;
 };
+
+type PublicIntakeAuditAction =
+  | "create_public_intake"
+  | "create_customer_from_public_intake"
+  | "update_customer_from_public_intake"
+  | "create_inquiry_from_public_intake"
+  | "fail_public_intake";
+
+type PublicIntakeAuditEntityType = "inbound_event" | "customer" | "inquiry";
+
+type PublicIntakeAuditMetadata = Record<
+  string,
+  string | number | boolean | null | string[]
+>;
 
 const MAX_CUSTOMER_NAME_LENGTH = 120;
 const MAX_EMAIL_LENGTH = 254;
@@ -104,10 +120,46 @@ function hashRateLimitPart(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
 }
 
+async function createPublicIntakeAuditLog(
+  supabaseAdmin: ReturnType<typeof createAdminClient>,
+  values: {
+    companyId: string;
+    action: PublicIntakeAuditAction;
+    entityType: PublicIntakeAuditEntityType;
+    entityId: string;
+    metadata: PublicIntakeAuditMetadata;
+  },
+) {
+  try {
+    const { error } = await supabaseAdmin.from("audit_logs").insert({
+      company_id: values.companyId,
+      actor_user_id: null,
+      actor_email: null,
+      actor_role: "public",
+      action: values.action,
+      entity_type: values.entityType,
+      entity_id: values.entityId,
+      metadata: values.metadata,
+    });
+
+    if (error) {
+      console.error(
+        "Public intake action completed, but audit log failed:",
+        error,
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Public intake action completed, but audit log failed:",
+      error,
+    );
+  }
+}
+
 function buildPublicIntakeRateLimitBucketKey(
   request: Request,
   publicIntakeToken: string,
-  sourceChannel: PublicSourceChannel
+  sourceChannel: PublicSourceChannel,
 ) {
   const clientIp = getClientIp(request);
 
@@ -123,12 +175,12 @@ async function checkPublicIntakeRateLimit(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   request: Request,
   publicIntakeToken: string,
-  sourceChannel: PublicSourceChannel
+  sourceChannel: PublicSourceChannel,
 ) {
   const bucketKey = buildPublicIntakeRateLimitBucketKey(
     request,
     publicIntakeToken,
-    sourceChannel
+    sourceChannel,
   );
 
   const { data, error } = await supabaseAdmin.rpc(
@@ -137,14 +189,14 @@ async function checkPublicIntakeRateLimit(
       p_bucket_key: bucketKey,
       p_max_requests: PUBLIC_INTAKE_RATE_LIMIT_MAX_REQUESTS,
       p_window_seconds: PUBLIC_INTAKE_RATE_LIMIT_WINDOW_SECONDS,
-    }
+    },
   );
 
   if (error) {
     throw new Error(
       `No se pudo comprobar el límite de envíos: ${
         error.message || "sin detalle del error"
-      }`
+      }`,
     );
   }
 
@@ -157,7 +209,9 @@ async function checkPublicIntakeRateLimit(
   const rateLimit = rows[0];
 
   if (!rateLimit) {
-    throw new Error("No se recibió respuesta al comprobar el límite de envíos.");
+    throw new Error(
+      "No se recibió respuesta al comprobar el límite de envíos.",
+    );
   }
 
   return rateLimit;
@@ -175,12 +229,12 @@ function buildRateLimitedResponse(retryAfterSeconds: number) {
       headers: {
         "Retry-After": String(retryAfterSeconds),
       },
-    }
+    },
   );
 }
 
 function normalizePublicSourceChannel(
-  value: string | null | undefined
+  value: string | null | undefined,
 ): PublicSourceChannel {
   if (value === "Chat web") {
     return "Chat web";
@@ -209,7 +263,7 @@ function getPublicSourceChannelText(sourceChannel: PublicSourceChannel) {
 
 function buildFallbackSubject(
   message: string,
-  sourceChannel: PublicSourceChannel
+  sourceChannel: PublicSourceChannel,
 ) {
   const firstLine = message
     .split("\n")
@@ -231,7 +285,7 @@ function buildFallbackAnalysis(
   customerName: string,
   message: string,
   company: PublicIntakeCompany,
-  sourceChannel: PublicSourceChannel
+  sourceChannel: PublicSourceChannel,
 ): PublicIntakeAnalysis {
   const language = company.language === "en" ? "en" : "es";
   const sourceChannelText = getPublicSourceChannelText(sourceChannel);
@@ -259,7 +313,7 @@ function buildAcceptedHoneypotResponse() {
       ok: true,
       message: "Mensaje recibido correctamente.",
     },
-    { status: 201 }
+    { status: 201 },
   );
 }
 
@@ -267,7 +321,7 @@ async function createInboundEvent(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   companyId: string,
   sourceChannel: PublicSourceChannel,
-  rawPayload: Record<string, unknown>
+  rawPayload: Record<string, unknown>,
 ) {
   const { data, error } = await supabaseAdmin
     .from("inbound_events")
@@ -284,7 +338,7 @@ async function createInboundEvent(
     throw new Error(
       `No se pudo registrar la entrada recibida: ${
         error?.message || "sin detalle del error"
-      }`
+      }`,
     );
   }
 
@@ -300,7 +354,7 @@ async function updateInboundEvent(
     inquiry_id?: string | null;
     error_message?: string | null;
     processed_at: string;
-  }
+  },
 ) {
   const { error } = await supabaseAdmin
     .from("inbound_events")
@@ -321,7 +375,15 @@ async function buildFailedResponseAfterInboundEvent(
     customerId?: string | null;
     inquiryId?: string | null;
   } = {},
-  publicErrorMessage = GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE
+  publicErrorMessage = GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+  auditContext?: {
+    companyId: string;
+    sourceChannel: PublicSourceChannel;
+    failureStage: string;
+    hadEmail: boolean;
+    hadPhone: boolean;
+    messageLength: number;
+  },
 ) {
   console.error("Public intake processing failed:", internalErrorMessage);
 
@@ -333,6 +395,26 @@ async function buildFailedResponseAfterInboundEvent(
     processed_at: new Date().toISOString(),
   });
 
+  if (auditContext) {
+    await createPublicIntakeAuditLog(supabaseAdmin, {
+      companyId: auditContext.companyId,
+      action: "fail_public_intake",
+      entityType: "inbound_event",
+      entityId: inboundEventId,
+      metadata: {
+        inbound_event_id: inboundEventId,
+        customer_id: ids.customerId ?? null,
+        inquiry_id: ids.inquiryId ?? null,
+        source_channel: auditContext.sourceChannel,
+        failure_stage: auditContext.failureStage,
+        response_status: status,
+        had_email: auditContext.hadEmail,
+        had_phone: auditContext.hadPhone,
+        message_length: auditContext.messageLength,
+      },
+    });
+  }
+
   return NextResponse.json({ error: publicErrorMessage }, { status });
 }
 
@@ -340,13 +422,13 @@ async function findExistingCustomer(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   companyId: string,
   email: string,
-  phone: string
+  phone: string,
 ) {
   if (email) {
     const { data, error } = await supabaseAdmin
       .from("customers")
       .select(
-        "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
+        "id, company_id, name, email, phone, language, status, last_interaction_at, created_at",
       )
       .eq("company_id", companyId)
       .eq("email", email)
@@ -357,7 +439,7 @@ async function findExistingCustomer(
       throw new Error(
         `No se pudo comprobar si el cliente ya existe por email: ${
           error.message || "sin detalle del error"
-        }`
+        }`,
       );
     }
 
@@ -375,7 +457,7 @@ async function findExistingCustomer(
   const { data, error } = await supabaseAdmin
     .from("customers")
     .select(
-      "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
+      "id, company_id, name, email, phone, language, status, last_interaction_at, created_at",
     )
     .eq("company_id", companyId);
 
@@ -383,7 +465,7 @@ async function findExistingCustomer(
     throw new Error(
       `No se pudo comprobar si el cliente ya existe por teléfono: ${
         error.message || "sin detalle del error"
-      }`
+      }`,
     );
   }
 
@@ -402,7 +484,7 @@ export async function POST(request: Request) {
   try {
     body = await readRequestJsonWithLimit<PublicIntakeRequestBody>(
       request,
-      MAX_PUBLIC_INTAKE_REQUEST_BODY_BYTES
+      MAX_PUBLIC_INTAKE_REQUEST_BODY_BYTES,
     );
   } catch (error) {
     if (error instanceof RequestBodyTooLargeError) {
@@ -411,10 +493,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json(
       { error: "El cuerpo de la petición no es válido." },
-      { status: 400 }
+      { status: 400 },
     );
   }
-
 
   const honeypotValue = getStringValue(body.companyWebsite);
 
@@ -429,20 +510,20 @@ export async function POST(request: Request) {
   const phone = getStringValue(body.phone);
   const message = getStringValue(body.message);
   const sourceChannel = normalizePublicSourceChannel(
-    getStringValue(body.sourceChannel)
+    getStringValue(body.sourceChannel),
   );
 
   if (!publicIntakeToken) {
     return NextResponse.json(
       { error: "Falta el identificador público." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (!customerName) {
     return NextResponse.json(
       { error: "El nombre del cliente es obligatorio." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -451,7 +532,7 @@ export async function POST(request: Request) {
       {
         error: `El nombre no puede superar los ${MAX_CUSTOMER_NAME_LENGTH} caracteres.`,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -461,14 +542,16 @@ export async function POST(request: Request) {
         error:
           "Introduce al menos un email o un teléfono para poder contactar con el cliente.",
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (email.length > MAX_EMAIL_LENGTH) {
     return NextResponse.json(
-      { error: `El email no puede superar los ${MAX_EMAIL_LENGTH} caracteres.` },
-      { status: 400 }
+      {
+        error: `El email no puede superar los ${MAX_EMAIL_LENGTH} caracteres.`,
+      },
+      { status: 400 },
     );
   }
 
@@ -477,28 +560,28 @@ export async function POST(request: Request) {
       {
         error: `El teléfono no puede superar los ${MAX_PHONE_LENGTH} caracteres.`,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (email && !isValidEmail(email)) {
     return NextResponse.json(
       { error: "El email no tiene un formato válido." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (phone && !isValidPhone(phone)) {
     return NextResponse.json(
       { error: "El teléfono no tiene un formato válido." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   if (!message) {
     return NextResponse.json(
       { error: "El mensaje es obligatorio." },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
@@ -507,14 +590,14 @@ export async function POST(request: Request) {
       {
         error: `El mensaje no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres.`,
       },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
   const { data: company, error: companyError } = await supabaseAdmin
     .from("companies")
     .select(
-      "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled"
+      "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled",
     )
     .eq("public_intake_token", publicIntakeToken)
     .maybeSingle<PublicIntakeCompany>();
@@ -523,29 +606,32 @@ export async function POST(request: Request) {
     console.error("Could not load public intake company:", companyError);
 
     return NextResponse.json(
-      { error: "No se pudo cargar el enlace público. Inténtalo de nuevo en unos minutos." },
-      { status: 500 }
+      {
+        error:
+          "No se pudo cargar el enlace público. Inténtalo de nuevo en unos minutos.",
+      },
+      { status: 500 },
     );
   }
 
   if (!company) {
     return NextResponse.json(
       { error: "El enlace público no existe o ya no está disponible." },
-      { status: 404 }
+      { status: 404 },
     );
   }
 
   if (sourceChannel === "Formulario web" && !company.public_intake_enabled) {
     return NextResponse.json(
       { error: "El formulario web público no está activo en este momento." },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
   if (sourceChannel === "Chat web" && !company.public_chat_enabled) {
     return NextResponse.json(
       { error: "El chat web público no está activo en este momento." },
-      { status: 403 }
+      { status: 403 },
     );
   }
 
@@ -554,7 +640,7 @@ export async function POST(request: Request) {
       supabaseAdmin,
       request,
       publicIntakeToken,
-      sourceChannel
+      sourceChannel,
     );
 
     if (!rateLimit.allowed) {
@@ -568,7 +654,7 @@ export async function POST(request: Request) {
         error:
           "No se pudo comprobar el límite de envíos. Inténtalo de nuevo en unos minutos.",
       },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
@@ -586,19 +672,39 @@ export async function POST(request: Request) {
         phone,
         message,
         sourceChannel,
-      }
+      },
     );
   } catch (error) {
     console.error("Could not create public intake inbound event:", error);
 
     return NextResponse.json(
       { error: GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE },
-      { status: 500 }
+      { status: 500 },
     );
   }
 
+  const auditBaseMetadata = {
+    inbound_event_id: inboundEventId,
+    source_channel: sourceChannel,
+    had_email: Boolean(email),
+    had_phone: Boolean(phone),
+    message_length: message.length,
+  };
+
+  await createPublicIntakeAuditLog(supabaseAdmin, {
+    companyId: company.id,
+    action: "create_public_intake",
+    entityType: "inbound_event",
+    entityId: inboundEventId,
+    metadata: {
+      ...auditBaseMetadata,
+      name_length: customerName.length,
+    },
+  });
+
   const now = new Date().toISOString();
 
+  let createdCustomerFromPublicIntake = false;
   let customer: CustomerRow | null = null;
 
   try {
@@ -606,7 +712,7 @@ export async function POST(request: Request) {
       supabaseAdmin,
       company.id,
       email,
-      phone
+      phone,
     );
   } catch (error) {
     return buildFailedResponseAfterInboundEvent(
@@ -615,7 +721,17 @@ export async function POST(request: Request) {
       error instanceof Error
         ? error.message
         : "No se pudo comprobar si el cliente ya existe.",
-      500
+      500,
+      {},
+      GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+      {
+        companyId: company.id,
+        sourceChannel,
+        failureStage: "find_existing_customer",
+        hadEmail: Boolean(email),
+        hadPhone: Boolean(phone),
+        messageLength: message.length,
+      },
     );
   }
 
@@ -642,7 +758,7 @@ export async function POST(request: Request) {
         .update(customerUpdates)
         .eq("id", customer.id)
         .select(
-          "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
+          "id, company_id, name, email, phone, language, status, last_interaction_at, created_at",
         )
         .single<CustomerRow>();
 
@@ -654,9 +770,34 @@ export async function POST(request: Request) {
           updateCustomerError?.message || "sin detalle del error"
         }`,
         500,
-        { customerId: customer.id }
+        { customerId: customer.id },
+        GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+        {
+          companyId: company.id,
+          sourceChannel,
+          failureStage: "update_customer",
+          hadEmail: Boolean(email),
+          hadPhone: Boolean(phone),
+          messageLength: message.length,
+        },
       );
     }
+
+    await createPublicIntakeAuditLog(supabaseAdmin, {
+      companyId: company.id,
+      action: "update_customer_from_public_intake",
+      entityType: "customer",
+      entityId: updatedCustomer.id,
+      metadata: {
+        ...auditBaseMetadata,
+        customer_id: updatedCustomer.id,
+        previous_status: customer.status,
+        next_status: updatedCustomer.status,
+        previous_language: customer.language,
+        next_language: updatedCustomer.language,
+        changed_fields: Object.keys(customerUpdates).sort(),
+      },
+    });
 
     customer = updatedCustomer;
   } else {
@@ -669,11 +810,11 @@ export async function POST(request: Request) {
           email: email || null,
           phone: phone || null,
           language: company.language ?? "es",
-          status: "new",
+          status: "active",
           last_interaction_at: now,
         })
         .select(
-          "id, company_id, name, email, phone, language, status, last_interaction_at, created_at"
+          "id, company_id, name, email, phone, language, status, last_interaction_at, created_at",
         )
         .single<CustomerRow>();
 
@@ -682,12 +823,37 @@ export async function POST(request: Request) {
         supabaseAdmin,
         inboundEventId,
         `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
-          createCustomerError?.message ?? ""
+          createCustomerError?.message ?? "",
         )}`,
-        500
+        500,
+        {},
+        GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+        {
+          companyId: company.id,
+          sourceChannel,
+          failureStage: "create_customer",
+          hadEmail: Boolean(email),
+          hadPhone: Boolean(phone),
+          messageLength: message.length,
+        },
       );
     }
 
+    await createPublicIntakeAuditLog(supabaseAdmin, {
+      companyId: company.id,
+      action: "create_customer_from_public_intake",
+      entityType: "customer",
+      entityId: createdCustomer.id,
+      metadata: {
+        ...auditBaseMetadata,
+        customer_id: createdCustomer.id,
+        status: createdCustomer.status,
+        language: createdCustomer.language,
+        name_length: customerName.length,
+      },
+    });
+
+    createdCustomerFromPublicIntake = true;
     customer = createdCustomer;
   }
 
@@ -695,7 +861,7 @@ export async function POST(request: Request) {
     customerName,
     message,
     company,
-    sourceChannel
+    sourceChannel,
   );
 
   try {
@@ -738,11 +904,38 @@ export async function POST(request: Request) {
         createInquiryError?.message || "sin detalle del error"
       }`,
       500,
-      { customerId: customer.id }
+      { customerId: customer.id },
+      GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+      {
+        companyId: company.id,
+        sourceChannel,
+        failureStage: "create_inquiry",
+        hadEmail: Boolean(email),
+        hadPhone: Boolean(phone),
+        messageLength: message.length,
+      },
     );
   }
 
   const createdInquiryId = String(createdInquiryIdFromRpc);
+
+  await createPublicIntakeAuditLog(supabaseAdmin, {
+    companyId: company.id,
+    action: "create_inquiry_from_public_intake",
+    entityType: "inquiry",
+    entityId: createdInquiryId,
+    metadata: {
+      ...auditBaseMetadata,
+      customer_id: customer.id,
+      inquiry_id: createdInquiryId,
+      language: analysis.language,
+      ai_category: analysis.category,
+      ai_priority: analysis.priority,
+      sentiment: analysis.sentiment,
+      subject_length: analysis.subject.length,
+      created_customer: createdCustomerFromPublicIntake,
+    },
+  });
 
   await updateInboundEvent(supabaseAdmin, inboundEventId, {
     status: "processed",
@@ -758,6 +951,6 @@ export async function POST(request: Request) {
       inquiryId: createdInquiryId,
       message: "Mensaje recibido correctamente.",
     },
-    { status: 201 }
+    { status: 201 },
   );
 }
