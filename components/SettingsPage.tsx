@@ -73,6 +73,13 @@ type ChannelSettingsCardProps = {
   actions?: ReactNode;
 };
 
+type AuditLogInput = {
+  action: string;
+  entityType: string;
+  entityId?: string | null;
+  metadata?: Record<string, unknown>;
+};
+
 function normalizeTone(value: string | null | undefined): ToneOption {
   if (
     value === "profesional y cercano" ||
@@ -509,6 +516,32 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     ? "Formulario, chat, email y WhatsApp"
     : "Formulario y chat visibles para este usuario";
 
+  const createAuditLog = async ({
+    action,
+    entityType,
+    entityId = null,
+    metadata = {},
+  }: AuditLogInput) => {
+    if (!companyId) {
+      return " El cambio se guardó, pero no pudo registrarse en el historial de auditoría.";
+    }
+
+    const { error } = await supabase.rpc("create_audit_log", {
+      target_company_id: companyId,
+      audit_action: action,
+      audit_entity_type: entityType,
+      audit_entity_id: entityId,
+      audit_metadata: metadata,
+    });
+
+    if (error) {
+      console.error("Settings updated, but could not create audit log:", error);
+      return " El cambio se guardó, pero no pudo registrarse en el historial de auditoría.";
+    }
+
+    return "";
+  };
+
   const handleCopyPublicIntakeUrl = async () => {
     setCopyMessage("");
     setCopyErrorMessage("");
@@ -679,8 +712,23 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setIsSavingEmailChannel(true);
 
     try {
-      await saveEmailChannel(emailEnabled);
-      setEmailMessage("Configuración de email entrante guardada correctamente.");
+      const wasConfigured = Boolean(emailChannelId);
+      const data = await saveEmailChannel(emailEnabled);
+      const auditWarningMessage = await createAuditLog({
+        action: wasConfigured
+          ? "update_inbound_email_channel"
+          : "create_inbound_email_channel",
+        entityType: "inbound_email_channel",
+        entityId: data.id,
+        metadata: {
+          configured_before: wasConfigured,
+          enabled: Boolean(data.enabled),
+        },
+      });
+
+      setEmailMessage(
+        `Configuración de email entrante guardada correctamente.${auditWarningMessage}`
+      );
     } catch (error) {
       setEmailErrorMessage(
         error instanceof Error
@@ -712,11 +760,25 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setIsSavingEmailChannel(true);
 
     try {
-      await saveEmailChannel(nextEnabled);
+      const data = await saveEmailChannel(nextEnabled);
+      const auditWarningMessage = await createAuditLog({
+        action: nextEnabled
+          ? "activate_inbound_email_channel"
+          : "deactivate_inbound_email_channel",
+        entityType: "inbound_email_channel",
+        entityId: data.id,
+        metadata: {
+          previous_enabled: emailEnabled,
+          next_enabled: Boolean(data.enabled),
+        },
+      });
+
       setEmailMessage(
-        nextEnabled
-          ? "Canal email activado correctamente."
-          : "Canal email desactivado correctamente."
+        `${
+          nextEnabled
+            ? "Canal email activado correctamente."
+            : "Canal email desactivado correctamente."
+        }${auditWarningMessage}`
       );
     } catch (error) {
       setEmailErrorMessage(
@@ -810,10 +872,25 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeToken(data.public_intake_token ?? publicIntakeToken);
     setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
     setPublicChatEnabled(Boolean(data.public_chat_enabled));
+    const auditWarningMessage = await createAuditLog({
+      action: nextEnabled
+        ? "activate_public_intake"
+        : "deactivate_public_intake",
+      entityType: "company",
+      entityId: companyId,
+      metadata: {
+        channel: "public_intake",
+        previous_enabled: publicIntakeEnabled,
+        next_enabled: Boolean(data.public_intake_enabled),
+      },
+    });
+
     setPublicIntakeMessage(
-      nextEnabled
-        ? "Formulario web activado correctamente."
-        : "Formulario web desactivado correctamente."
+      `${
+        nextEnabled
+          ? "Formulario web activado correctamente."
+          : "Formulario web desactivado correctamente."
+      }${auditWarningMessage}`
     );
   };
 
@@ -877,10 +954,23 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeToken(data.public_intake_token ?? publicIntakeToken);
     setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
     setPublicChatEnabled(Boolean(data.public_chat_enabled));
+    const auditWarningMessage = await createAuditLog({
+      action: nextEnabled ? "activate_public_chat" : "deactivate_public_chat",
+      entityType: "company",
+      entityId: companyId,
+      metadata: {
+        channel: "public_chat",
+        previous_enabled: publicChatEnabled,
+        next_enabled: Boolean(data.public_chat_enabled),
+      },
+    });
+
     setPublicIntakeMessage(
-      nextEnabled
-        ? "Chat web activado correctamente."
-        : "Chat web desactivado correctamente."
+      `${
+        nextEnabled
+          ? "Chat web activado correctamente."
+          : "Chat web desactivado correctamente."
+      }${auditWarningMessage}`
     );
   };
 
@@ -981,10 +1071,24 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setWhatsAppPhoneNumberId(data.phone_number_id);
     setWhatsAppDisplayPhoneNumber(data.display_phone_number ?? "");
     setWhatsAppEnabled(Boolean(data.enabled));
+    const auditWarningMessage = await createAuditLog({
+      action: nextEnabled
+        ? "activate_inbound_whatsapp_channel"
+        : "deactivate_inbound_whatsapp_channel",
+      entityType: "inbound_whatsapp_channel",
+      entityId: data.id,
+      metadata: {
+        previous_enabled: whatsAppEnabled,
+        next_enabled: Boolean(data.enabled),
+      },
+    });
+
     setWhatsAppMessage(
-      nextEnabled
-        ? "Canal WhatsApp activado correctamente."
-        : "Canal WhatsApp desactivado correctamente."
+      `${
+        nextEnabled
+          ? "Canal WhatsApp activado correctamente."
+          : "Canal WhatsApp desactivado correctamente."
+      }${auditWarningMessage}`
     );
   };
 
@@ -1047,8 +1151,19 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setPublicIntakeToken(data.public_intake_token);
     setPublicIntakeEnabled(Boolean(data.public_intake_enabled));
     setPublicChatEnabled(Boolean(data.public_chat_enabled));
+    const auditWarningMessage = await createAuditLog({
+      action: "regenerate_public_channel_links",
+      entityType: "company",
+      entityId: companyId,
+      metadata: {
+        affected_channels: ["public_intake", "public_chat"],
+        public_intake_enabled: Boolean(data.public_intake_enabled),
+        public_chat_enabled: Boolean(data.public_chat_enabled),
+      },
+    });
+
     setPublicIntakeMessage(
-      "Enlaces públicos regenerados correctamente. Los enlaces anteriores ya no funcionarán."
+      `Enlaces públicos regenerados correctamente. Los enlaces anteriores ya no funcionarán.${auditWarningMessage}`
     );
   };
 
@@ -1097,6 +1212,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     }
 
     setIsSavingWhatsAppChannel(true);
+    const wasConfigured = Boolean(whatsAppChannelId);
 
     const query = whatsAppChannelId
       ? supabase
@@ -1138,7 +1254,21 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setWhatsAppPhoneNumberId(data.phone_number_id);
     setWhatsAppDisplayPhoneNumber(data.display_phone_number ?? "");
     setWhatsAppEnabled(Boolean(data.enabled));
-    setWhatsAppMessage("Configuración de WhatsApp guardada correctamente.");
+    const auditWarningMessage = await createAuditLog({
+      action: wasConfigured
+        ? "update_inbound_whatsapp_channel"
+        : "create_inbound_whatsapp_channel",
+      entityType: "inbound_whatsapp_channel",
+      entityId: data.id,
+      metadata: {
+        configured_before: wasConfigured,
+        enabled: Boolean(data.enabled),
+      },
+    });
+
+    setWhatsAppMessage(
+      `Configuración de WhatsApp guardada correctamente.${auditWarningMessage}`
+    );
   };
 
   const handleSave = async () => {
@@ -1174,6 +1304,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     const cleanName = name.trim();
     const cleanSector = normalizeCompanySector(sector);
     const cleanDescription = description.trim();
+    const changedFields: string[] = [];
 
     if (!cleanName) {
       setErrorMessage("El nombre de la empresa es obligatorio.");
@@ -1183,6 +1314,26 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     if (!cleanSector) {
       setErrorMessage("Selecciona el sector de la empresa.");
       return;
+    }
+
+    if (cleanName !== (currentCompany?.name ?? "")) {
+      changedFields.push("name");
+    }
+
+    if (cleanSector !== normalizeCompanySector(currentCompany?.sector)) {
+      changedFields.push("sector");
+    }
+
+    if (cleanDescription !== (currentCompany?.description ?? "")) {
+      changedFields.push("description");
+    }
+
+    if (tone !== normalizeTone(currentCompany?.tone)) {
+      changedFields.push("tone");
+    }
+
+    if (language !== normalizeLanguage(currentCompany?.language)) {
+      changedFields.push("language");
     }
 
     setIsSaving(true);
@@ -1224,7 +1375,21 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     setLanguage(normalizeLanguage(nextCurrentCompany.language));
 
     onCompanyUpdated?.(nextCurrentCompany);
-    setMessage("Configuración guardada correctamente.");
+    const auditWarningMessage =
+      changedFields.length > 0
+        ? await createAuditLog({
+            action: "update_company_settings",
+            entityType: "company",
+            entityId: companyId,
+            metadata: {
+              changed_fields: changedFields,
+            },
+          })
+        : "";
+
+    setMessage(
+      `Configuración guardada correctamente.${auditWarningMessage}`
+    );
   };
 
   return (

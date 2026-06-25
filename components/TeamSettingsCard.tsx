@@ -33,6 +33,12 @@ type CompanyInvitationRow = {
   created_at: string;
 };
 
+type AuditLogInput = {
+  action: string;
+  entityId: string;
+  metadata?: Record<string, unknown>;
+};
+
 function formatDateTime(value: string) {
   const date = new Date(value);
 
@@ -219,6 +225,34 @@ export function TeamSettingsCard() {
   const getInvitationUrl = (token: string) =>
     `${window.location.origin}/invitacion/${token}`;
 
+  const createInvitationAuditLog = async ({
+    action,
+    entityId,
+    metadata = {},
+  }: AuditLogInput) => {
+    if (!company) {
+      return " La acción se completó, pero no pudo registrarse en el historial de auditoría.";
+    }
+
+    const { error } = await supabase.rpc("create_audit_log", {
+      target_company_id: company.id,
+      audit_action: action,
+      audit_entity_type: "company_invitation",
+      audit_entity_id: entityId,
+      audit_metadata: metadata,
+    });
+
+    if (error) {
+      console.error(
+        "Invitation updated, but could not create audit log:",
+        error
+      );
+      return " La acción se completó, pero no pudo registrarse en el historial de auditoría.";
+    }
+
+    return "";
+  };
+
   const handleCreateInvitation = async () => {
     setMessage("");
     setErrorMessage("");
@@ -264,9 +298,19 @@ export function TeamSettingsCard() {
     }
 
     setInviteEmail("");
+    const auditWarningMessage = await createInvitationAuditLog({
+      action: "create_company_invitation",
+      entityId: data.id,
+      metadata: {
+        role: data.role,
+        status: data.status,
+        expires_at: data.expires_at,
+      },
+    });
+
     await loadTeamData();
     setCreatedInvitation(data);
-    setMessage("Invitación creada correctamente.");
+    setMessage(`Invitación creada correctamente.${auditWarningMessage}`);
   };
 
   const handleCancelInvitation = async (invitationId: string) => {
@@ -291,7 +335,7 @@ export function TeamSettingsCard() {
 
     setUpdatingInvitationId(invitationId);
 
-    const { error } = await supabase
+    const { data: cancelledInvitation, error } = await supabase
       .rpc("cancel_company_invitation", {
         invitation_id: invitationId,
       })
@@ -299,13 +343,29 @@ export function TeamSettingsCard() {
 
     setUpdatingInvitationId("");
 
-    if (error) {
-      setErrorMessage(getInvitationErrorMessage(error.message));
+    if (error || !cancelledInvitation) {
+      setErrorMessage(
+        getInvitationErrorMessage(
+          error?.message || "No se pudo cancelar la invitación."
+        )
+      );
       return;
     }
 
+    const previousInvitation = invitations.find(
+      (invitation) => invitation.id === invitationId
+    );
+    const auditWarningMessage = await createInvitationAuditLog({
+      action: "cancel_company_invitation",
+      entityId: invitationId,
+      metadata: {
+        previous_status: previousInvitation?.status ?? "pending",
+        next_status: cancelledInvitation.status,
+      },
+    });
+
     await loadTeamData();
-    setMessage("Invitación cancelada correctamente.");
+    setMessage(`Invitación cancelada correctamente.${auditWarningMessage}`);
   };
 
   const handleCopyInvitationUrl = async (token: string) => {
