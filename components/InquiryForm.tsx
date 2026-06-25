@@ -28,6 +28,34 @@ type CustomerRow = {
   name?: string | null;
   email?: string | null;
   phone?: string | null;
+  language?: string | null;
+  status?: string | null;
+};
+
+type InquiryFormAuditAction =
+  | "update_customer_from_inquiry_form"
+  | "create_customer_from_inquiry_form"
+  | "create_inquiry";
+
+type InquiryFormAuditEntityType = "customer" | "inquiry";
+
+type InquiryFormAuditMetadata = {
+  customer_id?: string;
+  inquiry_id?: string;
+  source_channel?: string;
+  language?: string;
+  previous_language?: string | null;
+  next_language?: string;
+  previous_status?: string | null;
+  next_status?: string;
+  ai_category?: string;
+  ai_priority?: string;
+  sentiment?: string;
+  message_length?: number;
+  subject_length?: number;
+  created_customer?: boolean;
+  had_email?: boolean;
+  had_phone?: boolean;
 };
 
 type InquiryAnalysisRequestResult =
@@ -97,6 +125,32 @@ export function InquiryForm({
   onClose,
 }: InquiryFormProps) {
   const supabase = useMemo(() => createClient(), []);
+
+  const createInquiryFormAuditLog = async ({
+    companyId,
+    action,
+    entityType,
+    entityId,
+    metadata,
+  }: {
+    companyId: string;
+    action: InquiryFormAuditAction;
+    entityType: InquiryFormAuditEntityType;
+    entityId: string;
+    metadata: InquiryFormAuditMetadata;
+  }) => {
+    const { error } = await supabase.rpc("create_audit_log", {
+      target_company_id: companyId,
+      audit_action: action,
+      audit_entity_type: entityType,
+      audit_entity_id: entityId,
+      audit_metadata: metadata,
+    });
+
+    if (error) {
+      console.error("Inquiry form action completed, but audit log failed:", error);
+    }
+  };
 
   const [customerName, setCustomerName] = useState("");
   const [email, setEmail] = useState("");
@@ -204,12 +258,13 @@ export function InquiryForm({
     let customerId: string | null = null;
     let customerByEmail: CustomerRow | null = null;
     let customerByPhone: CustomerRow | null = null;
+    let createdCustomerDuringSubmission = false;
 
     if (cleanEmail) {
       const { data: existingCustomer, error: existingCustomerError } =
         await supabase
           .from("customers")
-          .select("id, name, email, phone")
+          .select("id, name, email, phone, language, status")
           .eq("company_id", company.id)
           .eq("email", cleanEmail)
           .limit(1)
@@ -232,7 +287,7 @@ export function InquiryForm({
       const { data: customersWithPhone, error: customersWithPhoneError } =
         await supabase
           .from("customers")
-          .select("id, name, email, phone")
+          .select("id, name, email, phone, language, status")
           .eq("company_id", company.id)
           .not("phone", "is", null);
 
@@ -303,6 +358,23 @@ export function InquiryForm({
         );
         return;
       }
+
+      const previousCustomer = customerByEmail ?? customerByPhone;
+
+      await createInquiryFormAuditLog({
+        companyId: company.id,
+        action: "update_customer_from_inquiry_form",
+        entityType: "customer",
+        entityId: customerId,
+        metadata: {
+          previous_language: previousCustomer?.language ?? null,
+          next_language: customerUpdate.language,
+          previous_status: previousCustomer?.status ?? null,
+          next_status: customerUpdate.status,
+          had_email: Boolean(cleanEmail),
+          had_phone: Boolean(normalizedPhone),
+        },
+      });
     } else {
       const { data: newCustomer, error: createCustomerError } = await supabase
         .from("customers")
@@ -329,6 +401,20 @@ export function InquiryForm({
       }
 
       customerId = newCustomer.id;
+      createdCustomerDuringSubmission = true;
+
+      await createInquiryFormAuditLog({
+        companyId: company.id,
+        action: "create_customer_from_inquiry_form",
+        entityType: "customer",
+        entityId: newCustomer.id,
+        metadata: {
+          next_language: inquiryAnalysis.language,
+          next_status: "active",
+          had_email: Boolean(cleanEmail),
+          had_phone: Boolean(normalizedPhone),
+        },
+      });
     }
 
     if (!customerId) {
@@ -370,6 +456,27 @@ export function InquiryForm({
     }
 
     const createdInquiryId = String(createdInquiryIdFromRpc);
+
+    await createInquiryFormAuditLog({
+      companyId: company.id,
+      action: "create_inquiry",
+      entityType: "inquiry",
+      entityId: createdInquiryId,
+      metadata: {
+        customer_id: customerId,
+        inquiry_id: createdInquiryId,
+        source_channel: cleanSourceChannel,
+        language: inquiryAnalysis.language,
+        ai_category: inquiryAnalysis.category,
+        ai_priority: inquiryAnalysis.priority,
+        sentiment: inquiryAnalysis.sentiment,
+        message_length: cleanMessage.length,
+        subject_length: inquiryAnalysis.subject.length,
+        created_customer: createdCustomerDuringSubmission,
+        had_email: Boolean(cleanEmail),
+        had_phone: Boolean(normalizedPhone),
+      },
+    });
 
     setIsSubmitting(false);
     setCreatedInquiryId(createdInquiryId);
