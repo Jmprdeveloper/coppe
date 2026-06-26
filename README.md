@@ -12,23 +12,23 @@ El flujo principal es:
 
 ## Stack técnico
 
-- Next.js 16 con App Router
-- React 19
-- TypeScript
-- Tailwind CSS 4
-- Supabase PostgreSQL, Auth, RLS y RPC
-- Vercel para despliegue
-- OpenAI opcional para análisis avanzado de casos
-- Resend opcional para entrada de emails
-- WhatsApp Business Cloud API opcional para entrada de WhatsApp
+* Next.js 16 con App Router
+* React 19
+* TypeScript
+* Tailwind CSS 4
+* Supabase PostgreSQL, Auth, RLS y RPC
+* Vercel para despliegue
+* OpenAI opcional para análisis avanzado de casos
+* Resend opcional para entrada de emails
+* WhatsApp Business Cloud API opcional para entrada de WhatsApp
 
 ## Requisitos
 
-- Node.js compatible con Next.js 16
-- npm
-- Proyecto Supabase configurado
-- Supabase CLI para aplicar migraciones
-- Cuenta de Vercel para despliegue
+* Node.js compatible con Next.js 16
+* npm
+* Proyecto Supabase configurado
+* Supabase CLI para aplicar migraciones
+* Cuenta de Vercel para despliegue
 
 ## Instalación local
 
@@ -62,10 +62,10 @@ NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ### Supabase servidor/admin
 
 ```env
-SUPABASE_SERVICE_ROLE_KEY=
+SUPABASE_SECRET_KEY=
 ```
 
-`SUPABASE_SERVICE_ROLE_KEY` solo debe existir en entorno servidor. No debe exponerse en el navegador. Se usa para rutas públicas y webhooks que deben crear casos sin sesión de usuario.
+`SUPABASE_SECRET_KEY` solo debe existir en entorno servidor. No debe exponerse en el navegador. Se usa para rutas públicas, webhooks y altas de usuarios por invitación que deben ejecutarse sin exponer credenciales administrativas al cliente.
 
 ### Motor de análisis
 
@@ -75,8 +75,8 @@ COPPE_INQUIRY_ANALYSIS_ENGINE=local
 
 Valores admitidos:
 
-- `local`: motor local basado en reglas.
-- `ai`: motor OpenAI con fallback automático al motor local.
+* `local`: motor local basado en reglas.
+* `ai`: motor OpenAI con fallback automático al motor local.
 
 ### OpenAI
 
@@ -164,21 +164,22 @@ supabase db push
 
 ### Aplicación privada
 
-- `/`: entrada principal de la aplicación.
+* `/`: entrada principal de la aplicación.
 
 ### APIs
 
-- `/api/inquiries/analyze`: análisis de casos autenticado.
-- `/api/public-intake`: recepción desde formulario web y chat web.
-- `/api/inbound-email`: recepción de email entrante mediante secreto compartido.
-- `/api/inbound-email/resend`: recepción de webhooks de Resend.
-- `/api/inbound-whatsapp`: recepción de webhooks de WhatsApp Business Cloud API.
+* `/api/inquiries/analyze`: análisis de casos autenticado.
+* `/api/public-intake`: recepción desde formulario web y chat web.
+* `/api/inbound-email`: recepción de email entrante mediante secreto compartido.
+* `/api/inbound-email/resend`: recepción de webhooks de Resend.
+* `/api/inbound-whatsapp`: recepción de webhooks de WhatsApp Business Cloud API.
+* `/api/invitations/register`: creación segura de cuenta para usuarios invitados mediante enlace de invitación.
 
 ### Rutas públicas
 
-- `/contacto/[token]`: formulario público de contacto.
-- `/chat/[token]`: entrada pública tipo chat.
-- `/invitacion/[token]`: aceptación de invitación a empresa.
+* `/contacto/[token]`: formulario público de contacto.
+* `/chat/[token]`: entrada pública tipo chat.
+* `/invitacion/[token]`: aceptación de invitación a empresa.
 
 ## Seguridad
 
@@ -186,11 +187,13 @@ COPPE usa Row Level Security en Supabase para aislar datos por empresa. Las ruta
 
 Puntos clave:
 
-- No exponer `SUPABASE_SERVICE_ROLE_KEY` en cliente.
-- Mantener RLS activa en tablas de negocio.
-- Aplicar migraciones antes de desplegar cambios dependientes de base de datos.
-- Configurar secretos de webhook en Vercel antes de activar canales externos.
-- Validar `npm run lint`, `npm run build` y `git diff --check` antes de cada push.
+* No exponer `SUPABASE_SECRET_KEY` en cliente.
+* Mantener cerrado el registro público de cuentas.
+* Permitir altas de usuarios únicamente mediante autorización de empresa o invitación válida.
+* Mantener RLS activa en tablas de negocio.
+* Aplicar migraciones antes de desplegar cambios dependientes de base de datos.
+* Configurar secretos de webhook en Vercel antes de activar canales externos.
+* Validar `npm run lint`, `npm run build` y `git diff --check` antes de cada push.
 
 ## Despliegue
 
@@ -207,16 +210,17 @@ Antes de desplegar:
 
 COPPE está en fase MVP funcional con flujo end-to-end para:
 
-- Autenticación y empresa.
-- Clientes.
-- Casos.
-- Seguimientos.
-- Citas internas.
-- Notas internas.
-- Formulario web público.
-- Chat web público.
-- Email entrante.
-- WhatsApp entrante.
-- Análisis local o mediante IA.
+* Autenticación y empresa.
+* Clientes.
+* Casos.
+* Seguimientos.
+* Citas internas.
+* Notas internas.
+* Formulario web público.
+* Chat web público.
+* Email entrante.
+* WhatsApp entrante.
+* Invitaciones a miembros de empresa.
+* Análisis local o mediante IA.
 
 Antes de venta comercial deben revisarse especialmente onboarding, facturación, límites de uso, emails transaccionales, analítica, soporte, política de privacidad, términos legales y monitorización de errores.

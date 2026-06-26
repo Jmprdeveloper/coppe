@@ -77,18 +77,12 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
     setErrorMessage("");
     setSuccessMessage("");
 
-    if (register && !PUBLIC_SIGNUP_ENABLED) {
+    if (register) {
       setErrorMessage(PRIVATE_ACCESS_MESSAGE);
       return;
     }
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanFullName = fullName.trim();
-
-    if (register && !cleanFullName) {
-      setErrorMessage("Introduce tu nombre completo.");
-      return;
-    }
 
     if (!cleanEmail) {
       setErrorMessage("Introduce un email.");
@@ -102,32 +96,6 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
 
     try {
       setIsLoading(true);
-
-      if (register) {
-        const { data, error } = await supabase.auth.signUp({
-          email: cleanEmail,
-          password,
-          options: {
-            data: {
-              full_name: cleanFullName,
-            },
-          },
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        if (!data.session) {
-          setSuccessMessage(
-            "Cuenta creada. Revisa tu email para confirmar la cuenta antes de iniciar sesión."
-          );
-          return;
-        }
-
-        setActiveView("dashboard");
-        return;
-      }
 
       const { error } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
