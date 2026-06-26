@@ -7,6 +7,10 @@ import { Building2 } from "lucide-react";
 import { createClient } from "../lib/supabase/client";
 import { Button } from "./Button";
 
+const PUBLIC_SIGNUP_ENABLED = false;
+const PRIVATE_ACCESS_MESSAGE =
+  "COPPE está actualmente en acceso privado. Las nuevas cuentas se activan por invitación o autorización.";
+
 type AuthPageProps = {
   type: "login" | "register";
   setActiveView: (view: string) => void;
@@ -35,7 +39,7 @@ function getAuthErrorMessage(message: string) {
   }
 
   if (normalizedMessage.includes("signup is disabled")) {
-    return "El registro de nuevas cuentas está desactivado en este momento.";
+    return PRIVATE_ACCESS_MESSAGE;
   }
 
   if (normalizedMessage.includes("email rate limit exceeded")) {
@@ -56,6 +60,8 @@ function getAuthErrorMessage(message: string) {
 export function AuthPage({ type, setActiveView }: AuthPageProps) {
   const supabase = useMemo(() => createClient(), []);
   const register = type === "register";
+  const signupSubmitDisabled = register && !PUBLIC_SIGNUP_ENABLED;
+  const signupToggleDisabled = !register && !PUBLIC_SIGNUP_ENABLED;
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -70,6 +76,11 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
 
     setErrorMessage("");
     setSuccessMessage("");
+
+    if (register && !PUBLIC_SIGNUP_ENABLED) {
+      setErrorMessage(PRIVATE_ACCESS_MESSAGE);
+      return;
+    }
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanFullName = fullName.trim();
@@ -162,12 +173,13 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
               Nombre completo
               <input
                 value={fullName}
+                disabled={signupSubmitDisabled}
                 onChange={(event) => {
                   setFullName(event.target.value);
                   setErrorMessage("");
                   setSuccessMessage("");
                 }}
-                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
+                className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
                 placeholder="Tu nombre completo"
               />
             </label>
@@ -178,12 +190,13 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
             <input
               type="email"
               value={email}
+              disabled={signupSubmitDisabled}
               onChange={(event) => {
                 setEmail(event.target.value);
                 setErrorMessage("");
                 setSuccessMessage("");
               }}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               placeholder="tu@email.com"
             />
           </label>
@@ -193,20 +206,22 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
             <input
               type="password"
               value={password}
+              disabled={signupSubmitDisabled}
               onChange={(event) => {
                 setPassword(event.target.value);
                 setErrorMessage("");
                 setSuccessMessage("");
               }}
-              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C]"
+              className="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 outline-none focus:border-[#0F4C5C] disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-500"
               placeholder="Tu contraseña"
             />
           </label>
 
           {register ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
-              Después de crear la cuenta e iniciar sesión, COPPE te pedirá los
-              datos de tu empresa para configurar tu espacio de trabajo.
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+              {PUBLIC_SIGNUP_ENABLED
+                ? "Después de crear la cuenta e iniciar sesión, COPPE te pedirá los datos de tu empresa para configurar tu espacio de trabajo."
+                : PRIVATE_ACCESS_MESSAGE}
             </div>
           ) : null}
 
@@ -222,7 +237,11 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
             </div>
           ) : null}
 
-          <Button className="mt-2 w-full" type="submit" disabled={isLoading}>
+          <Button
+            className="mt-2 w-full"
+            type="submit"
+            disabled={isLoading || signupSubmitDisabled}
+          >
             {isLoading
               ? register
                 ? "Creando cuenta..."
@@ -234,8 +253,18 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
 
           <button
             type="button"
-            className="mt-4 w-full text-sm font-semibold text-[#0F4C5C] hover:underline"
+            disabled={signupToggleDisabled}
+            title={signupToggleDisabled ? PRIVATE_ACCESS_MESSAGE : undefined}
+            className={`mt-4 w-full text-sm font-semibold ${
+              signupToggleDisabled
+                ? "cursor-not-allowed text-slate-400"
+                : "text-[#0F4C5C] hover:underline"
+            }`}
             onClick={() => {
+              if (signupToggleDisabled) {
+                return;
+              }
+
               setErrorMessage("");
               setSuccessMessage("");
               setActiveView(register ? "login" : "register");
@@ -243,6 +272,13 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
           >
             {register ? "Ya tengo cuenta" : "Crear cuenta nueva"}
           </button>
+
+          {!register && !PUBLIC_SIGNUP_ENABLED ? (
+            <p className="text-center text-xs leading-5 text-slate-500">
+              COPPE está actualmente en acceso privado. Las nuevas cuentas se
+              activan por invitación o autorización.
+            </p>
+          ) : null}
 
           <button
             type="button"
