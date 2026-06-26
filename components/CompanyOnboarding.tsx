@@ -24,6 +24,40 @@ type CreatedCompanyRow = {
   language: string | null;
 };
 
+function getCompanyCreationErrorMessage(message: string) {
+  const normalizedMessage = message.toLowerCase();
+
+  if (
+    normalizedMessage.includes(
+      "company creation is not authorized for this email"
+    )
+  ) {
+    return "COPPE está actualmente en acceso privado. Este email no está autorizado para crear una empresa. Contacta con el administrador para solicitar acceso.";
+  }
+
+  if (normalizedMessage.includes("user already belongs to a company")) {
+    return "Este usuario ya pertenece a una empresa en COPPE.";
+  }
+
+  if (normalizedMessage.includes("no authenticated user")) {
+    return "La sesión ha caducado. Vuelve a iniciar sesión para continuar.";
+  }
+
+  if (normalizedMessage.includes("authenticated user email is required")) {
+    return "No se pudo comprobar el email de la sesión actual. Cierra sesión y vuelve a iniciar sesión.";
+  }
+
+  if (normalizedMessage.includes("company name is required")) {
+    return "El nombre de la empresa es obligatorio.";
+  }
+
+  if (normalizedMessage.includes("company sector is required")) {
+    return "Selecciona el sector de la empresa.";
+  }
+
+  return message || "sin detalle del error";
+}
+
 export function CompanyOnboarding({
   userEmail,
   onCompanyCreated,
@@ -76,9 +110,9 @@ export function CompanyOnboarding({
 
     if (error) {
       setErrorMessage(
-        `No se pudo crear la empresa: ${
-          error.message || "sin detalle del error"
-        }`
+        `No se pudo crear la empresa: ${getCompanyCreationErrorMessage(
+          error.message
+        )}`
       );
       return;
     }
@@ -121,8 +155,8 @@ export function CompanyOnboarding({
                 Espacio de trabajo privado
               </div>
 
-              Después de crear la empresa, COPPE preparará tu espacio de trabajo
-              y entrarás directamente al panel principal.
+              La creación de empresas está limitada a emails autorizados durante
+              esta fase privada de COPPE.
             </div>
 
             {userEmail ? (
