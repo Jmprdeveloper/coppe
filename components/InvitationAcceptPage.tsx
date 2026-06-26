@@ -28,6 +28,15 @@ type AcceptInvitationResult = {
   role: string;
 };
 
+type InvitationRegistrationResponse = {
+  ok?: boolean;
+  code?: string;
+  message?: string;
+  error?: string;
+  email?: string;
+  retryAfterSeconds?: number;
+};
+
 type AuthMode = "login" | "register";
 
 function getAuthErrorMessage(message: string) {
@@ -64,7 +73,10 @@ function getAuthErrorMessage(message: string) {
     return "No se pudo validar el email. Comprueba que la dirección esté bien escrita.";
   }
 
-  if (normalizedMessage.includes("network")) {
+  if (
+    normalizedMessage.includes("network") ||
+    normalizedMessage.includes("failed to fetch")
+  ) {
     return "No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.";
   }
 
@@ -95,6 +107,65 @@ function getInvitationErrorMessage(message: string) {
   }
 
   return message || "No se pudo aceptar la invitación.";
+}
+
+function getInvitationRegistrationErrorMessage(
+  result: InvitationRegistrationResponse | null,
+  status: number
+) {
+  if (result?.message) {
+    return result.message;
+  }
+
+  if (result?.error) {
+    return result.error;
+  }
+
+  if (status === 429) {
+    return "Se han realizado demasiados intentos. Inténtalo de nuevo dentro de unos minutos.";
+  }
+
+  if (status >= 500) {
+    return "No se pudo crear la cuenta de invitado. Inténtalo de nuevo en unos minutos.";
+  }
+
+  return "No se pudo crear la cuenta de invitado.";
+}
+
+async function parseInvitationRegistrationResponse(response: Response) {
+  try {
+    return (await response.json()) as InvitationRegistrationResponse;
+  } catch {
+    return null;
+  }
+}
+
+async function registerInvitedUser(values: {
+  token: string;
+  email: string;
+  fullName: string;
+  password: string;
+}) {
+  const response = await fetch("/api/invitations/register", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      token: values.token,
+      email: values.email,
+      fullName: values.fullName,
+      password: values.password,
+    }),
+  });
+
+  const result = await parseInvitationRegistrationResponse(response);
+
+  if (!response.ok || result?.ok === false) {
+    throw new Error(getInvitationRegistrationErrorMessage(result, response.status));
+  }
+
+  return result;
 }
 
 function formatDateTime(value: string) {
@@ -274,28 +345,27 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
 
     try {
       if (authMode === "register") {
-        const { data, error } = await supabase.auth.signUp({
+        await registerInvitedUser({
+          token,
+          email: cleanEmail,
+          fullName: cleanFullName,
+          password,
+        });
+
+        const { data, error } = await supabase.auth.signInWithPassword({
           email: cleanEmail,
           password,
-          options: {
-            data: {
-              full_name: cleanFullName,
-            },
-          },
         });
 
         if (error) {
           throw error;
         }
 
-        if (!data.session) {
-          setAuthMessage(
-            "Cuenta creada. Revisa tu email para confirmar la cuenta y vuelve a abrir este enlace de invitación."
-          );
-          return;
-        }
-
         setUser(data.user);
+        setAuthMessage(
+          "Cuenta creada correctamente. Ahora puedes aceptar la invitación."
+        );
+        setPassword("");
         return;
       }
 
@@ -309,6 +379,7 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
       }
 
       setUser(data.user);
+      setPassword("");
     } catch (error) {
       const message =
         error instanceof Error
@@ -612,6 +683,15 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
                   </span>
                   .
                 </div>
+
+                {authMessage ? (
+                  <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 size={16} />
+                      {authMessage}
+                    </div>
+                  </div>
+                ) : null}
 
                 {loggedUserDoesNotMatchInvitation ? (
                   <div className="space-y-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
