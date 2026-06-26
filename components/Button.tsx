@@ -3,7 +3,13 @@ import { ButtonHTMLAttributes, ReactNode } from "react";
 import { actionStyles } from "../lib/visualSystem";
 import { classNames } from "../lib/utils";
 
-type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";
+type ButtonVariant =
+  | "primary"
+  | "secondary"
+  | "soft"
+  | "status"
+  | "ghost"
+  | "danger";
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
   children: ReactNode;
@@ -20,6 +26,8 @@ export function Button({
   const variants: Record<ButtonVariant, string> = {
     primary: actionStyles.primary,
     secondary: actionStyles.secondary,
+    soft: actionStyles.soft,
+    status: actionStyles.status,
     ghost: actionStyles.ghost,
     danger: actionStyles.danger,
   };

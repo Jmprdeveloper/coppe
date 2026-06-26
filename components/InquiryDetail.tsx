@@ -3069,7 +3069,7 @@ export function InquiryDetail({
 
                                     <Button
                                       className="w-full justify-center"
-                                      variant="secondary"
+                                      variant="status"
                                       onClick={() =>
                                         handleUpdateAppointmentStatus(
                                           appointment.id,
@@ -3104,7 +3104,7 @@ export function InquiryDetail({
 
                                     <Button
                                       className="w-full justify-center"
-                                      variant="secondary"
+                                      variant="status"
                                       onClick={() =>
                                         handleUpdateAppointmentStatus(
                                           appointment.id,
@@ -3446,7 +3446,6 @@ export function InquiryDetail({
             />
 
             <Button
-              variant="secondary"
               className="mt-3 w-full"
               onClick={handleSaveNote}
               disabled={isSavingNote}

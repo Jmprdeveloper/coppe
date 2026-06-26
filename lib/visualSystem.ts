@@ -213,6 +213,10 @@ export const actionStyles = {
     "inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#083640] via-[#0B3F4C] to-[#0F4C5C] px-4 py-2 text-sm font-semibold text-white shadow-sm shadow-[#0F4C5C]/25 transition hover:from-[#062E36] hover:via-[#083640] hover:to-[#0B3F4C] disabled:cursor-not-allowed disabled:opacity-60",
   secondary:
     "inline-flex items-center justify-center gap-2 rounded-xl border border-[#8FB8C2] bg-white px-4 py-2 text-sm font-semibold text-[#0F4C5C] shadow-sm shadow-[#0F4C5C]/10 transition hover:border-[#0F4C5C]/40 hover:bg-[#EAF5F7] disabled:cursor-not-allowed disabled:opacity-60",
+  soft:
+    "inline-flex items-center justify-center gap-2 rounded-xl border border-[#7FABBA] bg-gradient-to-r from-[#DFF0F3] via-[#EAF5F7] to-[#F7FBFC] px-4 py-2 text-sm font-semibold text-[#083640] shadow-sm shadow-[#0F4C5C]/12 transition hover:border-[#0F4C5C]/45 hover:from-[#CDE6EB] hover:via-[#DFF0F3] hover:to-[#F2FAFB] disabled:cursor-not-allowed disabled:opacity-60",
+  status:
+    "inline-flex items-center justify-center gap-2 rounded-xl border border-[#0F4C5C]/30 bg-gradient-to-r from-[#C4E0E6] via-[#D7EBEF] to-[#EAF5F7] px-4 py-2 text-sm font-semibold text-[#073641] shadow-sm shadow-[#0F4C5C]/14 transition hover:border-[#0F4C5C]/50 hover:from-[#B8D9E1] hover:via-[#CCE5EA] hover:to-[#DFF0F3] disabled:cursor-not-allowed disabled:opacity-60",
   ghost:
     "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-[#315F69] transition hover:bg-[#EAF5F7] hover:text-[#0F4C5C] disabled:cursor-not-allowed disabled:opacity-60",
   danger:
