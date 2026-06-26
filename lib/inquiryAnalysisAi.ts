@@ -94,7 +94,7 @@ const inquiryAnalysisJsonSchema = {
     suggestedResponse: {
       type: "string",
       description:
-        "Short customer-facing response in the same language as the customer message. First respect whether the message fits the configured company. If it fits, acknowledge receipt and say a person from the company will contact the customer as soon as possible. If it does not fit, politely indicate that there may be confusion and invite the customer to contact the company again if they need something related to its services. Do not solve, diagnose, confirm, promise, or ask for long lists of data.",
+        "Short customer-facing response in the same language as the customer message. First respect whether the message fits the configured company. If the analyzed text contains a conversation or case history, use the full history only as context and make the response address the latest inbound customer turn, not a previous generic acknowledgement. If it fits, acknowledge the current customer need and say a person from the company will contact the customer as soon as possible. If it does not fit, politely indicate that there may be confusion and invite the customer to contact the company again if they need something related to its services. Do not solve, diagnose, confirm, promise, or ask for long lists of data.",
     },
   },
   required: [
@@ -189,6 +189,16 @@ function buildSystemPrompt() {
 Tu tarea es analizar mensajes reales de clientes y devolver exclusivamente datos estructurados.
 
 COPPE no está orientado a un único sector. Debes adaptar el análisis al sector, descripción, tono e idioma configurados por cada empresa.
+
+Conversaciones e historial:
+- El texto analizado puede ser un único mensaje o el historial de un caso con varios mensajes.
+- Cuando haya varios mensajes, identifica la última intervención entrante del cliente.
+- Usa el historial anterior solo como contexto para entender esa última intervención.
+- El análisis debe reflejar la situación actual del caso, no únicamente el primer mensaje recibido.
+- suggestedResponse debe responder principalmente a la necesidad, pregunta, duda, objeción, confirmación, corrección o actualización expresada en la última intervención entrante del cliente.
+- No repitas un acuse de recibo genérico anterior si el cliente ya ha avanzado la conversación con nueva información o una nueva intervención.
+- Si la última intervención depende del contexto anterior, usa el historial para interpretarla, pero redacta pensando en ese último turno del cliente.
+- Si no hay historial claro, analiza el texto como una primera intervención del cliente.
 
 Principio principal:
 - Primero evalúa la compatibilidad entre el mensaje y la empresa configurada.
@@ -347,8 +357,15 @@ ${dateContext.timeZone}
 Cliente:
 ${customerName}
 
-Mensaje original:
+Texto del caso o mensaje a analizar:
 ${message}
+
+Regla de foco conversacional:
+- El texto anterior puede ser un mensaje único o un historial del caso con varios mensajes.
+- Si incluye historial, identifica la última intervención entrante del cliente y úsala como foco principal del análisis.
+- Usa los mensajes anteriores solo como contexto para entender la situación actual.
+- suggestedResponse debe responder principalmente al último turno entrante del cliente, no repetir automáticamente una respuesta genérica anterior.
+- Si no hay historial claro, trata el texto como el primer mensaje del cliente.
 
 Empresa:
 Nombre: ${company.name}
@@ -367,7 +384,8 @@ Instrucciones principales:
 - Usa service_request cuando el cliente quiere que la empresa revise, evalúe, valore, repare, tramite, gestione, prepare, atienda, mire o intervenga en algo compatible con su actividad.
 - Mantén product_service_inquiry para preguntas informativas sobre productos o servicios cuando no se solicita una actuación concreta.
 - Mantén appointment_request para casos donde la cita, llamada o reunión sea el objetivo principal, no solo el medio para atender una solicitud de servicio.
-- Si el mensaje encaja con la empresa, suggestedResponse debe ser un acuse de recibo breve y decir que una persona del equipo se pondrá en contacto lo antes posible.
+- Si el texto contiene historial o varios turnos, suggestedResponse debe centrarse en la última intervención entrante del cliente, usando el historial solo como contexto.
+- Si el caso encaja con la empresa, suggestedResponse debe ser una respuesta breve, prudente y orientada al estado actual de la conversación; puede acusar recepción cuando proceda y debe decir que una persona del equipo se pondrá en contacto lo antes posible.
 - En summary e intent, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio" o "pedido, reserva, contratación o disponibilidad".
 - En suggestedResponse, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada" o "producto o servicio".
 - En recommendedAction, no empieces con "Confirmar que..." para casos que requieren revisión interna; usa "Revisar...", "Comprobar internamente..." o una instrucción prudente equivalente.
