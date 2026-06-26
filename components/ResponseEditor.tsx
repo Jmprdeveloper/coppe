@@ -425,7 +425,6 @@ function ResponseEditorContent({
 
         {canSendEmailResponse && canMarkAsWaitingCustomer ? (
           <Button
-            variant="secondary"
             onClick={() => handleSendEmailResponse("waiting_customer")}
             disabled={isBusy || hasAlreadySentCurrentText}
           >
@@ -436,7 +435,7 @@ function ResponseEditorContent({
           </Button>
         ) : null}
 
-        <Button onClick={handleCopy} disabled={isBusy}>
+        <Button variant="secondary" onClick={handleCopy} disabled={isBusy}>
           <Copy size={16} />
           {isCopying ? "Copiando..." : "Copiar borrador"}
         </Button>
