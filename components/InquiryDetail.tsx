@@ -483,6 +483,29 @@ function getFollowUpStatusAuditAction(
   return "update_follow_up_status";
 }
 
+function getAppointmentStatusAuditAction(
+  previousStatus: AppointmentStatus | null | undefined,
+  nextStatus: AppointmentStatus
+) {
+  if (nextStatus === "confirmed") {
+    return "confirm_appointment";
+  }
+
+  if (nextStatus === "completed") {
+    return "complete_appointment";
+  }
+
+  if (nextStatus === "cancelled") {
+    return "cancel_appointment";
+  }
+
+  if (nextStatus === "proposed" && previousStatus !== "proposed") {
+    return "reopen_appointment";
+  }
+
+  return "update_appointment";
+}
+
 function getDefaultFollowUpDateTimeLocal() {
   const date = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
@@ -1066,6 +1089,30 @@ export function InquiryDetail({
       }
 
       createdResponseMessage = data;
+
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: rawInquiry.company_id,
+        audit_action: "create_inquiry_message",
+        audit_entity_type: "inquiry_message",
+        audit_entity_id: data.id,
+        audit_metadata: {
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          direction: "outbound",
+          author_type: "company",
+          source_channel: rawInquiry.source_channel,
+          body_length: cleanResponseText.length,
+          response_flow: "mark_as_replied",
+          source: "inquiry_detail",
+        },
+      });
+
+      if (auditLogError) {
+        console.error(
+          "Inquiry response message created, but could not create audit log:",
+          auditLogError
+        );
+      }
     }
 
     const wasMarkedAsReplied = await handleUpdateStatus("replied");
@@ -1135,6 +1182,30 @@ export function InquiryDetail({
       }
 
       createdResponseMessage = data;
+
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: rawInquiry.company_id,
+        audit_action: "create_inquiry_message",
+        audit_entity_type: "inquiry_message",
+        audit_entity_id: data.id,
+        audit_metadata: {
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          direction: "outbound",
+          author_type: "company",
+          source_channel: rawInquiry.source_channel,
+          body_length: cleanResponseText.length,
+          response_flow: "mark_as_waiting_customer",
+          source: "inquiry_detail",
+        },
+      });
+
+      if (auditLogError) {
+        console.error(
+          "Inquiry response message created, but could not create audit log:",
+          auditLogError
+        );
+      }
     }
 
     const wasMarkedAsWaitingCustomer = await handleUpdateStatus(
@@ -1420,6 +1491,38 @@ export function InquiryDetail({
       return;
     }
 
+    let messageAuditWarningMessage = "";
+
+    const { error: messageAuditLogError } = await supabase.rpc(
+      "create_audit_log",
+      {
+        target_company_id: rawInquiry.company_id,
+        audit_action: "create_inquiry_message",
+        audit_entity_type: "inquiry_message",
+        audit_entity_id: createdMessage.id,
+        audit_metadata: {
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          direction: "inbound",
+          author_type: "customer",
+          source_channel: cleanAdditionalSourceChannel,
+          body_length: cleanAdditionalInfo.length,
+          reanalysis_requested: true,
+          source: "inquiry_detail",
+        },
+      }
+    );
+
+    if (messageAuditLogError) {
+      console.error(
+        "Customer message created, but could not create audit log:",
+        messageAuditLogError
+      );
+
+      messageAuditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría del nuevo mensaje.";
+    }
+
     const currentStatus = normalizeInquiryStatus(inquiry.status);
 
     const nextStatus =
@@ -1478,6 +1581,44 @@ export function InquiryDetail({
       return;
     }
 
+    let reanalysisAuditWarningMessage = messageAuditWarningMessage;
+
+    const { error: reanalysisAuditLogError } = await supabase.rpc(
+      "create_audit_log",
+      {
+        target_company_id: rawInquiry.company_id,
+        audit_action: "reanalyze_inquiry",
+        audit_entity_type: "inquiry",
+        audit_entity_id: rawInquiry.id,
+        audit_metadata: {
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          inquiry_message_id: createdMessage.id,
+          previous_status: currentStatus,
+          next_status: normalizeInquiryStatus(updatedInquiry.status),
+          previous_ai_category: rawInquiry.ai_category,
+          next_ai_category: updatedInquiry.ai_category,
+          previous_ai_priority: rawInquiry.ai_priority,
+          next_ai_priority: updatedInquiry.ai_priority,
+          previous_subject_length: (rawInquiry.subject ?? "").length,
+          next_subject_length: (updatedInquiry.subject ?? "").length,
+          additional_message_length: cleanAdditionalInfo.length,
+          source_channel: cleanAdditionalSourceChannel,
+          source: "inquiry_detail",
+        },
+      }
+    );
+
+    if (reanalysisAuditLogError) {
+      console.error(
+        "Inquiry reanalyzed, but could not create audit log:",
+        reanalysisAuditLogError
+      );
+
+      reanalysisAuditWarningMessage +=
+        " Advertencia: no se pudo registrar la auditoría del reanálisis.";
+    }
+
     setRawInquiry(updatedInquiry);
     setInquiry(mapInquiryRowToInquiry(updatedInquiry));
     setInquiryMessages((currentMessages) => [
@@ -1487,7 +1628,7 @@ export function InquiryDetail({
     setAdditionalCustomerInfo("");
     setAdditionalCustomerSourceChannel("");
     setReanalysisMessage(
-      "Caso reanalizado correctamente con el nuevo mensaje del cliente."
+      `Caso reanalizado correctamente con el nuevo mensaje del cliente.${reanalysisAuditWarningMessage}`
     );
   };
 
@@ -1577,10 +1718,40 @@ export function InquiryDetail({
       )
     );
 
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: rawInquiry.company_id,
+      audit_action: "create_appointment",
+      audit_entity_type: "appointment",
+      audit_entity_id: data.id,
+      audit_metadata: {
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        scheduled_at: data.scheduled_at,
+        next_status: mappedAppointment.status,
+        title_length: cleanAppointmentTitle.length,
+        notes_length: (appointmentNotes.trim() || "").length,
+        source: "inquiry_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Appointment created, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría de la cita.";
+    }
+
     setAppointmentTitle(getDefaultAppointmentTitle(inquiry.customerName));
     setAppointmentScheduledAt("");
     setAppointmentNotes("");
-    setAppointmentCreateMessage("Cita creada como pendiente de confirmar.");
+    setAppointmentCreateMessage(
+      `Cita creada como pendiente de confirmar.${auditWarningMessage}`
+    );
   };
 
   const handleUpdateAppointmentStatus = async (
@@ -1590,6 +1761,27 @@ export function InquiryDetail({
     setAppointmentCreateMessage("");
     setAppointmentActionMessage("");
     setAppointmentErrorMessage("");
+
+    if (!rawInquiry) {
+      setAppointmentErrorMessage(
+        "No se puede actualizar la cita porque no hay caso cargado."
+      );
+      return;
+    }
+
+    const currentAppointment = appointments.find(
+      (appointment) => appointment.id === appointmentId
+    );
+
+    if (!currentAppointment) {
+      setAppointmentErrorMessage(
+        "No se puede actualizar la cita porque no se encontró en pantalla."
+      );
+      return;
+    }
+
+    const previousStatus = currentAppointment.status;
+
     setUpdatingAppointmentId(appointmentId);
 
     const { data, error } = await supabase
@@ -1625,6 +1817,38 @@ export function InquiryDetail({
 
     const mappedAppointment = mapAppointmentRowToAppointment(data);
 
+    let auditWarningMessage = "";
+
+    if (previousStatus !== mappedAppointment.status) {
+      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+        target_company_id: rawInquiry.company_id,
+        audit_action: getAppointmentStatusAuditAction(
+          previousStatus,
+          mappedAppointment.status
+        ),
+        audit_entity_type: "appointment",
+        audit_entity_id: appointmentId,
+        audit_metadata: {
+          inquiry_id: rawInquiry.id,
+          customer_id: rawInquiry.customer_id,
+          scheduled_at: data.scheduled_at,
+          previous_status: previousStatus,
+          next_status: mappedAppointment.status,
+          source: "inquiry_detail",
+        },
+      });
+
+      if (auditLogError) {
+        console.error(
+          "Appointment status updated, but could not create audit log:",
+          auditLogError
+        );
+
+        auditWarningMessage =
+          " Advertencia: no se pudo registrar la auditoría de la cita.";
+      }
+    }
+
     setAppointments((currentAppointments) =>
       currentAppointments
         .map((appointment) =>
@@ -1633,7 +1857,9 @@ export function InquiryDetail({
         .sort(compareAppointmentsByScheduledAt)
     );
 
-    setAppointmentActionMessage("Estado de la cita actualizado.");
+    setAppointmentActionMessage(
+      `Estado de la cita actualizado.${auditWarningMessage}`
+    );
   };
 
   const handleOpenEditAppointmentForm = (appointment: Appointment) => {
@@ -1660,6 +1886,13 @@ export function InquiryDetail({
     setAppointmentCreateMessage("");
     setAppointmentActionMessage("");
     setAppointmentErrorMessage("");
+
+    if (!rawInquiry) {
+      setAppointmentErrorMessage(
+        "No se puede editar la cita porque no hay caso cargado."
+      );
+      return;
+    }
 
     const editingAppointment = appointments.find(
       (appointment) => appointment.id === editingAppointmentId
@@ -1738,6 +1971,50 @@ export function InquiryDetail({
     }
 
     const mappedAppointment = mapAppointmentRowToAppointment(data);
+    const changedFields: string[] = [];
+
+    if (editingAppointment.title !== mappedAppointment.title) {
+      changedFields.push("title");
+    }
+
+    if (editingAppointment.scheduledAtIso !== mappedAppointment.scheduledAtIso) {
+      changedFields.push("scheduled_at");
+    }
+
+    if (editingAppointment.notes !== mappedAppointment.notes) {
+      changedFields.push("notes");
+    }
+
+    let auditWarningMessage = "";
+
+    const { error: auditLogError } = await supabase.rpc("create_audit_log", {
+      target_company_id: rawInquiry.company_id,
+      audit_action: "update_appointment",
+      audit_entity_type: "appointment",
+      audit_entity_id: editingAppointment.id,
+      audit_metadata: {
+        inquiry_id: rawInquiry.id,
+        customer_id: rawInquiry.customer_id,
+        scheduled_at: data.scheduled_at,
+        previous_status: editingAppointment.status,
+        next_status: mappedAppointment.status,
+        changed_fields: changedFields,
+        title_length: cleanEditAppointmentTitle.length,
+        notes_changed: editingAppointment.notes !== mappedAppointment.notes,
+        notes_length: (editAppointmentNotes.trim() || "").length,
+        source: "inquiry_detail",
+      },
+    });
+
+    if (auditLogError) {
+      console.error(
+        "Appointment updated, but could not create audit log:",
+        auditLogError
+      );
+
+      auditWarningMessage =
+        " Advertencia: no se pudo registrar la auditoría de la cita.";
+    }
 
     setAppointments((currentAppointments) =>
       currentAppointments
@@ -1753,7 +2030,9 @@ export function InquiryDetail({
     setEditAppointmentTitle("");
     setEditAppointmentScheduledAt("");
     setEditAppointmentNotes("");
-    setAppointmentActionMessage("Cita actualizada correctamente.");
+    setAppointmentActionMessage(
+      `Cita actualizada correctamente.${auditWarningMessage}`
+    );
   };
 
   const handleCreateFollowUp = async () => {
