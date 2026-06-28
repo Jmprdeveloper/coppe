@@ -2,6 +2,10 @@ import {
     getCustomerDatabaseErrorMessage,
     normalizePhoneForComparison,
   } from "./customerValidation";
+  import {
+    claimInboundEvent,
+    markInboundEventFailed,
+  } from "./inboundEventProcessing";
   import { inferSentiment } from "./inquiryAnalysis";
   import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
   import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
@@ -98,13 +102,6 @@ import {
     status: string;
     last_interaction_at: string | null;
     created_at: string;
-  };
-  
-  type InboundEventRow = {
-    id: string;
-    status: string;
-    customer_id: string | null;
-    inquiry_id: string | null;
   };
   
   type NormalizedWhatsAppMessage = {
@@ -309,7 +306,7 @@ import {
   }
   
   function buildDuplicateResult(
-    inboundEvent: InboundEventRow
+    inquiryId: string | null
   ): InboundWhatsAppProcessingResult {
     return {
       ok: true,
@@ -317,7 +314,7 @@ import {
       processed: 0,
       ignored: 0,
       duplicates: 1,
-      inquiryIds: inboundEvent.inquiry_id ? [inboundEvent.inquiry_id] : [],
+      inquiryIds: inquiryId ? [inquiryId] : [],
       message: "WhatsApp ya procesado anteriormente.",
     };
   }
@@ -366,87 +363,10 @@ import {
     return data;
   }
   
-  async function findDuplicateInboundEvent(
-    supabaseAdmin: ReturnType<typeof createAdminClient>,
-    companyId: string,
-    externalMessageId: string
-  ) {
-    if (!externalMessageId) {
-      return null;
-    }
-  
-    const { data, error } = await supabaseAdmin
-      .from("inbound_events")
-      .select("id, status, customer_id, inquiry_id")
-      .eq("company_id", companyId)
-      .eq("source_channel", "WhatsApp")
-      .eq("external_message_id", externalMessageId)
-      .maybeSingle<InboundEventRow>();
-  
-    if (error) {
-      throw new Error(
-        `No se pudo comprobar si el WhatsApp ya fue procesado: ${
-          error.message || "sin detalle del error"
-        }`
-      );
-    }
-  
-    return data;
-  }
-  
-  async function createInboundEvent(
-    supabaseAdmin: ReturnType<typeof createAdminClient>,
-    companyId: string,
-    externalMessageId: string,
-    rawPayload: Record<string, unknown>
-  ) {
-    const { data, error } = await supabaseAdmin
-      .from("inbound_events")
-      .insert({
-        company_id: companyId,
-        source_channel: "WhatsApp",
-        external_message_id: externalMessageId || null,
-        status: "received",
-        raw_payload: rawPayload,
-      })
-      .select("id")
-      .single<{ id: string }>();
-  
-    if (error || !data) {
-      throw new Error(
-        `No se pudo registrar el WhatsApp entrante: ${
-          error?.message || "sin detalle del error"
-        }`
-      );
-    }
-  
-    return data.id;
-  }
-  
-  async function updateInboundEvent(
-    supabaseAdmin: ReturnType<typeof createAdminClient>,
-    inboundEventId: string,
-    values: {
-      status: "processed" | "failed";
-      customer_id?: string | null;
-      inquiry_id?: string | null;
-      error_message?: string | null;
-      processed_at: string;
-    }
-  ) {
-    const { error } = await supabaseAdmin
-      .from("inbound_events")
-      .update(values)
-      .eq("id", inboundEventId);
-  
-    if (error) {
-      console.error("Could not update inbound WhatsApp event:", error);
-    }
-  }
-  
   async function buildFailedResultAfterInboundEvent(
     supabaseAdmin: ReturnType<typeof createAdminClient>,
     inboundEventId: string,
+    processingToken: string,
     errorMessage: string,
     status: number,
     ids: {
@@ -454,13 +374,13 @@ import {
       inquiryId?: string | null;
     } = {}
   ): Promise<InboundWhatsAppProcessingResult> {
-    await updateInboundEvent(supabaseAdmin, inboundEventId, {
-      status: "failed",
-      customer_id: ids.customerId ?? null,
-      inquiry_id: ids.inquiryId ?? null,
-      error_message: errorMessage,
-      processed_at: new Date().toISOString(),
-    });
+    await markInboundEventFailed(
+      supabaseAdmin,
+      inboundEventId,
+      processingToken,
+      errorMessage,
+      ids
+    );
   
     return buildErrorResult(errorMessage, status);
   }
@@ -520,6 +440,13 @@ import {
       );
     }
   
+    if (!message.externalMessageId) {
+      return buildErrorResult(
+        "El webhook de WhatsApp no incluye el identificador del mensaje.",
+        400
+      );
+    }
+
     if (message.externalMessageId.length > MAX_EXTERNAL_MESSAGE_ID_LENGTH) {
       return buildErrorResult(
         `El identificador externo no puede superar los ${MAX_EXTERNAL_MESSAGE_ID_LENGTH} caracteres.`,
@@ -602,33 +529,15 @@ import {
       );
     }
   
-    try {
-      const duplicateInboundEvent = await findDuplicateInboundEvent(
-        supabaseAdmin,
-        company.id,
-        message.externalMessageId
-      );
-  
-      if (duplicateInboundEvent) {
-        return buildDuplicateResult(duplicateInboundEvent);
-      }
-    } catch (error) {
-      return buildErrorResult(
-        error instanceof Error
-          ? error.message
-          : "No se pudo comprobar si el WhatsApp ya fue procesado.",
-        500
-      );
-    }
-  
     let inboundEventId: string;
+    let processingToken: string;
   
     try {
-      inboundEventId = await createInboundEvent(
-        supabaseAdmin,
-        company.id,
-        message.externalMessageId,
-        {
+      const claim = await claimInboundEvent(supabaseAdmin, {
+        companyId: company.id,
+        sourceChannel: "WhatsApp",
+        externalMessageId: message.externalMessageId,
+        rawPayload: {
           phoneNumberId: message.phoneNumberId,
           displayPhoneNumber: message.displayPhoneNumber,
           fromPhone: message.fromPhone,
@@ -637,13 +546,27 @@ import {
           textBody: message.textBody,
           sourceChannel: "WhatsApp",
           rawMessage: message.rawMessage,
-        }
-      );
+        },
+      });
+
+      if (claim.outcome === "processed") {
+        return buildDuplicateResult(claim.inquiryId);
+      }
+
+      if (claim.outcome === "in_progress") {
+        return buildErrorResult(
+          "El mensaje de WhatsApp ya se está procesando.",
+          503
+        );
+      }
+
+      inboundEventId = claim.eventId;
+      processingToken = claim.processingToken;
     } catch (error) {
       return buildErrorResult(
         error instanceof Error
           ? error.message
-          : "No se pudo registrar el WhatsApp entrante.",
+          : "No se pudo reclamar el WhatsApp entrante.",
         500
       );
     }
@@ -662,6 +585,7 @@ import {
       return buildFailedResultAfterInboundEvent(
         supabaseAdmin,
         inboundEventId,
+        processingToken,
         error instanceof Error
           ? error.message
           : "No se pudo comprobar si el cliente ya existe.",
@@ -686,6 +610,7 @@ import {
         return buildFailedResultAfterInboundEvent(
           supabaseAdmin,
           inboundEventId,
+          processingToken,
           `No se pudo actualizar el cliente existente: ${
             updateCustomerError?.message || "sin detalle del error"
           }`,
@@ -717,6 +642,7 @@ import {
         return buildFailedResultAfterInboundEvent(
           supabaseAdmin,
           inboundEventId,
+          processingToken,
           `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
             createCustomerError?.message ?? ""
           )}`,
@@ -744,7 +670,9 @@ import {
     }
   
     const { data: createdInquiryIdFromRpc, error: createInquiryError } =
-      await supabaseAdmin.rpc("create_inquiry_with_initial_message", {
+      await supabaseAdmin.rpc("create_inbound_inquiry_with_initial_message", {
+        p_inbound_event_id: inboundEventId,
+        p_processing_token: processingToken,
         p_company_id: company.id,
         p_customer_id: customer.id,
         p_customer_name: customer.name || message.customerName,
@@ -769,6 +697,7 @@ import {
       return buildFailedResultAfterInboundEvent(
         supabaseAdmin,
         inboundEventId,
+        processingToken,
         `No se pudo crear el caso con su mensaje inicial: ${
           createInquiryError?.message || "sin detalle del error"
         }`,
@@ -778,14 +707,6 @@ import {
     }
 
     const createdInquiryId = String(createdInquiryIdFromRpc);
-  
-    await updateInboundEvent(supabaseAdmin, inboundEventId, {
-      status: "processed",
-      customer_id: customer.id,
-      inquiry_id: createdInquiryId,
-      error_message: null,
-      processed_at: new Date().toISOString(),
-    });
   
     return {
       ok: true,

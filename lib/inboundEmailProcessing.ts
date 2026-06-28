@@ -1,5 +1,9 @@
 import { getCustomerDatabaseErrorMessage } from "./customerValidation";
 import { isValidEmail } from "./customerValidation";
+import {
+  claimInboundEvent,
+  markInboundEventFailed,
+} from "./inboundEventProcessing";
 import { inferSentiment } from "./inquiryAnalysis";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
@@ -43,13 +47,6 @@ type CustomerRow = {
   status: string;
   last_interaction_at: string | null;
   created_at: string;
-};
-
-type InboundEventRow = {
-  id: string;
-  status: string;
-  customer_id: string | null;
-  inquiry_id: string | null;
 };
 
 type OutboundEmailReplyRow = {
@@ -178,13 +175,13 @@ function buildFallbackAnalysis(
 }
 
 function buildDuplicateResult(
-  inboundEvent: InboundEventRow
+  inquiryId: string | null
 ): InboundEmailProcessingResult {
   return {
     ok: true,
     status: 200,
     duplicate: true,
-    inquiryId: inboundEvent.inquiry_id,
+    inquiryId,
     message: "Email ya procesado anteriormente.",
   };
 }
@@ -231,87 +228,10 @@ async function findInboundCompany(
   return data;
 }
 
-async function findDuplicateInboundEvent(
-  supabaseAdmin: ReturnType<typeof createAdminClient>,
-  companyId: string,
-  externalMessageId: string
-) {
-  if (!externalMessageId) {
-    return null;
-  }
-
-  const { data, error } = await supabaseAdmin
-    .from("inbound_events")
-    .select("id, status, customer_id, inquiry_id")
-    .eq("company_id", companyId)
-    .eq("source_channel", "Email")
-    .eq("external_message_id", externalMessageId)
-    .maybeSingle<InboundEventRow>();
-
-  if (error) {
-    throw new Error(
-      `No se pudo comprobar si el email ya fue procesado: ${
-        error.message || "sin detalle del error"
-      }`
-    );
-  }
-
-  return data;
-}
-
-async function createInboundEvent(
-  supabaseAdmin: ReturnType<typeof createAdminClient>,
-  companyId: string,
-  externalMessageId: string,
-  rawPayload: Record<string, unknown>
-) {
-  const { data, error } = await supabaseAdmin
-    .from("inbound_events")
-    .insert({
-      company_id: companyId,
-      source_channel: "Email",
-      external_message_id: externalMessageId || null,
-      status: "received",
-      raw_payload: rawPayload,
-    })
-    .select("id")
-    .single<{ id: string }>();
-
-  if (error || !data) {
-    throw new Error(
-      `No se pudo registrar el email entrante: ${
-        error?.message || "sin detalle del error"
-      }`
-    );
-  }
-
-  return data.id;
-}
-
-async function updateInboundEvent(
-  supabaseAdmin: ReturnType<typeof createAdminClient>,
-  inboundEventId: string,
-  values: {
-    status: "processed" | "failed";
-    customer_id?: string | null;
-    inquiry_id?: string | null;
-    error_message?: string | null;
-    processed_at: string;
-  }
-) {
-  const { error } = await supabaseAdmin
-    .from("inbound_events")
-    .update(values)
-    .eq("id", inboundEventId);
-
-  if (error) {
-    console.error("Could not update inbound email event:", error);
-  }
-}
-
 async function buildFailedResultAfterInboundEvent(
   supabaseAdmin: ReturnType<typeof createAdminClient>,
   inboundEventId: string,
+  processingToken: string,
   errorMessage: string,
   status: number,
   ids: {
@@ -319,13 +239,13 @@ async function buildFailedResultAfterInboundEvent(
     inquiryId?: string | null;
   } = {}
 ): Promise<InboundEmailProcessingResult> {
-  await updateInboundEvent(supabaseAdmin, inboundEventId, {
-    status: "failed",
-    customer_id: ids.customerId ?? null,
-    inquiry_id: ids.inquiryId ?? null,
-    error_message: errorMessage,
-    processed_at: new Date().toISOString(),
-  });
+  await markInboundEventFailed(
+    supabaseAdmin,
+    inboundEventId,
+    processingToken,
+    errorMessage,
+    ids
+  );
 
   return buildErrorResult(
     status >= 500 ? GENERIC_INBOUND_EMAIL_ERROR_MESSAGE : errorMessage,
@@ -998,55 +918,11 @@ async function processInboundEmailReply(
     );
   }
 
-  try {
-    const duplicateInboundEvent = await findDuplicateInboundEvent(
-      supabaseAdmin,
-      company.id,
-      values.externalMessageId
-    );
-
-    if (duplicateInboundEvent) {
-      return buildDuplicateResult(duplicateInboundEvent);
-    }
-  } catch (error) {
-    console.error("Could not check duplicate inbound email reply event:", error);
-
-    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
-  }
-
-  let inboundEventId: string;
-
-  try {
-    inboundEventId = await createInboundEvent(
-      supabaseAdmin,
-      company.id,
-      values.externalMessageId,
-      {
-        inboundEmailAddress: values.inboundEmailAddress,
-        externalMessageId: values.externalMessageId,
-        fromName: values.fromName,
-        fromEmail: values.fromEmail,
-        subject: values.subject,
-        textBody: values.textBody,
-        replyToken: values.replyToken,
-        outboundMessageId: outboundEmailReply.id,
-        linkedInquiryId: outboundEmailReply.inquiry_id,
-        sourceChannel: "Email",
-      }
-    );
-  } catch (error) {
-    console.error("Could not create inbound email reply event:", error);
-
-    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
-  }
-
   const expectedFromEmail =
     outboundEmailReply.to_address?.trim().toLowerCase() ?? "";
 
   if (!expectedFromEmail || expectedFromEmail !== values.fromEmail) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       "El remitente de la respuesta no coincide con el destinatario original del email saliente.",
       403
     );
@@ -1060,9 +936,7 @@ async function processInboundEmailReply(
       outboundEmailReply.inquiry_id
     );
   } catch (error) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       error instanceof Error
         ? error.message
         : "No se pudo cargar el caso asociado a la respuesta.",
@@ -1071,9 +945,7 @@ async function processInboundEmailReply(
   }
 
   if (!inquiry || inquiry.company_id !== company.id) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       "No se encontró el caso asociado a esta respuesta por email.",
       404
     );
@@ -1098,24 +970,18 @@ async function processInboundEmailReply(
       );
     }
   } catch (error) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       error instanceof Error
         ? error.message
         : "No se pudo cargar el cliente asociado a la respuesta.",
-      500,
-      { inquiryId: inquiry.id }
+      500
     );
   }
 
   if (!customer || customer.company_id !== company.id) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       "No se encontró el cliente asociado a esta respuesta por email.",
-      404,
-      { inquiryId: inquiry.id }
+      404
     );
   }
 
@@ -1123,72 +989,55 @@ async function processInboundEmailReply(
     stripQuotedEmailText(values.textBody) || values.textBody.trim();
 
   if (!cleanReplyBody) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       "El cuerpo limpio de la respuesta por email está vacío.",
-      400,
-      { customerId: customer.id, inquiryId: inquiry.id }
+      400
     );
   }
 
   if (cleanReplyBody.length > MAX_ANALYSIS_MESSAGE_LENGTH) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
+    return buildErrorResult(
       `La respuesta por email no puede superar los ${MAX_ANALYSIS_MESSAGE_LENGTH} caracteres después de limpiar el texto citado.`,
-      400,
-      { customerId: customer.id, inquiryId: inquiry.id }
+      400
     );
   }
 
-  const now = new Date().toISOString();
+  let inboundEventId: string;
+  let processingToken: string;
 
-  const { error: updateCustomerError } = await supabaseAdmin
-    .from("customers")
-    .update({
-      last_interaction_at: now,
-    })
-    .eq("id", customer.id)
-    .eq("company_id", company.id);
+  try {
+    const claim = await claimInboundEvent(supabaseAdmin, {
+      companyId: company.id,
+      sourceChannel: "Email",
+      externalMessageId: values.externalMessageId,
+      rawPayload: {
+        inboundEmailAddress: values.inboundEmailAddress,
+        externalMessageId: values.externalMessageId,
+        fromName: values.fromName,
+        fromEmail: values.fromEmail,
+        subject: values.subject,
+        textBody: values.textBody,
+        replyToken: values.replyToken,
+        outboundMessageId: outboundEmailReply.id,
+        linkedInquiryId: outboundEmailReply.inquiry_id,
+        sourceChannel: "Email",
+      },
+    });
 
-  if (updateCustomerError) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
-      `No se pudo actualizar el cliente asociado a la respuesta: ${
-        updateCustomerError.message || "sin detalle del error"
-      }`,
-      500,
-      { customerId: customer.id, inquiryId: inquiry.id }
-    );
-  }
+    if (claim.outcome === "processed") {
+      return buildDuplicateResult(claim.inquiryId);
+    }
 
-  const { data: createdMessage, error: createMessageError } =
-    await supabaseAdmin
-      .from("inquiry_messages")
-      .insert({
-        company_id: company.id,
-        inquiry_id: inquiry.id,
-        customer_id: customer.id,
-        direction: "inbound",
-        author_type: "customer",
-        body: cleanReplyBody,
-        source_channel: "Email",
-      })
-      .select("id, direction, author_type, body, source_channel, created_at")
-      .single<InquiryMessageRow>();
+    if (claim.outcome === "in_progress") {
+      return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 503);
+    }
 
-  if (createMessageError || !createdMessage) {
-    return buildFailedResultAfterInboundEvent(
-      supabaseAdmin,
-      inboundEventId,
-      `No se pudo guardar la respuesta en el historial del caso: ${
-        createMessageError?.message || "sin detalle del error"
-      }`,
-      500,
-      { customerId: customer.id, inquiryId: inquiry.id }
-    );
+    inboundEventId = claim.eventId;
+    processingToken = claim.processingToken;
+  } catch (error) {
+    console.error("Could not claim inbound email reply event:", error);
+
+    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
 
   let analysis: InboundEmailAnalysis | null = null;
@@ -1226,31 +1075,40 @@ async function processInboundEmailReply(
     cleanReplyBody
   );
 
-  const { error: updateInquiryError } = await supabaseAdmin
-    .from("inquiries")
-    .update(inquiryUpdateValues)
-    .eq("id", inquiry.id)
-    .eq("company_id", company.id);
+  const { error: finalizeReplyError } = await supabaseAdmin.rpc(
+    "finalize_inbound_email_reply",
+    {
+      p_inbound_event_id: inboundEventId,
+      p_processing_token: processingToken,
+      p_company_id: company.id,
+      p_inquiry_id: inquiry.id,
+      p_customer_id: customer.id,
+      p_body: cleanReplyBody,
+      p_status: inquiryUpdateValues.status,
+      p_ai_summary: inquiryUpdateValues.ai_summary,
+      p_ai_intent: inquiryUpdateValues.ai_intent,
+      p_ai_category: inquiryUpdateValues.ai_category,
+      p_ai_priority: inquiryUpdateValues.ai_priority,
+      p_ai_language: inquiryUpdateValues.ai_language,
+      p_sentiment: inquiryUpdateValues.sentiment,
+      p_missing_information: inquiryUpdateValues.missing_information,
+      p_recommended_action: inquiryUpdateValues.recommended_action,
+      p_suggested_response: inquiryUpdateValues.suggested_response,
+    }
+  );
 
-  if (updateInquiryError) {
+  if (finalizeReplyError) {
     return buildFailedResultAfterInboundEvent(
       supabaseAdmin,
       inboundEventId,
-      `La respuesta se guardó, pero no se pudo actualizar el estado del caso: ${
-        updateInquiryError.message || "sin detalle del error"
+      processingToken,
+      `No se pudo guardar la respuesta y actualizar el caso: ${
+        finalizeReplyError.message || "sin detalle del error"
       }`,
       500,
       { customerId: customer.id, inquiryId: inquiry.id }
     );
   }
-
-  await updateInboundEvent(supabaseAdmin, inboundEventId, {
-    status: "processed",
-    customer_id: customer.id,
-    inquiry_id: inquiry.id,
-    error_message: null,
-    processed_at: new Date().toISOString(),
-  });
 
   return {
     ok: true,
@@ -1292,6 +1150,10 @@ export async function processInboundEmail(
       "La dirección de entrada no tiene un formato válido.",
       400
     );
+  }
+
+  if (!externalMessageId) {
+    return buildErrorResult("El identificador externo es obligatorio.", 400);
   }
 
   if (externalMessageId.length > MAX_EXTERNAL_MESSAGE_ID_LENGTH) {
@@ -1402,30 +1264,15 @@ export async function processInboundEmail(
     );
   }
 
-  try {
-    const duplicateInboundEvent = await findDuplicateInboundEvent(
-      supabaseAdmin,
-      company.id,
-      externalMessageId
-    );
-
-    if (duplicateInboundEvent) {
-      return buildDuplicateResult(duplicateInboundEvent);
-    }
-  } catch (error) {
-    console.error("Could not check duplicate inbound email event:", error);
-
-    return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
-  }
-
   let inboundEventId: string;
+  let processingToken: string;
 
   try {
-    inboundEventId = await createInboundEvent(
-      supabaseAdmin,
-      company.id,
+    const claim = await claimInboundEvent(supabaseAdmin, {
+      companyId: company.id,
+      sourceChannel: "Email",
       externalMessageId,
-      {
+      rawPayload: {
         inboundEmailAddress,
         externalMessageId,
         fromName,
@@ -1433,10 +1280,21 @@ export async function processInboundEmail(
         subject,
         textBody,
         sourceChannel: "Email",
-      }
-    );
+      },
+    });
+
+    if (claim.outcome === "processed") {
+      return buildDuplicateResult(claim.inquiryId);
+    }
+
+    if (claim.outcome === "in_progress") {
+      return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 503);
+    }
+
+    inboundEventId = claim.eventId;
+    processingToken = claim.processingToken;
   } catch (error) {
-    console.error("Could not create inbound email event:", error);
+    console.error("Could not claim inbound email event:", error);
 
     return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
@@ -1451,6 +1309,7 @@ export async function processInboundEmail(
     return buildFailedResultAfterInboundEvent(
       supabaseAdmin,
       inboundEventId,
+      processingToken,
       error instanceof Error
         ? error.message
         : "No se pudo comprobar si el cliente ya existe.",
@@ -1475,6 +1334,7 @@ export async function processInboundEmail(
       return buildFailedResultAfterInboundEvent(
         supabaseAdmin,
         inboundEventId,
+        processingToken,
         `No se pudo actualizar el cliente existente: ${
           updateCustomerError?.message || "sin detalle del error"
         }`,
@@ -1506,6 +1366,7 @@ export async function processInboundEmail(
       return buildFailedResultAfterInboundEvent(
         supabaseAdmin,
         inboundEventId,
+        processingToken,
         `No se pudo crear el cliente: ${getCustomerDatabaseErrorMessage(
           createCustomerError?.message ?? ""
         )}`,
@@ -1529,7 +1390,9 @@ export async function processInboundEmail(
   }
 
   const { data: createdInquiryIdFromRpc, error: createInquiryError } =
-    await supabaseAdmin.rpc("create_inquiry_with_initial_message", {
+    await supabaseAdmin.rpc("create_inbound_inquiry_with_initial_message", {
+      p_inbound_event_id: inboundEventId,
+      p_processing_token: processingToken,
       p_company_id: company.id,
       p_customer_id: customer.id,
       p_customer_name: customer.name || customerName,
@@ -1554,6 +1417,7 @@ export async function processInboundEmail(
     return buildFailedResultAfterInboundEvent(
       supabaseAdmin,
       inboundEventId,
+      processingToken,
       `No se pudo crear el caso con su mensaje inicial: ${
         createInquiryError?.message || "sin detalle del error"
       }`,
@@ -1563,14 +1427,6 @@ export async function processInboundEmail(
   }
 
   const createdInquiryId = String(createdInquiryIdFromRpc);
-
-  await updateInboundEvent(supabaseAdmin, inboundEventId, {
-    status: "processed",
-    customer_id: customer.id,
-    inquiry_id: createdInquiryId,
-    error_message: null,
-    processed_at: new Date().toISOString(),
-  });
 
   return {
     ok: true,
