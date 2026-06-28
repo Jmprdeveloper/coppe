@@ -705,7 +705,7 @@ import {
             email: null,
             phone: message.fromPhone,
             language: company.language ?? "es",
-            status: "new",
+            status: "active",
             last_interaction_at: now,
           })
           .select(
