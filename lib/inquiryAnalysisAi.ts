@@ -94,7 +94,7 @@ const inquiryAnalysisJsonSchema = {
     suggestedResponse: {
       type: "string",
       description:
-        "Short customer-facing response in the same language as the customer message. First respect whether the message fits the configured company. If the analyzed text contains a conversation or case history, use the full history only as context and make the response address the latest inbound customer turn, not a previous generic acknowledgement. If it fits, acknowledge the current customer need and say a person from the company will contact the customer as soon as possible. If it does not fit, politely indicate that there may be confusion and invite the customer to contact the company again if they need something related to its services. Do not solve, diagnose, confirm, promise, or ask for long lists of data.",
+        "Short customer-facing response in the same language as the customer message. First respect whether the message fits the configured company. If the analyzed text contains a conversation or case history, use the full history only as context and make the response address the latest inbound customer turn, not a previous generic acknowledgement. If it fits, acknowledge the current customer need and say a person from the company will contact the customer as soon as possible. When mentioning the customer motive, rewrite first-person customer wording from the company-to-customer perspective, for example my account -> your account or mi factura -> tu factura. If it does not fit, politely indicate that there may be confusion and invite the customer to contact the company again if they need something related to its services. Do not solve, diagnose, confirm, promise, or ask for long lists of data.",
     },
   },
   required: [
@@ -309,6 +309,9 @@ Estilo de suggestedResponse para casos que SÍ encajan con la empresa:
 - Debe reconocer el tipo de mensaje o motivo de forma breve y neutral.
 - No copies mecánicamente el mensaje del cliente.
 - Reformula el motivo del cliente con lenguaje limpio, breve y profesional.
+- suggestedResponse se escribe en nombre de la empresa y dirigido al cliente; nunca debe conservar posesivos o frases en primera persona del cliente como si fueran de la empresa.
+- Si mencionas el motivo del cliente, cambia la perspectiva de forma natural y generalista: "mi factura" -> "tu factura" o "su factura", "mi cita" -> "tu cita" o "su cita", "mi cuenta" -> "tu cuenta" o "su cuenta", "my account" -> "your account".
+- Esta regla de perspectiva aplica a cualquier sector; no la limites a ejemplos de talleres, vehículos o reparaciones.
 - Debe confirmar recepción y derivar el seguimiento a una persona de la empresa.
 - Cierre recomendado: "Una persona de nuestro equipo se pondrá en contacto contigo lo antes posible."
 - En inglés, usa un cierre equivalente: "A member of our team will contact you as soon as possible."
@@ -388,6 +391,7 @@ Instrucciones principales:
 - Si el caso encaja con la empresa, suggestedResponse debe ser una respuesta breve, prudente y orientada al estado actual de la conversación; puede acusar recepción cuando proceda y debe decir que una persona del equipo se pondrá en contacto lo antes posible.
 - En summary e intent, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada", "producto o servicio" o "pedido, reserva, contratación o disponibilidad".
 - En suggestedResponse, usa el motivo concreto del cliente cuando esté claro y no expongas etiquetas internas agrupadas como "cita, reunión o llamada" o "producto o servicio".
+- En suggestedResponse, no copies literalmente fragmentos del cliente en primera persona. La empresa responde al cliente, por lo que debes reformular "mi", "mis", "nuestro", "nuestra", "my" u "our" con la perspectiva adecuada: "tu/su" o "your" según idioma y tono.
 - En recommendedAction, no empieces con "Confirmar que..." para casos que requieren revisión interna; usa "Revisar...", "Comprobar internamente..." o una instrucción prudente equivalente.
 - Para solicitudes de cita, recommendedAction debe recomendar revisar disponibilidad antes de proponer una hora concreta, no aceptar, confirmar ni agendar.
 - Si el mensaje no encaja con la empresa, suggestedResponse debe indicar posible confusión y sugerir que el cliente vuelva a contactar si necesita algo relacionado con los servicios de la empresa.

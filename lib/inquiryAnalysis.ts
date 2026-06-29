@@ -10,6 +10,8 @@ type ResponseTone =
   | "directo"
   | "amable y detallado";
 
+type RequestPerspective = "internal" | "customer";
+
 type CompanyContext = {
   name: string;
   sector: string;
@@ -610,13 +612,19 @@ export function inferSentiment(
 
 function extractRequestPurposeByLanguage(
   originalMessage: string,
-  language: MessageLanguage
+  language: MessageLanguage,
+  perspective: RequestPerspective = "internal"
 ) {
-  if (language === "en") {
-    return extractEnglishRequestPurpose(originalMessage);
-  }
+  const requestPurpose =
+    language === "en"
+      ? extractEnglishRequestPurpose(originalMessage)
+      : extractSpanishRequestPurpose(originalMessage);
 
-  return extractSpanishRequestPurpose(originalMessage);
+  return normalizeRequestPurposePerspective(
+    requestPurpose,
+    language,
+    perspective
+  );
 }
 
 export function buildSummary(
@@ -974,6 +982,115 @@ function formatCustomerFacingRequestPurpose(value: string) {
   return `${cleanValue.charAt(0).toLowerCase()}${cleanValue.slice(1)}`;
 }
 
+function preserveReplacementCase(source: string, replacement: string) {
+  if (source === source.toUpperCase()) {
+    return replacement.toUpperCase();
+  }
+
+  if (source[0] === source[0]?.toUpperCase()) {
+    return `${replacement.charAt(0).toUpperCase()}${replacement.slice(1)}`;
+  }
+
+  return replacement;
+}
+
+function replaceTokenPreservingCase(
+  value: string,
+  tokenPattern: string,
+  replacement: string,
+  alphabetPattern: string
+) {
+  return value.replace(
+    new RegExp(
+      `(^|[^${alphabetPattern}])(${tokenPattern})(?=$|[^${alphabetPattern}])`,
+      "gi"
+    ),
+    (match, prefix: string, token: string) => {
+      if (typeof prefix !== "string" || typeof token !== "string") {
+        return match;
+      }
+
+      return `${prefix}${preserveReplacementCase(token, replacement)}`;
+    }
+  );
+}
+
+function normalizeSpanishRequestPurposePerspective(
+  value: string,
+  perspective: RequestPerspective
+) {
+  const alphabetPattern = "A-Za-zÁÉÍÓÚÜÑáéíóúüñ";
+  const possessiveSingular = perspective === "customer" ? "tu" : "su";
+  const possessivePlural = perspective === "customer" ? "tus" : "sus";
+  const ownedMasculineSingular = perspective === "customer" ? "tuyo" : "suyo";
+  const ownedFeminineSingular = perspective === "customer" ? "tuya" : "suya";
+  const ownedMasculinePlural = perspective === "customer" ? "tuyos" : "suyos";
+  const ownedFemininePlural = perspective === "customer" ? "tuyas" : "suyas";
+
+  return [
+    ["m[ií]os", ownedMasculinePlural],
+    ["m[ií]as", ownedFemininePlural],
+    ["m[ií]o", ownedMasculineSingular],
+    ["m[ií]a", ownedFeminineSingular],
+    ["mis", possessivePlural],
+    ["mi", possessiveSingular],
+    ["nuestros", possessivePlural],
+    ["nuestras", possessivePlural],
+    ["nuestro", possessiveSingular],
+    ["nuestra", possessiveSingular],
+  ].reduce(
+    (nextValue, [tokenPattern, replacement]) =>
+      replaceTokenPreservingCase(
+        nextValue,
+        tokenPattern,
+        replacement,
+        alphabetPattern
+      ),
+    value
+  );
+}
+
+function normalizeEnglishRequestPurposePerspective(
+  value: string,
+  perspective: RequestPerspective
+) {
+  const alphabetPattern = "A-Za-z";
+  const possessive = perspective === "customer" ? "your" : "their";
+  const owned = perspective === "customer" ? "yours" : "theirs";
+
+  return [
+    ["mine", owned],
+    ["ours", owned],
+    ["my", possessive],
+    ["our", possessive],
+  ].reduce(
+    (nextValue, [tokenPattern, replacement]) =>
+      replaceTokenPreservingCase(
+        nextValue,
+        tokenPattern,
+        replacement,
+        alphabetPattern
+      ),
+    value
+  );
+}
+
+function normalizeRequestPurposePerspective(
+  value: string,
+  language: MessageLanguage,
+  perspective: RequestPerspective
+) {
+  if (!value) {
+    return "";
+  }
+
+  if (language === "en") {
+    return normalizeEnglishRequestPurposePerspective(value, perspective);
+  }
+
+  return normalizeSpanishRequestPurposePerspective(value, perspective);
+}
+
 function isWeakSpanishRequestPurpose(value: string) {
   const normalizedValue = normalizeSearchText(value);
 
@@ -1141,7 +1258,11 @@ function buildSpanishResponse(
   }
 
   if (category === "appointment_request") {
-    const requestPurpose = extractSpanishRequestPurpose(originalMessage);
+    const requestPurpose = extractRequestPurposeByLanguage(
+      originalMessage,
+      "es",
+      "customer"
+    );
     const acknowledgement = requestPurpose
       ? `Hemos recibido tu solicitud para ${requestPurpose}.`
       : "Hemos recibido tu solicitud de cita.";
@@ -1150,7 +1271,11 @@ function buildSpanishResponse(
   }
 
   if (category === "service_request") {
-    const requestPurpose = extractSpanishRequestPurpose(originalMessage);
+    const requestPurpose = extractRequestPurposeByLanguage(
+      originalMessage,
+      "es",
+      "customer"
+    );
     const acknowledgement = requestPurpose
       ? `Hemos recibido tu solicitud para ${requestPurpose}.`
       : "Hemos recibido tu solicitud de servicio.";
@@ -1239,7 +1364,11 @@ function buildEnglishResponse(
   }
 
   if (category === "appointment_request") {
-    const requestPurpose = extractEnglishRequestPurpose(originalMessage);
+    const requestPurpose = extractRequestPurposeByLanguage(
+      originalMessage,
+      "en",
+      "customer"
+    );
     const acknowledgement = requestPurpose
       ? `We have received your request to ${requestPurpose}.`
       : "We have received your appointment request.";
@@ -1248,7 +1377,11 @@ function buildEnglishResponse(
   }
 
   if (category === "service_request") {
-    const requestPurpose = extractEnglishRequestPurpose(originalMessage);
+    const requestPurpose = extractRequestPurposeByLanguage(
+      originalMessage,
+      "en",
+      "customer"
+    );
     const acknowledgement = requestPurpose
       ? `We have received your request to ${requestPurpose}.`
       : "We have received your service request.";
