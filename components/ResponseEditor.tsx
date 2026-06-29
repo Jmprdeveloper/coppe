@@ -8,7 +8,7 @@ import type { Inquiry } from "../types";
 
 import { Button } from "./Button";
 
-type SendEmailResponseNextStatus = "replied" | "waiting_customer";
+type SendCaseResponseNextStatus = "replied" | "waiting_customer";
 
 type ResponseEditorProps = {
   inquiry: Inquiry;
@@ -22,7 +22,14 @@ type ResponseEditorProps = {
   sentEmailResponseBodies?: string[];
   onSendEmailResponse?: (
     responseText: string,
-    nextStatus: SendEmailResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus
+  ) => Promise<boolean>;
+  canSendWhatsAppResponse?: boolean;
+  isSendingWhatsAppResponse?: boolean;
+  sentWhatsAppResponseBodies?: string[];
+  onSendWhatsAppResponse?: (
+    responseText: string,
+    nextStatus: SendCaseResponseNextStatus
   ) => Promise<boolean>;
 };
 
@@ -80,6 +87,10 @@ function ResponseEditorContent({
   isSendingEmailResponse = false,
   sentEmailResponseBodies = [],
   onSendEmailResponse,
+  canSendWhatsAppResponse = false,
+  isSendingWhatsAppResponse = false,
+  sentWhatsAppResponseBodies = [],
+  onSendWhatsAppResponse,
 }: ResponseEditorProps) {
   const supabase = useMemo(() => createClient(), []);
 
@@ -92,6 +103,10 @@ function ResponseEditorContent({
   const [isSendingEmailReplied, setIsSendingEmailReplied] = useState(false);
   const [isSendingEmailWaitingCustomer, setIsSendingEmailWaitingCustomer] =
     useState(false);
+  const [isSendingWhatsAppReplied, setIsSendingWhatsAppReplied] =
+    useState(false);
+  const [isSendingWhatsAppWaitingCustomer, setIsSendingWhatsAppWaitingCustomer] =
+    useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
@@ -102,12 +117,15 @@ function ResponseEditorContent({
     isFinishingWaitingCustomer ||
     isSendingEmailReplied ||
     isSendingEmailWaitingCustomer ||
+    isSendingWhatsAppReplied ||
+    isSendingWhatsAppWaitingCustomer ||
     isMarkingAsReplied ||
-    isSendingEmailResponse;
+    isSendingEmailResponse ||
+    isSendingWhatsAppResponse;
 
   const normalizedCurrentText = normalizeResponseTextForComparison(text);
 
-  const hasAlreadySentCurrentText =
+  const hasAlreadySentCurrentTextByEmail =
     normalizedCurrentText.length > 0 &&
     sentEmailResponseBodies.some((sentResponseBody) => {
       return (
@@ -115,6 +133,18 @@ function ResponseEditorContent({
         normalizedCurrentText
       );
     });
+
+  const hasAlreadySentCurrentTextByWhatsApp =
+    normalizedCurrentText.length > 0 &&
+    sentWhatsAppResponseBodies.some((sentResponseBody) => {
+      return (
+        normalizeResponseTextForComparison(sentResponseBody) ===
+        normalizedCurrentText
+      );
+    });
+
+  const canSendAnyDirectResponse =
+    canSendEmailResponse || canSendWhatsAppResponse;
 
   const copyResponseText = async (cleanText: string) => {
     if (navigator.clipboard?.writeText) {
@@ -306,7 +336,7 @@ function ResponseEditorContent({
   };
 
   const handleSendEmailResponse = async (
-    nextStatus: SendEmailResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus
   ) => {
     setSuccessMessage("");
     setErrorMessage("");
@@ -318,7 +348,7 @@ function ResponseEditorContent({
       return;
     }
 
-    if (hasAlreadySentCurrentText) {
+    if (hasAlreadySentCurrentTextByEmail) {
       setErrorMessage(
         "Este borrador ya fue enviado por email en este caso. Edita el texto si necesitas enviar una nueva respuesta."
       );
@@ -363,6 +393,64 @@ function ResponseEditorContent({
     }
   };
 
+  const handleSendWhatsAppResponse = async (
+    nextStatus: SendCaseResponseNextStatus
+  ) => {
+    setSuccessMessage("");
+    setErrorMessage("");
+
+    const cleanText = text.trim();
+
+    if (!cleanText) {
+      setErrorMessage("El borrador de respuesta no puede quedar vacío.");
+      return;
+    }
+
+    if (hasAlreadySentCurrentTextByWhatsApp) {
+      setErrorMessage(
+        "Este borrador ya fue enviado por WhatsApp en este caso. Edita el texto si necesitas enviar una nueva respuesta."
+      );
+      return;
+    }
+
+    if (!onSendWhatsAppResponse) {
+      setErrorMessage("No se pudo enviar el WhatsApp desde COPPE.");
+      return;
+    }
+
+    if (nextStatus === "waiting_customer") {
+      setIsSendingWhatsAppWaitingCustomer(true);
+    } else {
+      setIsSendingWhatsAppReplied(true);
+    }
+
+    try {
+      await saveResponseText(cleanText);
+
+      const wasSent = await onSendWhatsAppResponse(cleanText, nextStatus);
+
+      if (!wasSent) {
+        setErrorMessage("No se pudo enviar el WhatsApp desde COPPE.");
+        return;
+      }
+
+      setSuccessMessage(
+        nextStatus === "waiting_customer"
+          ? "WhatsApp enviado y caso marcado como esperando al cliente."
+          : "WhatsApp enviado y caso marcado como respondido."
+      );
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo enviar el WhatsApp desde COPPE."
+      );
+    } finally {
+      setIsSendingWhatsAppReplied(false);
+      setIsSendingWhatsAppWaitingCustomer(false);
+    }
+  };
+
   return (
     <section className="rounded-2xl border border-[#8FB8C2] bg-white p-5 shadow-md shadow-[#0F4C5C]/10">
       <div className="mb-3 flex items-center justify-between gap-4">
@@ -370,8 +458,8 @@ function ResponseEditorContent({
           <h3 className="font-bold text-[#073540]">Borrador de respuesta</h3>
 
           <p className="text-xs leading-5 text-[#456C75]">
-            {canSendEmailResponse
-              ? "Edita el texto y elige si quieres enviarlo por email desde COPPE o copiarlo para responder manualmente."
+            {canSendAnyDirectResponse
+              ? "Edita el texto y elige si quieres enviarlo desde COPPE o copiarlo para responder manualmente."
               : "Edita el texto, cópialo y envíalo manualmente por el canal correspondiente. COPPE registrará la respuesta en el historial del caso."}
           </p>
         </div>
@@ -391,10 +479,17 @@ function ResponseEditorContent({
         className="min-h-[150px] w-full rounded-2xl border border-[#D2E4E8] bg-[#F7FBFC] p-4 text-sm leading-6 text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white"
       />
 
-      {canSendEmailResponse && hasAlreadySentCurrentText ? (
+      {canSendEmailResponse && hasAlreadySentCurrentTextByEmail ? (
         <div className="mt-4 rounded-2xl border border-[#8FB8C2] bg-[#F2FAFB] px-4 py-3 text-sm text-[#0B3F4C]">
           Este borrador ya fue enviado por email en este caso. Edita el texto
           si necesitas enviar una nueva respuesta.
+        </div>
+      ) : null}
+
+      {canSendWhatsAppResponse && hasAlreadySentCurrentTextByWhatsApp ? (
+        <div className="mt-4 rounded-2xl border border-[#8FB8C2] bg-[#F2FAFB] px-4 py-3 text-sm text-[#0B3F4C]">
+          Este borrador ya fue enviado por WhatsApp en este caso. Edita el
+          texto si necesitas enviar una nueva respuesta.
         </div>
       ) : null}
 
@@ -411,10 +506,34 @@ function ResponseEditorContent({
       ) : null}
 
       <div className="mt-4 flex flex-wrap gap-2">
+        {canSendWhatsAppResponse && canMarkAsReplied ? (
+          <Button
+            onClick={() => handleSendWhatsAppResponse("replied")}
+            disabled={isBusy || hasAlreadySentCurrentTextByWhatsApp}
+          >
+            <Send size={16} />
+            {isSendingWhatsAppReplied || isSendingWhatsAppResponse
+              ? "Enviando WhatsApp..."
+              : "Enviar WhatsApp y marcar respondido"}
+          </Button>
+        ) : null}
+
+        {canSendWhatsAppResponse && canMarkAsWaitingCustomer ? (
+          <Button
+            onClick={() => handleSendWhatsAppResponse("waiting_customer")}
+            disabled={isBusy || hasAlreadySentCurrentTextByWhatsApp}
+          >
+            <Send size={16} />
+            {isSendingWhatsAppWaitingCustomer || isSendingWhatsAppResponse
+              ? "Enviando WhatsApp..."
+              : "Enviar WhatsApp y esperar respuesta"}
+          </Button>
+        ) : null}
+
         {canSendEmailResponse && canMarkAsReplied ? (
           <Button
             onClick={() => handleSendEmailResponse("replied")}
-            disabled={isBusy || hasAlreadySentCurrentText}
+            disabled={isBusy || hasAlreadySentCurrentTextByEmail}
           >
             <Send size={16} />
             {isSendingEmailReplied || isSendingEmailResponse
@@ -426,7 +545,7 @@ function ResponseEditorContent({
         {canSendEmailResponse && canMarkAsWaitingCustomer ? (
           <Button
             onClick={() => handleSendEmailResponse("waiting_customer")}
-            disabled={isBusy || hasAlreadySentCurrentText}
+            disabled={isBusy || hasAlreadySentCurrentTextByEmail}
           >
             <Send size={16} />
             {isSendingEmailWaitingCustomer || isSendingEmailResponse

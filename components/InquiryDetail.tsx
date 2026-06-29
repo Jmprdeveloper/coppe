@@ -75,11 +75,12 @@ type InquiryMessageRow = {
 };
 
 type OutboundMessageForInquiryRow = {
+  channel: string;
   inquiry_message_id: string | null;
   body: string | null;
 };
 
-type SendEmailResponseNextStatus = "replied" | "waiting_customer";
+type SendCaseResponseNextStatus = "replied" | "waiting_customer";
 
 type SendEmailResponseApiResponse = {
   ok?: boolean;
@@ -87,7 +88,16 @@ type SendEmailResponseApiResponse = {
   warning?: string;
   providerMessageId?: string;
   inquiryMessage?: InquiryMessageRow;
-  nextStatus?: SendEmailResponseNextStatus;
+  nextStatus?: SendCaseResponseNextStatus;
+};
+
+type SendWhatsAppResponseApiResponse = {
+  ok?: boolean;
+  error?: string;
+  warning?: string;
+  providerMessageId?: string;
+  inquiryMessage?: InquiryMessageRow;
+  nextStatus?: SendCaseResponseNextStatus;
 };
 
 type InboundEventForInquiryRow = {
@@ -251,13 +261,21 @@ function getMessageAuthorLabel(authorType: string) {
   return "Mensaje";
 }
 
-function getMessageDirectionLabel(direction: string, wasSentByEmail = false) {
+function getMessageDirectionLabel(
+  direction: string,
+  wasSentByEmail = false,
+  wasSentByWhatsApp = false
+) {
   if (direction === "inbound") {
     return "Recibido";
   }
 
   if (direction === "outbound" && wasSentByEmail) {
     return "Email enviado";
+  }
+
+  if (direction === "outbound" && wasSentByWhatsApp) {
+    return "WhatsApp enviado";
   }
 
   if (direction === "outbound") {
@@ -575,6 +593,12 @@ export function InquiryDetail({
   const [sentEmailResponseBodies, setSentEmailResponseBodies] = useState<
     string[]
   >([]);
+  const [sentWhatsAppMessageIds, setSentWhatsAppMessageIds] = useState<
+    string[]
+  >([]);
+  const [sentWhatsAppResponseBodies, setSentWhatsAppResponseBodies] = useState<
+    string[]
+  >([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [inboundReceivedDetails, setInboundReceivedDetails] =
@@ -665,6 +689,8 @@ export function InquiryDetail({
       setInquiryMessages([]);
       setSentEmailMessageIds([]);
       setSentEmailResponseBodies([]);
+      setSentWhatsAppMessageIds([]);
+      setSentWhatsAppResponseBodies([]);
       setFollowUps([]);
       setAppointments([]);
       setInboundReceivedDetails(null);
@@ -797,26 +823,43 @@ export function InquiryDetail({
       const { data: outboundMessagesData, error: outboundMessagesError } =
         await supabase
           .from("outbound_messages")
-          .select("inquiry_message_id, body")
+          .select("channel, inquiry_message_id, body")
           .eq("inquiry_id", inquiryData.id)
-          .eq("channel", "email")
+          .in("channel", ["email", "whatsapp"])
           .eq("status", "sent")
           .not("inquiry_message_id", "is", null);
 
       if (!outboundMessagesError) {
-        const sentEmailRows =
+        const sentOutboundRows =
           (outboundMessagesData ?? []) as OutboundMessageForInquiryRow[];
 
-        const sentMessageIds = sentEmailRows
+        const sentEmailRows = sentOutboundRows.filter(
+          (outboundMessage) => outboundMessage.channel === "email"
+        );
+        const sentWhatsAppRows = sentOutboundRows.filter(
+          (outboundMessage) => outboundMessage.channel === "whatsapp"
+        );
+
+        const sentEmailMessageIds = sentEmailRows
           .map((outboundMessage) => outboundMessage.inquiry_message_id)
           .filter((messageId): messageId is string => Boolean(messageId));
 
-        const sentResponseBodies = sentEmailRows
+        const sentEmailResponseBodies = sentEmailRows
           .map((outboundMessage) => outboundMessage.body?.trim() || "")
           .filter(Boolean);
 
-        setSentEmailMessageIds(sentMessageIds);
-        setSentEmailResponseBodies(sentResponseBodies);
+        const sentWhatsAppMessageIds = sentWhatsAppRows
+          .map((outboundMessage) => outboundMessage.inquiry_message_id)
+          .filter((messageId): messageId is string => Boolean(messageId));
+
+        const sentWhatsAppResponseBodies = sentWhatsAppRows
+          .map((outboundMessage) => outboundMessage.body?.trim() || "")
+          .filter(Boolean);
+
+        setSentEmailMessageIds(sentEmailMessageIds);
+        setSentEmailResponseBodies(sentEmailResponseBodies);
+        setSentWhatsAppMessageIds(sentWhatsAppMessageIds);
+        setSentWhatsAppResponseBodies(sentWhatsAppResponseBodies);
       }
 
       const { data: followUpsData, error: followUpsError } = await supabase
@@ -1224,7 +1267,7 @@ export function InquiryDetail({
 
   const handleSendEmailResponse = async (
     responseText: string,
-    nextStatus: SendEmailResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus
   ): Promise<boolean> => {
     setStatusMessage("");
     setStatusErrorMessage("");
@@ -1337,6 +1380,129 @@ export function InquiryDetail({
       nextStatus === "waiting_customer"
         ? "Email enviado y caso marcado como esperando al cliente."
         : "Email enviado y caso marcado como respondido.";
+
+    setStatusMessage(
+      payload.warning ? `${successMessage} ${payload.warning}` : successMessage
+    );
+
+    return true;
+  };
+
+  const handleSendWhatsAppResponse = async (
+    responseText: string,
+    nextStatus: SendCaseResponseNextStatus
+  ): Promise<boolean> => {
+    setStatusMessage("");
+    setStatusErrorMessage("");
+
+    if (!inquiry) {
+      setStatusErrorMessage(
+        "No se puede enviar la respuesta porque no hay caso cargado."
+      );
+      return false;
+    }
+
+    const cleanResponseText = responseText.trim();
+
+    if (!cleanResponseText) {
+      setStatusErrorMessage("La respuesta no puede quedar vacía.");
+      return false;
+    }
+
+    setIsUpdatingStatus(true);
+
+    let sendResponse: Response;
+
+    try {
+      sendResponse = await fetch("/api/inquiries/send-whatsapp-response", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          inquiryId: inquiry.id,
+          responseText: cleanResponseText,
+          nextStatus,
+        }),
+      });
+    } catch {
+      setIsUpdatingStatus(false);
+      setStatusErrorMessage(
+        "No se pudo conectar con el servicio de envío de WhatsApp. Inténtalo de nuevo en unos segundos."
+      );
+      return false;
+    }
+
+    let payload: SendWhatsAppResponseApiResponse | null = null;
+
+    try {
+      payload = (await sendResponse.json()) as SendWhatsAppResponseApiResponse;
+    } catch {
+      payload = null;
+    }
+
+    setIsUpdatingStatus(false);
+
+    if (!sendResponse.ok || !payload?.ok) {
+      setStatusErrorMessage(
+        payload?.error ||
+          "No se pudo enviar el WhatsApp desde COPPE. Revisa el canal de WhatsApp de la empresa."
+      );
+      return false;
+    }
+
+    if (payload.inquiryMessage) {
+      setInquiryMessages((currentMessages) => {
+        const alreadyExists = currentMessages.some(
+          (message) => message.id === payload?.inquiryMessage?.id
+        );
+
+        if (alreadyExists || !payload?.inquiryMessage) {
+          return currentMessages;
+        }
+
+        return [...currentMessages, payload.inquiryMessage];
+      });
+
+      setSentWhatsAppMessageIds((currentIds) => {
+        const sentWhatsAppMessageId = payload?.inquiryMessage?.id;
+
+        if (!sentWhatsAppMessageId || currentIds.includes(sentWhatsAppMessageId)) {
+          return currentIds;
+        }
+
+        return [...currentIds, sentWhatsAppMessageId];
+      });
+
+      setSentWhatsAppResponseBodies((currentBodies) => {
+        if (currentBodies.includes(cleanResponseText)) {
+          return currentBodies;
+        }
+
+        return [...currentBodies, cleanResponseText];
+      });
+    }
+
+    setInquiry({
+      ...inquiry,
+      status: nextStatus,
+      suggestedResponse: cleanResponseText,
+    });
+
+    setRawInquiry((currentRawInquiry) =>
+      currentRawInquiry
+        ? {
+            ...currentRawInquiry,
+            status: nextStatus,
+            suggested_response: cleanResponseText,
+          }
+        : currentRawInquiry
+    );
+
+    const successMessage =
+      nextStatus === "waiting_customer"
+        ? "WhatsApp enviado y caso marcado como esperando al cliente."
+        : "WhatsApp enviado y caso marcado como respondido.";
 
     setStatusMessage(
       payload.warning ? `${successMessage} ${payload.warning}` : successMessage
@@ -2506,6 +2672,9 @@ export function InquiryDetail({
   const canSendEmailResponse =
     canUseFinalActions && Boolean(customer?.email?.trim());
 
+  const canSendWhatsAppResponse =
+    canUseFinalActions && Boolean(customer?.phone?.trim());
+
   const canCreateFollowUp =
     inquiryStatus === "new" ||
     inquiryStatus === "pending" ||
@@ -2646,7 +2815,8 @@ export function InquiryDetail({
                         {getMessageAuthorLabel(message.author_type)} ·{" "}
                         {getMessageDirectionLabel(
                           message.direction,
-                          sentEmailMessageIds.includes(message.id)
+                          sentEmailMessageIds.includes(message.id),
+                          sentWhatsAppMessageIds.includes(message.id)
                         )}
                       </div>
 
@@ -2772,6 +2942,10 @@ export function InquiryDetail({
             isSendingEmailResponse={isUpdatingStatus}
             sentEmailResponseBodies={sentEmailResponseBodies}
             onSendEmailResponse={handleSendEmailResponse}
+            canSendWhatsAppResponse={canSendWhatsAppResponse}
+            isSendingWhatsAppResponse={isUpdatingStatus}
+            sentWhatsAppResponseBodies={sentWhatsAppResponseBodies}
+            onSendWhatsAppResponse={handleSendWhatsAppResponse}
           />
         </main>
 
