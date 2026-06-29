@@ -10,6 +10,11 @@ import {
   import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
   import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
   import { createAdminClient } from "./supabase/admin";
+  import {
+    buildWhatsAppThreadAnalysisContext,
+    getWhatsAppThreadCutoffIso,
+    normalizeWhatsAppThreadWindowDays,
+  } from "./whatsAppThreading";
   
   type WhatsAppWebhookContact = {
     profile?: {
@@ -102,6 +107,30 @@ import {
     status: string;
     last_interaction_at: string | null;
     created_at: string;
+  };
+
+  type WhatsAppThreadInquiryRow = {
+    id: string;
+    company_id: string;
+    customer_id: string | null;
+    subject: string | null;
+    status: string;
+    ai_category: string | null;
+    ai_priority: string | null;
+    ai_language: string | null;
+    sentiment: string | null;
+    last_message_at: string;
+  };
+
+  type WhatsAppThreadMessageRow = {
+    direction: string;
+    author_type: string;
+    body: string;
+  };
+
+  type FinalizedWhatsAppMessageRow = {
+    inquiry_id: string;
+    created_new: boolean;
   };
   
   type NormalizedWhatsAppMessage = {
@@ -421,6 +450,67 @@ import {
   
     return matchingCustomers[0] ?? null;
   }
+
+  function getWhatsAppThreadWindowDays() {
+    return normalizeWhatsAppThreadWindowDays(
+      process.env.WHATSAPP_THREAD_WINDOW_DAYS
+    );
+  }
+
+  async function findRecentWhatsAppInquiry(
+    supabaseAdmin: ReturnType<typeof createAdminClient>,
+    companyId: string,
+    customerId: string,
+    threadWindowDays: number
+  ) {
+    const { data, error } = await supabaseAdmin
+      .from("inquiries")
+      .select(
+        "id, company_id, customer_id, subject, status, ai_category, ai_priority, ai_language, sentiment, last_message_at"
+      )
+      .eq("company_id", companyId)
+      .eq("customer_id", customerId)
+      .eq("source_channel", "WhatsApp")
+      .in("status", ["new", "pending", "waiting_customer", "replied"])
+      .gte(
+        "last_message_at",
+        getWhatsAppThreadCutoffIso(new Date(), threadWindowDays)
+      )
+      .order("last_message_at", { ascending: false })
+      .limit(1)
+      .maybeSingle<WhatsAppThreadInquiryRow>();
+
+    if (error) {
+      throw new Error(
+        `No se pudo buscar la conversación activa de WhatsApp: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+    }
+
+    return data;
+  }
+
+  async function findWhatsAppInquiryMessages(
+    supabaseAdmin: ReturnType<typeof createAdminClient>,
+    inquiryId: string
+  ) {
+    const { data, error } = await supabaseAdmin
+      .from("inquiry_messages")
+      .select("direction, author_type, body")
+      .eq("inquiry_id", inquiryId)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      throw new Error(
+        `No se pudo cargar el historial de WhatsApp: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+    }
+
+    return (data ?? []) as WhatsAppThreadMessageRow[];
+  }
   
   async function processOneWhatsAppMessage(
     supabaseAdmin: ReturnType<typeof createAdminClient>,
@@ -653,69 +743,112 @@ import {
       customer = createdCustomer;
     }
   
+    const threadWindowDays = getWhatsAppThreadWindowDays();
+    let recentInquiry: WhatsAppThreadInquiryRow | null = null;
+
+    try {
+      recentInquiry = await findRecentWhatsAppInquiry(
+        supabaseAdmin,
+        company.id,
+        customer.id,
+        threadWindowDays
+      );
+    } catch (error) {
+      return buildFailedResultAfterInboundEvent(
+        supabaseAdmin,
+        inboundEventId,
+        processingToken,
+        error instanceof Error
+          ? error.message
+          : "No se pudo buscar la conversación activa de WhatsApp.",
+        500,
+        { customerId: customer.id }
+      );
+    }
+
     let analysis = buildFallbackAnalysis(
       message.customerName,
       message.textBody,
       company
     );
-  
+
     try {
+      let analysisMessage = message.textBody;
+
+      if (recentInquiry) {
+        const inquiryMessages = await findWhatsAppInquiryMessages(
+          supabaseAdmin,
+          recentInquiry.id
+        );
+        analysisMessage = buildWhatsAppThreadAnalysisContext(
+          recentInquiry.subject ?? "",
+          inquiryMessages,
+          message.textBody,
+          recentInquiry.ai_category
+        );
+      }
+
       analysis = await analyzeInquiryForCompany({
         customerName: message.customerName,
-        message: message.textBody,
+        message: analysisMessage,
         company,
       });
     } catch (error) {
       console.error("Inbound WhatsApp analysis fallback used:", error);
     }
   
-    const { data: createdInquiryIdFromRpc, error: createInquiryError } =
-      await supabaseAdmin.rpc("create_inbound_inquiry_with_initial_message", {
-        p_inbound_event_id: inboundEventId,
-        p_processing_token: processingToken,
-        p_company_id: company.id,
-        p_customer_id: customer.id,
-        p_customer_name: customer.name || message.customerName,
-        p_source_channel: "WhatsApp",
-        p_subject: analysis.subject,
-        p_original_message: message.textBody,
-        p_ai_summary: analysis.summary,
-        p_ai_intent: analysis.intent,
-        p_ai_category: analysis.category,
-        p_ai_priority: analysis.priority,
-        p_ai_language: analysis.language,
-        p_sentiment: analysis.sentiment,
-        p_missing_information: analysis.missingInformation,
-        p_recommended_action: analysis.recommendedAction,
-        p_suggested_response: analysis.suggestedResponse,
-        p_status: "new",
-        p_message_direction: "inbound",
-        p_message_author_type: "customer",
-      });
-  
-    if (createInquiryError || !createdInquiryIdFromRpc) {
+    const { data: finalizedWhatsAppMessage, error: finalizeWhatsAppError } =
+      await supabaseAdmin
+        .rpc("finalize_inbound_whatsapp_message", {
+          p_inbound_event_id: inboundEventId,
+          p_processing_token: processingToken,
+          p_company_id: company.id,
+          p_customer_id: customer.id,
+          p_preferred_inquiry_id: recentInquiry?.id ?? null,
+          p_thread_window_days: threadWindowDays,
+          p_customer_name: customer.name || message.customerName,
+          p_subject: analysis.subject,
+          p_original_message: message.textBody,
+          p_ai_summary: analysis.summary,
+          p_ai_intent: analysis.intent,
+          p_ai_category: analysis.category,
+          p_ai_priority: analysis.priority,
+          p_ai_language: analysis.language,
+          p_sentiment: analysis.sentiment,
+          p_missing_information: analysis.missingInformation,
+          p_recommended_action: analysis.recommendedAction,
+          p_suggested_response: analysis.suggestedResponse,
+        })
+        .single<FinalizedWhatsAppMessageRow>();
+
+    if (finalizeWhatsAppError || !finalizedWhatsAppMessage) {
       return buildFailedResultAfterInboundEvent(
         supabaseAdmin,
         inboundEventId,
         processingToken,
-        `No se pudo crear el caso con su mensaje inicial: ${
-          createInquiryError?.message || "sin detalle del error"
+        `No se pudo guardar el WhatsApp en su conversación: ${
+          finalizeWhatsAppError?.message || "sin detalle del error"
         }`,
         500,
-        { customerId: customer.id }
+        {
+          customerId: customer.id,
+          inquiryId: recentInquiry?.id ?? null,
+        }
       );
     }
 
-    const createdInquiryId = String(createdInquiryIdFromRpc);
+    const finalizedInquiryId = finalizedWhatsAppMessage.inquiry_id;
   
     return {
       ok: true,
-      status: 201,
+      status: finalizedWhatsAppMessage.created_new ? 201 : 200,
       processed: 1,
       ignored: 0,
       duplicates: 0,
-      inquiryIds: [createdInquiryId],
-      message: "WhatsApp recibido correctamente.",
+      inquiryIds: [finalizedInquiryId],
+      message: finalizedWhatsAppMessage.created_new
+        ? "WhatsApp recibido y caso creado correctamente."
+        : "WhatsApp añadido a la conversación existente.",
     };
   }
   

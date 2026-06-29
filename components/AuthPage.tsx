@@ -35,7 +35,7 @@ function getAuthErrorMessage(message: string) {
   }
 
   if (normalizedMessage.includes("password should be at least")) {
-    return "La contraseña debe tener al menos 6 caracteres.";
+    return "La contraseña debe tener al menos 10 caracteres.";
   }
 
   if (normalizedMessage.includes("signup is disabled")) {
@@ -70,6 +70,8 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const [isRequestingPasswordReset, setIsRequestingPasswordReset] =
+    useState(false);
 
   const handleSubmit = async (event?: FormEvent<HTMLFormElement>) => {
     event?.preventDefault();
@@ -117,6 +119,37 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handlePasswordResetRequest = async () => {
+    const cleanEmail = email.trim().toLowerCase();
+
+    setErrorMessage("");
+    setSuccessMessage("");
+
+    if (!cleanEmail) {
+      setErrorMessage(
+        "Introduce tu email para recibir el enlace de recuperación."
+      );
+      return;
+    }
+
+    setIsRequestingPasswordReset(true);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo: window.location.origin,
+    });
+
+    setIsRequestingPasswordReset(false);
+
+    if (error) {
+      setErrorMessage(getAuthErrorMessage(error.message));
+      return;
+    }
+
+    setSuccessMessage(
+      "Si la cuenta existe, recibirás un enlace para crear una nueva contraseña."
+    );
   };
 
   return (
@@ -218,6 +251,19 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
                 ? "Crear cuenta"
                 : "Entrar"}
           </Button>
+
+          {!register ? (
+            <button
+              type="button"
+              className="w-full text-sm font-semibold text-[#0F4C5C] hover:underline"
+              onClick={handlePasswordResetRequest}
+              disabled={isLoading || isRequestingPasswordReset}
+            >
+              {isRequestingPasswordReset
+                ? "Enviando enlace..."
+                : "He olvidado mi contraseña"}
+            </button>
+          ) : null}
 
           <button
             type="button"

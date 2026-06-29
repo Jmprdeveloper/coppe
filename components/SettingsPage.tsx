@@ -9,6 +9,7 @@ import {
 } from "react";
 import {
   Building2,
+  Download,
   FileText,
   Mail,
   MessageCircle,
@@ -27,6 +28,7 @@ import { classNames } from "../lib/utils";
 import { AutoDismissAlert } from "./AutoDismissAlert";
 import { Button } from "./Button";
 import { MetricCard } from "./MetricCard";
+import { MfaSettingsCard } from "./MfaSettingsCard";
 import { PageHeader } from "./PageHeader";
 import { SectionCard } from "./SectionCard";
 import { TeamSettingsCard } from "./TeamSettingsCard";
@@ -302,6 +304,9 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isExportingCompany, setIsExportingCompany] = useState(false);
+  const [exportMessage, setExportMessage] = useState("");
+  const [exportErrorMessage, setExportErrorMessage] = useState("");
 
   const canEditCompanySettings = canManageCompanySettings(currentCompany);
   const isUpdatingPublicChannels =
@@ -540,6 +545,50 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
     }
 
     return "";
+  };
+
+  const handleExportCompanyData = async () => {
+    setExportMessage("");
+    setExportErrorMessage("");
+    setIsExportingCompany(true);
+
+    try {
+      const response = await fetch("/api/privacy/export-company", {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        const payload = (await response
+          .json()
+          .catch(() => null)) as { error?: string } | null;
+
+        setExportErrorMessage(
+          payload?.error || "No se pudo generar la exportación."
+        );
+        return;
+      }
+
+      const exportBlob = await response.blob();
+      const downloadUrl = URL.createObjectURL(exportBlob);
+      const downloadLink = document.createElement("a");
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const filenameMatch = disposition.match(/filename="([^"]+)"/i);
+
+      downloadLink.href = downloadUrl;
+      downloadLink.download =
+        filenameMatch?.[1] || "coppe-company-export.json";
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      URL.revokeObjectURL(downloadUrl);
+      setExportMessage("Exportación generada correctamente.");
+    } catch {
+      setExportErrorMessage(
+        "No se pudo conectar con COPPE para generar la exportación."
+      );
+    } finally {
+      setIsExportingCompany(false);
+    }
   };
 
   const handleCopyPublicIntakeUrl = async () => {
@@ -2008,6 +2057,45 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
 
             <aside className="min-w-0 space-y-5">
               <TeamSettingsCard />
+              <MfaSettingsCard />
+
+              {canEditCompanySettings ? (
+                <SectionCard
+                  title="Privacidad y portabilidad"
+                  description="Descarga una copia JSON de los datos almacenados por la empresa."
+                  tone="neutral"
+                >
+                  <p className="text-sm leading-6 text-slate-600">
+                    Incluye clientes, casos, mensajes, notas, seguimientos,
+                    citas, eventos, envíos y auditoría. La solicitud queda
+                    registrada.
+                  </p>
+
+                  {exportErrorMessage ? (
+                    <p className="mt-3 text-sm text-red-700">
+                      {exportErrorMessage}
+                    </p>
+                  ) : null}
+
+                  {exportMessage ? (
+                    <p className="mt-3 text-sm text-emerald-700">
+                      {exportMessage}
+                    </p>
+                  ) : null}
+
+                  <Button
+                    className="mt-4 w-full"
+                    variant="secondary"
+                    onClick={handleExportCompanyData}
+                    disabled={isExportingCompany}
+                  >
+                    <Download size={16} />
+                    {isExportingCompany
+                      ? "Generando exportación..."
+                      : "Exportar datos de la empresa"}
+                  </Button>
+                </SectionCard>
+              ) : null}
 
               <SectionCard
                 title="Preferencias del asistente"

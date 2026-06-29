@@ -71,7 +71,14 @@ type CustomerRow = {
 type InternalNoteRow = {
   id: string;
   body: string;
+  created_by: string | null;
   created_at: string;
+};
+
+type CustomerTeamMember = {
+  user_id: string;
+  email: string;
+  full_name: string;
 };
 
 type FollowUpRow = {
@@ -269,7 +276,13 @@ function CustomerInfoItem({
   );
 }
 
-function NoteCard({ note }: { note: InternalNoteRow }) {
+function NoteCard({
+  note,
+  authorName,
+}: {
+  note: InternalNoteRow;
+  authorName: string;
+}) {
   return (
     <article className="rounded-2xl border border-[#B8D1D8] bg-[#F7FBFC] p-4 shadow-sm shadow-[#0F4C5C]/5">
       <p className="whitespace-pre-wrap text-sm leading-6 text-[#153F48]">
@@ -277,6 +290,7 @@ function NoteCard({ note }: { note: InternalNoteRow }) {
       </p>
 
       <div className="mt-3 text-xs font-medium text-[#6B858C]">
+        {authorName ? `${authorName} · ` : ""}
         {formatDateTime(note.created_at)}
       </div>
     </article>
@@ -343,6 +357,7 @@ export function CustomerDetail({
   const [inquiries, setInquiries] = useState<Inquiry[]>([]);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<CustomerAppointment[]>([]);
+  const [teamMembers, setTeamMembers] = useState<CustomerTeamMember[]>([]);
   const [note, setNote] = useState("");
 
   const [editName, setEditName] = useState("");
@@ -397,6 +412,7 @@ export function CustomerDetail({
       setInquiries([]);
       setFollowUps([]);
       setAppointments([]);
+      setTeamMembers([]);
       setNote("");
       setShowCreateFollowUpForm(false);
       setSelectedInquiryId("");
@@ -429,9 +445,18 @@ export function CustomerDetail({
         return;
       }
 
+      const { data: teamMembersData } = await supabase.rpc(
+        "get_company_team_members",
+        {
+          target_company_id: customerData.company_id,
+        }
+      );
+
+      setTeamMembers((teamMembersData ?? []) as CustomerTeamMember[]);
+
       const { data: notesData, error: notesError } = await supabase
         .from("internal_notes")
-        .select("id, body, created_at")
+        .select("id, body, created_by, created_at")
         .eq("customer_id", customerData.id)
         .is("inquiry_id", null)
         .order("created_at", { ascending: false });
@@ -894,7 +919,7 @@ export function CustomerDetail({
         inquiry_id: null,
         body: cleanNote,
       })
-      .select("id, body, created_at")
+      .select("id, body, created_by, created_at")
       .single<InternalNoteRow>();
 
     setIsSavingNote(false);
@@ -1875,7 +1900,21 @@ export function CustomerDetail({
                 ) : (
                   <div className="space-y-3">
                     {notes.map((internalNote) => (
-                      <NoteCard key={internalNote.id} note={internalNote} />
+                      <NoteCard
+                        key={internalNote.id}
+                        note={internalNote}
+                        authorName={
+                          teamMembers.find(
+                            (teamMember) =>
+                              teamMember.user_id === internalNote.created_by
+                          )?.full_name ||
+                          teamMembers.find(
+                            (teamMember) =>
+                              teamMember.user_id === internalNote.created_by
+                          )?.email ||
+                          ""
+                        }
+                      />
                     ))}
                   </div>
                 )}

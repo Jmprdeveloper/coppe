@@ -58,7 +58,7 @@ function getAuthErrorMessage(message: string) {
   }
 
   if (normalizedMessage.includes("password should be at least")) {
-    return "La contraseña debe tener al menos 6 caracteres.";
+    return "La contraseña debe tener al menos 10 caracteres.";
   }
 
   if (normalizedMessage.includes("signup is disabled")) {
@@ -331,6 +331,13 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
 
     if (!password) {
       setAuthErrorMessage("Introduce tu contraseña.");
+      return;
+    }
+
+    if (authMode === "register" && password.length < 10) {
+      setAuthErrorMessage(
+        "La contraseña debe tener al menos 10 caracteres."
+      );
       return;
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
 import { Building2, CheckCircle2, MessageCircle, Send } from "lucide-react";
 
@@ -17,8 +17,18 @@ type PublicIntakeFormProps = {
 type PublicIntakeResponse = {
   ok?: boolean;
   inquiryId?: string;
+  conversationToken?: string;
+  messages?: PublicChatMessage[];
   message?: string;
   error?: string;
+};
+
+type PublicChatMessage = {
+  id: string;
+  direction: string;
+  author_type: string;
+  body: string;
+  created_at: string;
 };
 
 const MAX_CUSTOMER_NAME_LENGTH = 120;
@@ -38,11 +48,14 @@ export function PublicIntakeForm({
   const [companyWebsite, setCompanyWebsite] = useState("");
 
   const [sentChatMessage, setSentChatMessage] = useState("");
+  const [conversationToken, setConversationToken] = useState("");
+  const [chatMessages, setChatMessages] = useState<PublicChatMessage[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
 
   const isChatWeb = sourceChannel === "Chat web";
+  const chatStorageKey = `coppe:public-chat:${publicIntakeToken}`;
   const successFallback = isChatWeb
     ? "Consulta recibida correctamente. La empresa revisará tu mensaje."
     : "Mensaje recibido correctamente. La empresa revisará tu solicitud.";
@@ -52,6 +65,73 @@ export function PublicIntakeForm({
     setErrorMessage("");
     setSentChatMessage("");
   };
+
+  useEffect(() => {
+    if (!isChatWeb) {
+      return;
+    }
+
+    const storedToken = window.sessionStorage.getItem(chatStorageKey);
+
+    if (storedToken) {
+      queueMicrotask(() => {
+        setConversationToken(storedToken);
+      });
+    }
+  }, [chatStorageKey, isChatWeb]);
+
+  useEffect(() => {
+    if (!isChatWeb || !conversationToken) {
+      return;
+    }
+
+    let active = true;
+
+    const refreshMessages = async () => {
+      try {
+        const response = await fetch(
+          `/api/public-chat?conversationToken=${encodeURIComponent(
+            conversationToken
+          )}`,
+          {
+            method: "GET",
+            cache: "no-store",
+          }
+        );
+        const payload = (await response
+          .json()
+          .catch(() => null)) as PublicIntakeResponse | null;
+
+        if (!active) {
+          return;
+        }
+
+        if (response.status === 404) {
+          window.sessionStorage.removeItem(chatStorageKey);
+          setConversationToken("");
+          setChatMessages([]);
+          setErrorMessage(
+            "La conversación ha caducado. Inicia una nueva consulta."
+          );
+          return;
+        }
+
+        if (response.ok && payload?.messages) {
+          setChatMessages(payload.messages);
+        }
+      } catch {
+        // Polling failures are transient; the next refresh will try again.
+      }
+    };
+
+    refreshMessages();
+    const intervalId = window.setInterval(refreshMessages, 5000);
+
+    return () => {
+      active = false;
+      window.clearInterval(intervalId);
+    };
+  }, [chatStorageKey, conversationToken, isChatWeb]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -63,6 +143,7 @@ export function PublicIntakeForm({
     const cleanPhone = phone.trim();
     const cleanMessage = message.trim();
     const cleanCompanyWebsite = companyWebsite.trim();
+    const isExistingChatMessage = isChatWeb && Boolean(conversationToken);
 
     if (cleanCompanyWebsite) {
       setCustomerName("");
@@ -75,31 +156,34 @@ export function PublicIntakeForm({
       return;
     }
 
-    if (!cleanCustomerName) {
+    if (!isExistingChatMessage && !cleanCustomerName) {
       setErrorMessage("Introduce tu nombre.");
       return;
     }
 
-    if (cleanCustomerName.length > MAX_CUSTOMER_NAME_LENGTH) {
+    if (
+      !isExistingChatMessage &&
+      cleanCustomerName.length > MAX_CUSTOMER_NAME_LENGTH
+    ) {
       setErrorMessage(
         `El nombre no puede superar los ${MAX_CUSTOMER_NAME_LENGTH} caracteres.`
       );
       return;
     }
 
-    if (!cleanEmail && !cleanPhone) {
+    if (!isExistingChatMessage && !cleanEmail && !cleanPhone) {
       setErrorMessage("Introduce al menos un email o un teléfono.");
       return;
     }
 
-    if (cleanEmail.length > MAX_EMAIL_LENGTH) {
+    if (!isExistingChatMessage && cleanEmail.length > MAX_EMAIL_LENGTH) {
       setErrorMessage(
         `El email no puede superar los ${MAX_EMAIL_LENGTH} caracteres.`
       );
       return;
     }
 
-    if (cleanPhone.length > MAX_PHONE_LENGTH) {
+    if (!isExistingChatMessage && cleanPhone.length > MAX_PHONE_LENGTH) {
       setErrorMessage(
         `El teléfono no puede superar los ${MAX_PHONE_LENGTH} caracteres.`
       );
@@ -121,21 +205,32 @@ export function PublicIntakeForm({
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/public-intake", {
+      const response = await fetch(
+        isExistingChatMessage ? "/api/public-chat" : "/api/public-intake",
+        {
         method: "POST",
         headers: {
           "Content-Type": "application/json; charset=utf-8",
         },
-        body: JSON.stringify({
-          publicIntakeToken,
-          customerName: cleanCustomerName,
-          email: cleanEmail,
-          phone: cleanPhone,
-          message: cleanMessage,
-          companyWebsite: cleanCompanyWebsite,
-          sourceChannel,
-        }),
-      });
+        body: JSON.stringify(
+          isExistingChatMessage
+            ? {
+                conversationToken,
+                message: cleanMessage,
+                companyWebsite: cleanCompanyWebsite,
+              }
+            : {
+                publicIntakeToken,
+                customerName: cleanCustomerName,
+                email: cleanEmail,
+                phone: cleanPhone,
+                message: cleanMessage,
+                companyWebsite: cleanCompanyWebsite,
+                sourceChannel,
+              }
+        ),
+      }
+      );
 
       const payload = (await response.json()) as PublicIntakeResponse;
 
@@ -148,11 +243,23 @@ export function PublicIntakeForm({
       }
 
       setSentChatMessage(cleanMessage);
-      setCustomerName("");
-      setEmail("");
-      setPhone("");
+      if (!isExistingChatMessage) {
+        setCustomerName("");
+        setEmail("");
+        setPhone("");
+      }
       setMessage("");
       setCompanyWebsite("");
+      if (payload.conversationToken) {
+        setConversationToken(payload.conversationToken);
+        window.sessionStorage.setItem(
+          chatStorageKey,
+          payload.conversationToken
+        );
+      }
+      if (payload.messages) {
+        setChatMessages(payload.messages);
+      }
       setSuccessMessage(payload.message || successFallback);
     } catch {
       setErrorMessage(
@@ -165,7 +272,8 @@ export function PublicIntakeForm({
 
   if (isChatWeb) {
     const draftMessage = message.trim();
-    const visibleChatMessage = sentChatMessage || draftMessage;
+    const visibleChatMessage =
+      chatMessages.length === 0 ? sentChatMessage || draftMessage : "";
     const isDraftBubble = Boolean(draftMessage) && !sentChatMessage;
 
     return (
@@ -209,6 +317,29 @@ export function PublicIntakeForm({
                   </div>
                 </div>
 
+                {chatMessages.map((chatMessage) => {
+                  const isCompanyMessage =
+                    chatMessage.direction === "outbound" ||
+                    chatMessage.author_type === "company";
+
+                  return isCompanyMessage ? (
+                    <div key={chatMessage.id} className="flex items-start gap-3">
+                      <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#0F4C5C] text-white">
+                        <MessageCircle size={16} />
+                      </div>
+                      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tl-sm bg-white px-4 py-3 text-sm leading-6 text-slate-700 shadow-sm ring-1 ring-slate-200">
+                        {chatMessage.body}
+                      </div>
+                    </div>
+                  ) : (
+                    <div key={chatMessage.id} className="flex justify-end">
+                      <div className="max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-tr-sm bg-[#0F4C5C] px-4 py-3 text-sm leading-6 text-white shadow-sm">
+                        {chatMessage.body}
+                      </div>
+                    </div>
+                  );
+                })}
+
                 {visibleChatMessage ? (
                   <div className="flex justify-end">
                     <div
@@ -229,7 +360,7 @@ export function PublicIntakeForm({
                   </div>
                 ) : null}
 
-                {successMessage && sentChatMessage ? (
+                {successMessage && sentChatMessage && chatMessages.length === 0 ? (
                   <div className="flex items-start gap-3">
                     <div className="mt-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-600 text-white">
                       <CheckCircle2 size={16} />
@@ -258,6 +389,7 @@ export function PublicIntakeForm({
                 </label>
               </div>
 
+              {!conversationToken ? (
               <div className="grid gap-3 md:grid-cols-2">
                 <label className="block text-sm font-medium text-slate-700 md:col-span-2">
                   Nombre
@@ -303,6 +435,7 @@ export function PublicIntakeForm({
                   />
                 </label>
               </div>
+              ) : null}
 
               <label className="block text-sm font-medium text-slate-700">
                 Mensaje
@@ -321,7 +454,9 @@ export function PublicIntakeForm({
               <div className="flex items-center justify-between gap-3 text-xs text-slate-500">
                 <div className="flex items-center gap-1.5">
                   <CheckCircle2 size={14} className="text-emerald-600" />
-                  La empresa recibirá este mensaje como caso.
+                  {conversationToken
+                    ? "Este mensaje se añadirá a la conversación."
+                    : "La empresa recibirá este mensaje como caso."}
                 </div>
 
                 <div>
@@ -337,7 +472,11 @@ export function PublicIntakeForm({
 
               <Button className="w-full" type="submit" disabled={isSubmitting}>
                 <Send size={16} />
-                {isSubmitting ? "Enviando consulta..." : "Enviar consulta"}
+                {isSubmitting
+                  ? "Enviando mensaje..."
+                  : conversationToken
+                    ? "Enviar mensaje"
+                    : "Iniciar conversación"}
               </Button>
 
               <p className="text-center text-xs leading-5 text-slate-400">

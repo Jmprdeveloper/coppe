@@ -40,6 +40,10 @@ import type {
 import { AIBlock } from "./AIBlock";
 import { Button } from "./Button";
 import { FollowUpCard } from "./FollowUpCard";
+import {
+  OutboundDeliveryIssues,
+  type OutboundDeliveryIssue,
+} from "./OutboundDeliveryIssues";
 import { ResponseEditor } from "./ResponseEditor";
 import { SectionCard } from "./SectionCard";
 
@@ -50,6 +54,21 @@ type InquiryDetailProps = {
 
 type InquiryDetailRow = InquiryRow & {
   company_id: string;
+  assigned_to: string | null;
+};
+
+type InquiryTeamMember = {
+  user_id: string;
+  email: string;
+  full_name: string;
+  role: string;
+};
+
+type InquiryAssignmentResult = {
+  inquiry_id: string;
+  assigned_to: string | null;
+  assigned_at: string | null;
+  assigned_by: string | null;
 };
 
 type CustomerRow = {
@@ -62,6 +81,7 @@ type CustomerRow = {
 type InternalNoteRow = {
   id: string;
   body: string;
+  created_by: string | null;
   created_at: string;
 };
 
@@ -71,13 +91,20 @@ type InquiryMessageRow = {
   author_type: string;
   body: string;
   source_channel: string | null;
+  created_by: string | null;
   created_at: string;
 };
 
 type OutboundMessageForInquiryRow = {
+  id: string;
   channel: string;
+  status: string;
   inquiry_message_id: string | null;
   body: string | null;
+  to_address: string | null;
+  provider_message_id: string | null;
+  error_message: string | null;
+  created_at: string;
 };
 
 type SendCaseResponseNextStatus = "replied" | "waiting_customer";
@@ -455,33 +482,6 @@ function mapFollowUpRowToFollowUp(row: FollowUpRow): FollowUp {
   };
 }
 
-function getInquiryStatusAuditAction(
-  previousStatus: InquiryStatus,
-  nextStatus: InquiryStatus
-) {
-  if (nextStatus === "pending" && previousStatus !== "pending") {
-    return "reopen_inquiry";
-  }
-
-  if (nextStatus === "waiting_customer") {
-    return "mark_inquiry_waiting_customer";
-  }
-
-  if (nextStatus === "replied") {
-    return "mark_inquiry_replied";
-  }
-
-  if (nextStatus === "closed") {
-    return "close_inquiry";
-  }
-
-  if (nextStatus === "discarded") {
-    return "discard_inquiry";
-  }
-
-  return "update_inquiry_status";
-}
-
 function getFollowUpStatusAuditAction(
   previousStatus: FollowUp["status"],
   nextStatus: FollowUp["status"]
@@ -599,6 +599,12 @@ export function InquiryDetail({
   const [sentWhatsAppResponseBodies, setSentWhatsAppResponseBodies] = useState<
     string[]
   >([]);
+  const [outboundDeliveryIssues, setOutboundDeliveryIssues] = useState<
+    OutboundDeliveryIssue[]
+  >([]);
+  const [teamMembers, setTeamMembers] = useState<InquiryTeamMember[]>([]);
+  const [assignedTo, setAssignedTo] = useState("");
+  const [reloadVersion, setReloadVersion] = useState(0);
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [inboundReceivedDetails, setInboundReceivedDetails] =
@@ -641,6 +647,7 @@ export function InquiryDetail({
   const [isSavingAppointmentEdit, setIsSavingAppointmentEdit] = useState(false);
   const [isCreatingFollowUp, setIsCreatingFollowUp] = useState(false);
   const [isSavingFollowUpEdit, setIsSavingFollowUpEdit] = useState(false);
+  const [isUpdatingAssignment, setIsUpdatingAssignment] = useState(false);
   const [updatingFollowUpId, setUpdatingFollowUpId] = useState<string | null>(
     null
   );
@@ -664,6 +671,8 @@ export function InquiryDetail({
   const [followUpActionMessage, setFollowUpActionMessage] = useState("");
   const [followUpActionErrorMessage, setFollowUpActionErrorMessage] =
     useState("");
+  const [assignmentMessage, setAssignmentMessage] = useState("");
+  const [assignmentErrorMessage, setAssignmentErrorMessage] = useState("");
 
   useEffect(() => {
     async function loadInquiry() {
@@ -682,6 +691,8 @@ export function InquiryDetail({
       setFollowUpCreateErrorMessage("");
       setFollowUpActionMessage("");
       setFollowUpActionErrorMessage("");
+      setAssignmentMessage("");
+      setAssignmentErrorMessage("");
       setInquiry(null);
       setRawInquiry(null);
       setCustomer(null);
@@ -691,6 +702,9 @@ export function InquiryDetail({
       setSentEmailResponseBodies([]);
       setSentWhatsAppMessageIds([]);
       setSentWhatsAppResponseBodies([]);
+      setOutboundDeliveryIssues([]);
+      setTeamMembers([]);
+      setAssignedTo("");
       setFollowUps([]);
       setAppointments([]);
       setInboundReceivedDetails(null);
@@ -732,6 +746,7 @@ export function InquiryDetail({
             "recommended_action",
             "suggested_response",
             "status",
+            "assigned_to",
             "created_at",
           ].join(", ")
         )
@@ -758,6 +773,7 @@ export function InquiryDetail({
 
       setInquiry(mapInquiryRowToInquiry(inquiryData));
       setRawInquiry(inquiryData);
+      setAssignedTo(inquiryData.assigned_to ?? "");
       setAppointmentTitle(getDefaultAppointmentTitle(inquiryData.customer_name));
       setAppointmentScheduledAt("");
       setAppointmentNotes("");
@@ -767,6 +783,21 @@ export function InquiryDetail({
       setEditAppointmentNotes("");
       setFollowUpTitle(getDefaultFollowUpTitle(inquiryData.customer_name));
       setFollowUpDueAt("");
+
+      const { data: teamMembersData, error: teamMembersError } =
+        await supabase.rpc("get_company_team_members", {
+          target_company_id: inquiryData.company_id,
+        });
+
+      if (teamMembersError) {
+        setAssignmentErrorMessage(
+          `No se pudo cargar el equipo: ${
+            teamMembersError.message || "sin detalle del error"
+          }`
+        );
+      } else {
+        setTeamMembers((teamMembersData ?? []) as InquiryTeamMember[]);
+      }
 
       let loadedCustomer: CustomerRow | null = null;
 
@@ -806,7 +837,9 @@ export function InquiryDetail({
       const { data: inquiryMessagesData, error: inquiryMessagesError } =
         await supabase
           .from("inquiry_messages")
-          .select("id, direction, author_type, body, source_channel, created_at")
+          .select(
+            "id, direction, author_type, body, source_channel, created_by, created_at"
+          )
           .eq("inquiry_id", inquiryData.id)
           .order("created_at", { ascending: true });
 
@@ -823,15 +856,22 @@ export function InquiryDetail({
       const { data: outboundMessagesData, error: outboundMessagesError } =
         await supabase
           .from("outbound_messages")
-          .select("channel, inquiry_message_id, body")
+          .select(
+            "id, channel, status, inquiry_message_id, body, to_address, provider_message_id, error_message, created_at"
+          )
           .eq("inquiry_id", inquiryData.id)
           .in("channel", ["email", "whatsapp"])
-          .eq("status", "sent")
-          .not("inquiry_message_id", "is", null);
+          .in("status", ["sent", "unknown"])
+          .order("created_at", { ascending: false });
 
       if (!outboundMessagesError) {
-        const sentOutboundRows =
+        const outboundRows =
           (outboundMessagesData ?? []) as OutboundMessageForInquiryRow[];
+        const sentOutboundRows = outboundRows.filter(
+          (outboundMessage) =>
+            outboundMessage.status === "sent" &&
+            Boolean(outboundMessage.inquiry_message_id)
+        );
 
         const sentEmailRows = sentOutboundRows.filter(
           (outboundMessage) => outboundMessage.channel === "email"
@@ -860,6 +900,29 @@ export function InquiryDetail({
         setSentEmailResponseBodies(sentEmailResponseBodies);
         setSentWhatsAppMessageIds(sentWhatsAppMessageIds);
         setSentWhatsAppResponseBodies(sentWhatsAppResponseBodies);
+        setOutboundDeliveryIssues(
+          outboundRows
+            .filter(
+              (
+                outboundMessage
+              ): outboundMessage is OutboundMessageForInquiryRow & {
+                channel: "email" | "whatsapp";
+              } =>
+                outboundMessage.status === "unknown" &&
+                (outboundMessage.channel === "email" ||
+                  outboundMessage.channel === "whatsapp")
+            )
+            .map((outboundMessage) => ({
+              id: outboundMessage.id,
+              channel: outboundMessage.channel,
+              body: outboundMessage.body?.trim() || "",
+              toAddress: outboundMessage.to_address?.trim() || "",
+              providerMessageId:
+                outboundMessage.provider_message_id?.trim() || "",
+              errorMessage: outboundMessage.error_message?.trim() || "",
+              createdAt: outboundMessage.created_at,
+            }))
+        );
       }
 
       const { data: followUpsData, error: followUpsError } = await supabase
@@ -922,7 +985,7 @@ export function InquiryDetail({
 
       const { data: notesData, error: notesError } = await supabase
         .from("internal_notes")
-        .select("id, body, created_at")
+        .select("id, body, created_by, created_at")
         .eq("inquiry_id", inquiryData.id)
         .order("created_at", { ascending: false });
 
@@ -952,7 +1015,78 @@ export function InquiryDetail({
     }
 
     loadInquiry();
-  }, [inquiryId, supabase]);
+  }, [inquiryId, reloadVersion, supabase]);
+
+  const handleAssignInquiry = async (nextAssignedTo: string) => {
+    if (!rawInquiry || isUpdatingAssignment) {
+      return;
+    }
+
+    const previousAssignedTo = assignedTo;
+
+    setAssignedTo(nextAssignedTo);
+    setAssignmentMessage("");
+    setAssignmentErrorMessage("");
+    setIsUpdatingAssignment(true);
+
+    const { data, error } = await supabase
+      .rpc("assign_inquiry", {
+        p_inquiry_id: rawInquiry.id,
+        p_assigned_to: nextAssignedTo || null,
+      })
+      .single<InquiryAssignmentResult>();
+
+    setIsUpdatingAssignment(false);
+
+    if (error || !data) {
+      setAssignedTo(previousAssignedTo);
+      setAssignmentErrorMessage(
+        `No se pudo cambiar el responsable: ${
+          error?.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    setAssignedTo(data.assigned_to ?? "");
+    setRawInquiry((currentInquiry) =>
+      currentInquiry
+        ? {
+            ...currentInquiry,
+            assigned_to: data.assigned_to,
+          }
+        : currentInquiry
+    );
+    setAssignmentMessage(
+      data.assigned_to
+        ? "Responsable actualizado correctamente."
+        : "El caso ha quedado sin responsable."
+    );
+  };
+
+  const getTeamMemberName = (userId: string | null) => {
+    if (!userId) {
+      return "";
+    }
+
+    const teamMember = teamMembers.find(
+      (candidate) => candidate.user_id === userId
+    );
+
+    return (
+      teamMember?.full_name.trim() ||
+      teamMember?.email.trim() ||
+      ""
+    );
+  };
+
+  const getInquiryMessageAuthorLabel = (message: InquiryMessageRow) => {
+    if (message.author_type !== "company") {
+      return getMessageAuthorLabel(message.author_type);
+    }
+
+    return getTeamMemberName(message.created_by) || "Empresa";
+  };
 
   const handleUpdateStatus = async (
     newStatus: InquiryStatus
@@ -963,8 +1097,6 @@ export function InquiryDetail({
 
     setStatusMessage("");
     setStatusErrorMessage("");
-
-    const previousStatus = normalizeInquiryStatus(inquiry.status);
 
     if (
       newStatus === "discarded" &&
@@ -990,11 +1122,11 @@ export function InquiryDetail({
     setIsUpdatingStatus(true);
 
     const { error } = await supabase
-      .from("inquiries")
-      .update({
-        status: newStatus,
+      .rpc("update_inquiry_status", {
+        p_inquiry_id: inquiry.id,
+        p_next_status: newStatus,
       })
-      .eq("id", inquiry.id);
+      .single();
 
     setIsUpdatingStatus(false);
 
@@ -1005,33 +1137,6 @@ export function InquiryDetail({
         }`
       );
       return false;
-    }
-
-    let auditWarningMessage = "";
-
-    if (previousStatus !== newStatus) {
-      const { error: auditLogError } = await supabase.rpc("create_audit_log", {
-        target_company_id: rawInquiry.company_id,
-        audit_action: getInquiryStatusAuditAction(previousStatus, newStatus),
-        audit_entity_type: "inquiry",
-        audit_entity_id: rawInquiry.id,
-        audit_metadata: {
-          previous_status: previousStatus,
-          next_status: newStatus,
-          customer_id: rawInquiry.customer_id,
-          source: "inquiry_detail",
-        },
-      });
-
-      if (auditLogError) {
-        console.error(
-          "Inquiry status updated, but could not create audit log:",
-          auditLogError
-        );
-
-        auditWarningMessage =
-          " Advertencia: no se pudo registrar la auditoría del cambio.";
-      }
     }
 
     setInquiry({
@@ -1045,40 +1150,41 @@ export function InquiryDetail({
     });
 
     if (newStatus === "pending") {
-      setStatusMessage(`Caso reabierto correctamente.${auditWarningMessage}`);
+      setStatusMessage("Caso reabierto correctamente.");
       return true;
     }
 
     if (newStatus === "waiting_customer") {
       setStatusMessage(
-        `Caso marcado como esperando al cliente.${auditWarningMessage}`
+        "Caso marcado como esperando al cliente."
       );
       return true;
     }
 
     if (newStatus === "replied") {
       setStatusMessage(
-        `Respuesta registrada y caso marcado como respondido.${auditWarningMessage}`
+        "Respuesta registrada y caso marcado como respondido."
       );
       return true;
     }
 
     if (newStatus === "closed") {
-      setStatusMessage(`Caso cerrado correctamente.${auditWarningMessage}`);
+      setStatusMessage("Caso cerrado correctamente.");
       return true;
     }
 
     if (newStatus === "discarded") {
-      setStatusMessage(`Caso descartado correctamente.${auditWarningMessage}`);
+      setStatusMessage("Caso descartado correctamente.");
       return true;
     }
 
-    setStatusMessage(`Estado actualizado correctamente.${auditWarningMessage}`);
+    setStatusMessage("Estado actualizado correctamente.");
     return true;
   };
 
   const handleMarkAsRepliedWithResponse = async (
-    responseText: string
+    responseText: string,
+    requestId?: string
   ): Promise<boolean> => {
     setStatusMessage("");
     setStatusErrorMessage("");
@@ -1095,6 +1201,46 @@ export function InquiryDetail({
     if (!cleanResponseText) {
       setStatusErrorMessage("La respuesta no puede quedar vacía.");
       return false;
+    }
+
+    if (rawInquiry.source_channel === "Chat web") {
+      if (!requestId) {
+        setStatusErrorMessage(
+          "No se pudo generar el identificador de la respuesta del chat."
+        );
+        return false;
+      }
+
+      setIsUpdatingStatus(true);
+
+      const { data, error } = await supabase
+        .rpc("send_public_chat_response", {
+          p_inquiry_id: rawInquiry.id,
+          p_body: cleanResponseText,
+          p_next_status: "replied",
+          p_client_request_id: requestId,
+        })
+        .single<InquiryMessageRow>();
+
+      setIsUpdatingStatus(false);
+
+      if (error || !data) {
+        setStatusErrorMessage(
+          `No se pudo publicar la respuesta en el chat: ${
+            error?.message || "sin detalle del error"
+          }`
+        );
+        return false;
+      }
+
+      setInquiryMessages((currentMessages) =>
+        currentMessages.some((message) => message.id === data.id)
+          ? currentMessages
+          : [...currentMessages, data]
+      );
+      setInquiry({ ...inquiry, status: "replied" });
+      setRawInquiry({ ...rawInquiry, status: "replied" });
+      return true;
     }
 
     const existingResponseMessage = inquiryMessages.find((message) => {
@@ -1119,7 +1265,9 @@ export function InquiryDetail({
           body: cleanResponseText,
           source_channel: rawInquiry.source_channel,
         })
-        .select("id, direction, author_type, body, source_channel, created_at")
+        .select(
+          "id, direction, author_type, body, source_channel, created_by, created_at"
+        )
         .single<InquiryMessageRow>();
 
       if (error || !data) {
@@ -1171,7 +1319,8 @@ export function InquiryDetail({
   };
 
   const handleMarkAsWaitingCustomerWithResponse = async (
-    responseText: string
+    responseText: string,
+    requestId?: string
   ): Promise<boolean> => {
     setStatusMessage("");
     setStatusErrorMessage("");
@@ -1188,6 +1337,46 @@ export function InquiryDetail({
     if (!cleanResponseText) {
       setStatusErrorMessage("La respuesta no puede quedar vacía.");
       return false;
+    }
+
+    if (rawInquiry.source_channel === "Chat web") {
+      if (!requestId) {
+        setStatusErrorMessage(
+          "No se pudo generar el identificador de la respuesta del chat."
+        );
+        return false;
+      }
+
+      setIsUpdatingStatus(true);
+
+      const { data, error } = await supabase
+        .rpc("send_public_chat_response", {
+          p_inquiry_id: rawInquiry.id,
+          p_body: cleanResponseText,
+          p_next_status: "waiting_customer",
+          p_client_request_id: requestId,
+        })
+        .single<InquiryMessageRow>();
+
+      setIsUpdatingStatus(false);
+
+      if (error || !data) {
+        setStatusErrorMessage(
+          `No se pudo publicar la respuesta en el chat: ${
+            error?.message || "sin detalle del error"
+          }`
+        );
+        return false;
+      }
+
+      setInquiryMessages((currentMessages) =>
+        currentMessages.some((message) => message.id === data.id)
+          ? currentMessages
+          : [...currentMessages, data]
+      );
+      setInquiry({ ...inquiry, status: "waiting_customer" });
+      setRawInquiry({ ...rawInquiry, status: "waiting_customer" });
+      return true;
     }
 
     const existingResponseMessage = inquiryMessages.find((message) => {
@@ -1212,7 +1401,9 @@ export function InquiryDetail({
           body: cleanResponseText,
           source_channel: rawInquiry.source_channel,
         })
-        .select("id, direction, author_type, body, source_channel, created_at")
+        .select(
+          "id, direction, author_type, body, source_channel, created_by, created_at"
+        )
         .single<InquiryMessageRow>();
 
       if (error || !data) {
@@ -1267,7 +1458,8 @@ export function InquiryDetail({
 
   const handleSendEmailResponse = async (
     responseText: string,
-    nextStatus: SendCaseResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus,
+    requestId: string
   ): Promise<boolean> => {
     setStatusMessage("");
     setStatusErrorMessage("");
@@ -1300,6 +1492,7 @@ export function InquiryDetail({
           inquiryId: inquiry.id,
           responseText: cleanResponseText,
           nextStatus,
+          requestId,
         }),
       });
     } catch {
@@ -1390,7 +1583,8 @@ export function InquiryDetail({
 
   const handleSendWhatsAppResponse = async (
     responseText: string,
-    nextStatus: SendCaseResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus,
+    requestId: string
   ): Promise<boolean> => {
     setStatusMessage("");
     setStatusErrorMessage("");
@@ -1423,6 +1617,7 @@ export function InquiryDetail({
           inquiryId: inquiry.id,
           responseText: cleanResponseText,
           nextStatus,
+          requestId,
         }),
       });
     } catch {
@@ -1539,7 +1734,7 @@ export function InquiryDetail({
         inquiry_id: rawInquiry.id,
         body: cleanNote,
       })
-      .select("id, body, created_at")
+      .select("id, body, created_by, created_at")
       .single<InternalNoteRow>();
 
     setIsSavingNote(false);
@@ -1644,7 +1839,9 @@ export function InquiryDetail({
         body: cleanAdditionalInfo,
         source_channel: cleanAdditionalSourceChannel,
       })
-      .select("id, direction, author_type, body, source_channel, created_at")
+      .select(
+        "id, direction, author_type, body, source_channel, created_by, created_at"
+      )
       .single<InquiryMessageRow>();
 
     if (createMessageError || !createdMessage) {
@@ -2812,7 +3009,7 @@ export function InquiryDetail({
                   >
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="text-xs font-semibold uppercase tracking-wide text-[#6B858C]">
-                        {getMessageAuthorLabel(message.author_type)} ·{" "}
+                        {getInquiryMessageAuthorLabel(message)} ·{" "}
                         {getMessageDirectionLabel(
                           message.direction,
                           sentEmailMessageIds.includes(message.id),
@@ -2931,6 +3128,13 @@ export function InquiryDetail({
 
           <AIBlock inquiry={inquiry} />
 
+          <OutboundDeliveryIssues
+            issues={outboundDeliveryIssues}
+            onResolved={() => {
+              setReloadVersion((currentVersion) => currentVersion + 1);
+            }}
+          />
+
           <ResponseEditor
             inquiry={inquiry}
             canMarkAsReplied={canUseFinalActions}
@@ -2950,6 +3154,49 @@ export function InquiryDetail({
         </main>
 
         <aside className="space-y-5">
+          <SectionCard title="Responsable" tone="brand">
+            <label className="mt-2 block text-xs font-semibold uppercase tracking-wide text-[#5C7780]">
+              Asignar caso
+              <select
+                value={assignedTo}
+                onChange={(event) => {
+                  handleAssignInquiry(event.target.value);
+                }}
+                disabled={isUpdatingAssignment || teamMembers.length === 0}
+                className="mt-2 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm font-normal normal-case text-[#153F48] outline-none transition focus:border-[#0F4C5C] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">Sin responsable</option>
+
+                {teamMembers.map((teamMember) => (
+                  <option key={teamMember.user_id} value={teamMember.user_id}>
+                    {teamMember.full_name.trim() ||
+                      teamMember.email ||
+                      "Miembro del equipo"}
+                    {teamMember.role === "owner" ? " · Propietario" : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {isUpdatingAssignment ? (
+              <p className="mt-3 text-xs text-[#456C75]">
+                Actualizando responsable...
+              </p>
+            ) : null}
+
+            {assignmentErrorMessage ? (
+              <p className="mt-3 text-xs leading-5 text-red-700">
+                {assignmentErrorMessage}
+              </p>
+            ) : null}
+
+            {assignmentMessage ? (
+              <p className="mt-3 text-xs leading-5 text-emerald-700">
+                {assignmentMessage}
+              </p>
+            ) : null}
+          </SectionCard>
+
           <SectionCard title="Cliente" tone="customer">
             <p className="mt-2 font-semibold text-[#153F48]">
               {customer?.name || inquiry.customerName}
@@ -3645,6 +3892,9 @@ export function InquiryDetail({
                     </p>
 
                     <div className="mt-3 text-xs text-[#6B858C]">
+                      {getTeamMemberName(internalNote.created_by)
+                        ? `${getTeamMemberName(internalNote.created_by)} · `
+                        : ""}
                       {formatDateTime(internalNote.created_at)}
                     </div>
                   </article>

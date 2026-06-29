@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import type { MutableRefObject } from "react";
 import { CheckCircle2, Copy, Send } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
@@ -14,23 +15,36 @@ type ResponseEditorProps = {
   inquiry: Inquiry;
   canMarkAsReplied?: boolean;
   isMarkingAsReplied?: boolean;
-  onMarkAsReplied?: (responseText: string) => Promise<boolean>;
+  onMarkAsReplied?: (
+    responseText: string,
+    requestId?: string
+  ) => Promise<boolean>;
   canMarkAsWaitingCustomer?: boolean;
-  onMarkAsWaitingCustomer?: (responseText: string) => Promise<boolean>;
+  onMarkAsWaitingCustomer?: (
+    responseText: string,
+    requestId?: string
+  ) => Promise<boolean>;
   canSendEmailResponse?: boolean;
   isSendingEmailResponse?: boolean;
   sentEmailResponseBodies?: string[];
   onSendEmailResponse?: (
     responseText: string,
-    nextStatus: SendCaseResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus,
+    requestId: string
   ) => Promise<boolean>;
   canSendWhatsAppResponse?: boolean;
   isSendingWhatsAppResponse?: boolean;
   sentWhatsAppResponseBodies?: string[];
   onSendWhatsAppResponse?: (
     responseText: string,
-    nextStatus: SendCaseResponseNextStatus
+    nextStatus: SendCaseResponseNextStatus,
+    requestId: string
   ) => Promise<boolean>;
+};
+
+type PendingOutboundRequest = {
+  signature: string;
+  requestId: string;
 };
 
 function stripLeadingGreetingForDuplicateComparison(value: string) {
@@ -93,6 +107,9 @@ function ResponseEditorContent({
   onSendWhatsAppResponse,
 }: ResponseEditorProps) {
   const supabase = useMemo(() => createClient(), []);
+  const emailRequestRef = useRef<PendingOutboundRequest | null>(null);
+  const whatsAppRequestRef = useRef<PendingOutboundRequest | null>(null);
+  const publicChatRequestRef = useRef<PendingOutboundRequest | null>(null);
 
   const [text, setText] = useState(inquiry.suggestedResponse);
   const [isSaving, setIsSaving] = useState(false);
@@ -145,6 +162,27 @@ function ResponseEditorContent({
 
   const canSendAnyDirectResponse =
     canSendEmailResponse || canSendWhatsAppResponse;
+  const isPublicChat = inquiry.sourceChannel === "Chat web";
+
+  const getOrCreateRequestId = (
+    requestRef: MutableRefObject<PendingOutboundRequest | null>,
+    responseText: string,
+    nextStatus: SendCaseResponseNextStatus
+  ) => {
+    const signature = `${nextStatus}\n${responseText}`;
+
+    if (requestRef.current?.signature === signature) {
+      return requestRef.current.requestId;
+    }
+
+    const requestId = crypto.randomUUID();
+    requestRef.current = {
+      signature,
+      requestId,
+    };
+
+    return requestId;
+  };
 
   const copyResponseText = async (cleanText: string) => {
     if (navigator.clipboard?.writeText) {
@@ -263,9 +301,15 @@ function ResponseEditorContent({
 
     try {
       await saveResponseText(cleanText);
-      await copyResponseText(cleanText);
 
-      const wasMarkedAsReplied = await onMarkAsReplied(cleanText);
+      if (!isPublicChat) {
+        await copyResponseText(cleanText);
+      }
+
+      const requestId = isPublicChat
+        ? getOrCreateRequestId(publicChatRequestRef, cleanText, "replied")
+        : undefined;
+      const wasMarkedAsReplied = await onMarkAsReplied(cleanText, requestId);
 
       if (!wasMarkedAsReplied) {
         setErrorMessage(
@@ -275,7 +319,9 @@ function ResponseEditorContent({
       }
 
       setSuccessMessage(
-        "Borrador guardado, copiado y registrado como respuesta manual. El caso se marcó como respondido."
+        isPublicChat
+          ? "Respuesta publicada en el chat y caso marcado como respondido."
+          : "Borrador guardado, copiado y registrado como respuesta manual. El caso se marcó como respondido."
       );
     } catch (error) {
       setErrorMessage(
@@ -308,10 +354,20 @@ function ResponseEditorContent({
 
     try {
       await saveResponseText(cleanText);
-      await copyResponseText(cleanText);
+
+      if (!isPublicChat) {
+        await copyResponseText(cleanText);
+      }
 
       const wasMarkedAsWaitingCustomer = await onMarkAsWaitingCustomer(
-        cleanText
+        cleanText,
+        isPublicChat
+          ? getOrCreateRequestId(
+              publicChatRequestRef,
+              cleanText,
+              "waiting_customer"
+            )
+          : undefined
       );
 
       if (!wasMarkedAsWaitingCustomer) {
@@ -322,7 +378,9 @@ function ResponseEditorContent({
       }
 
       setSuccessMessage(
-        "Borrador guardado, copiado y registrado como respuesta manual. El caso se marcó como esperando al cliente."
+        isPublicChat
+          ? "Respuesta publicada en el chat y caso marcado como esperando al cliente."
+          : "Borrador guardado, copiado y registrado como respuesta manual. El caso se marcó como esperando al cliente."
       );
     } catch (error) {
       setErrorMessage(
@@ -369,7 +427,16 @@ function ResponseEditorContent({
     try {
       await saveResponseText(cleanText);
 
-      const wasSent = await onSendEmailResponse(cleanText, nextStatus);
+      const requestId = getOrCreateRequestId(
+        emailRequestRef,
+        cleanText,
+        nextStatus
+      );
+      const wasSent = await onSendEmailResponse(
+        cleanText,
+        nextStatus,
+        requestId
+      );
 
       if (!wasSent) {
         setErrorMessage("No se pudo enviar el email desde COPPE.");
@@ -427,7 +494,16 @@ function ResponseEditorContent({
     try {
       await saveResponseText(cleanText);
 
-      const wasSent = await onSendWhatsAppResponse(cleanText, nextStatus);
+      const requestId = getOrCreateRequestId(
+        whatsAppRequestRef,
+        cleanText,
+        nextStatus
+      );
+      const wasSent = await onSendWhatsAppResponse(
+        cleanText,
+        nextStatus,
+        requestId
+      );
 
       if (!wasSent) {
         setErrorMessage("No se pudo enviar el WhatsApp desde COPPE.");
@@ -571,7 +647,9 @@ function ResponseEditorContent({
           >
             {isFinishingWaitingCustomer || isMarkingAsReplied
               ? "Actualizando..."
-              : "Copiar y registrar espera"}
+              : isPublicChat
+                ? "Responder en chat y esperar"
+                : "Copiar y registrar espera"}
           </Button>
         ) : null}
 
@@ -584,7 +662,9 @@ function ResponseEditorContent({
             <CheckCircle2 size={16} />
             {isFinishingResponse || isMarkingAsReplied
               ? "Finalizando..."
-              : "Copiar y registrar respondido"}
+              : isPublicChat
+                ? "Responder en chat y marcar respondido"
+                : "Copiar y registrar respondido"}
           </Button>
         ) : null}
       </div>

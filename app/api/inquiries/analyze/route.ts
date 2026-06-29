@@ -9,41 +9,13 @@ import {
   readRequestJsonWithLimit,
   RequestBodyTooLargeError,
 } from "../../../../lib/requestBodyLimits";
+import { checkServerApiRateLimit } from "../../../../lib/serverApiRateLimit";
+import { createAdminClient } from "../../../../lib/supabase/admin";
 import { createClient } from "../../../../lib/supabase/server";
 
 const MAX_ANALYZE_REQUEST_BODY_BYTES = 32 * 1024;
 const ANALYZE_RATE_LIMIT_MAX_REQUESTS = 60;
 const ANALYZE_RATE_LIMIT_WINDOW_SECONDS = 60 * 60;
-
-type ServerSupabaseClient = Awaited<ReturnType<typeof createClient>>;
-
-async function checkAuthenticatedApiRateLimit(
-  supabase: ServerSupabaseClient,
-  values: {
-    bucketKey: string;
-    maxRequests: number;
-    windowSeconds: number;
-  }
-) {
-  const { data, error } = await supabase.rpc(
-    "check_authenticated_api_rate_limit",
-    {
-      bucket_key: values.bucketKey,
-      max_requests: values.maxRequests,
-      window_seconds: values.windowSeconds,
-    }
-  );
-
-  if (error) {
-    throw new Error(
-      `No se pudo comprobar el límite de uso: ${
-        error.message || "sin detalle del error"
-      }`
-    );
-  }
-
-  return Boolean(data);
-}
 
 function buildAnalyzeRateLimitBucketKey(values: {
   companyId: string;
@@ -150,7 +122,7 @@ export async function POST(request: Request) {
   let canAnalyze = false;
 
   try {
-    canAnalyze = await checkAuthenticatedApiRateLimit(supabase, {
+    const rateLimit = await checkServerApiRateLimit(createAdminClient(), {
       bucketKey: buildAnalyzeRateLimitBucketKey({
         companyId: company.id,
         userId: user.id,
@@ -158,6 +130,8 @@ export async function POST(request: Request) {
       maxRequests: ANALYZE_RATE_LIMIT_MAX_REQUESTS,
       windowSeconds: ANALYZE_RATE_LIMIT_WINDOW_SECONDS,
     });
+
+    canAnalyze = rateLimit.allowed;
   } catch (error) {
     console.error("Could not check inquiry analysis rate limit:", error);
 

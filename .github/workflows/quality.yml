@@ -32,3 +32,9 @@ jobs:
 
       - name: Run lint
         run: npm run lint
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      - name: Build production application
+        run: npm run build

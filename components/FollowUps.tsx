@@ -235,6 +235,7 @@ function MetricCardsSkeleton({ count = 4 }: { count?: number }) {
 
 export function FollowUps({ openInquiry }: FollowUpsProps) {
   const supabase = useMemo(() => createClient(), []);
+  const pageSize = 100;
 
   const [followUps, setFollowUps] = useState<FollowUp[]>([]);
   const [inquiryOptions, setInquiryOptions] = useState<InquiryOptionRow[]>([]);
@@ -247,6 +248,9 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
   const [title, setTitle] = useState("");
   const [dueAt, setDueAt] = useState(getDefaultDateTimeLocal());
   const [searchTerm, setSearchTerm] = useState("");
+  const [totalFollowUpCount, setTotalFollowUpCount] = useState(0);
+  const [hasMoreFollowUps, setHasMoreFollowUps] = useState(false);
+  const [isLoadingMoreFollowUps, setIsLoadingMoreFollowUps] = useState(false);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isCreating, setIsCreating] = useState(false);
@@ -265,7 +269,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       setSuccessMessage("");
       setFormErrorMessage("");
 
-      const { data: followUpsData, error: followUpsError } = await supabase
+      const {
+        data: followUpsData,
+        error: followUpsError,
+        count: followUpsCount,
+      } = await supabase
         .from("follow_ups")
         .select(
           [
@@ -277,10 +285,12 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
             "inquiry_id",
             "created_at",
             "customer:customers(name)",
-          ].join(", ")
+          ].join(", "),
+          { count: "exact" }
         )
         .order("due_at", { ascending: true, nullsFirst: false })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, pageSize - 1);
 
       if (followUpsError) {
         setErrorMessage(
@@ -319,6 +329,11 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
       const activeInquiryOptions = mappedInquiries.filter(isActiveInquiryOption);
 
       setFollowUps(mappedFollowUps);
+      setTotalFollowUpCount(followUpsCount ?? mappedFollowUps.length);
+      setHasMoreFollowUps(
+        mappedFollowUps.length <
+          (followUpsCount ?? mappedFollowUps.length)
+      );
       setInquiryOptions(activeInquiryOptions);
 
       setSelectedInquiryId((currentValue) => {
@@ -337,6 +352,63 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
 
     loadFollowUpsAndInquiries();
   }, [supabase]);
+
+  const handleLoadMoreFollowUps = async () => {
+    if (isLoadingMoreFollowUps || !hasMoreFollowUps) {
+      return;
+    }
+
+    setIsLoadingMoreFollowUps(true);
+    setErrorMessage("");
+
+    const from = followUps.length;
+    const { data, error } = await supabase
+      .from("follow_ups")
+      .select(
+        [
+          "id",
+          "title",
+          "due_at",
+          "status",
+          "urgency",
+          "inquiry_id",
+          "created_at",
+          "customer:customers(name)",
+        ].join(", ")
+      )
+      .order("due_at", { ascending: true, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    setIsLoadingMoreFollowUps(false);
+
+    if (error) {
+      setErrorMessage(
+        `No se pudieron cargar más seguimientos: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const nextFollowUps = ((data ?? []) as unknown as FollowUpRow[])
+      .map(mapFollowUpRowToFollowUp)
+      .sort(compareFollowUps);
+    const nextLoadedCount = followUps.length + nextFollowUps.length;
+
+    setFollowUps((currentFollowUps) =>
+      [
+        ...currentFollowUps,
+        ...nextFollowUps.filter(
+          (nextFollowUp) =>
+            !currentFollowUps.some(
+              (currentFollowUp) => currentFollowUp.id === nextFollowUp.id
+            )
+        ),
+      ].sort(compareFollowUps)
+    );
+    setHasMoreFollowUps(nextLoadedCount < totalFollowUpCount);
+  };
 
   const selectedInquiry = inquiryOptions.find(
     (inquiry) => inquiry.id === selectedInquiryId
@@ -1140,6 +1212,24 @@ export function FollowUps({ openInquiry }: FollowUpsProps) {
               </div>
             )}
           </SectionCard>
+
+          {hasMoreFollowUps ? (
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={handleLoadMoreFollowUps}
+                disabled={isLoadingMoreFollowUps}
+              >
+                {isLoadingMoreFollowUps
+                  ? "Cargando más seguimientos..."
+                  : "Cargar más seguimientos"}
+              </Button>
+              <p className="text-xs text-slate-500">
+                Mostrando {followUps.length} de {totalFollowUpCount}{" "}
+                seguimientos.
+              </p>
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

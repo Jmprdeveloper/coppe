@@ -1,4 +1,4 @@
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 
 import {
@@ -118,6 +118,24 @@ function getClientIp(request: Request) {
 
 function hashRateLimitPart(value: string) {
   return createHash("sha256").update(value).digest("hex").slice(0, 24);
+}
+
+function createPublicChatConversationToken() {
+  return randomBytes(32).toString("base64url");
+}
+
+function hashPublicChatConversationToken(value: string) {
+  return createHash("sha256").update(value).digest("hex");
+}
+
+function getPublicChatSessionDays() {
+  const value = Number(process.env.PUBLIC_CHAT_SESSION_DAYS);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return 30;
+  }
+
+  return Math.min(Math.round(value), 365);
 }
 
 async function createPublicIntakeAuditLog(
@@ -918,6 +936,47 @@ export async function POST(request: Request) {
   }
 
   const createdInquiryId = String(createdInquiryIdFromRpc);
+  let conversationToken = "";
+
+  if (sourceChannel === "Chat web") {
+    conversationToken = createPublicChatConversationToken();
+    const expiresAt = new Date(
+      Date.now() + getPublicChatSessionDays() * 24 * 60 * 60 * 1000
+    ).toISOString();
+    const { error: chatSessionError } = await supabaseAdmin
+      .from("public_chat_sessions")
+      .insert({
+        company_id: company.id,
+        inquiry_id: createdInquiryId,
+        customer_id: customer.id,
+        token_hash: hashPublicChatConversationToken(conversationToken),
+        expires_at: expiresAt,
+      });
+
+    if (chatSessionError) {
+      return buildFailedResponseAfterInboundEvent(
+        supabaseAdmin,
+        inboundEventId,
+        `El caso se creó, pero no se pudo iniciar la conversación pública: ${
+          chatSessionError.message || "sin detalle del error"
+        }`,
+        500,
+        {
+          customerId: customer.id,
+          inquiryId: createdInquiryId,
+        },
+        GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+        {
+          companyId: company.id,
+          sourceChannel,
+          failureStage: "create_public_chat_session",
+          hadEmail: Boolean(email),
+          hadPhone: Boolean(phone),
+          messageLength: message.length,
+        }
+      );
+    }
+  }
 
   await createPublicIntakeAuditLog(supabaseAdmin, {
     companyId: company.id,
@@ -949,6 +1008,7 @@ export async function POST(request: Request) {
     {
       ok: true,
       inquiryId: createdInquiryId,
+      conversationToken: conversationToken || undefined,
       message: "Mensaje recibido correctamente.",
     },
     { status: 201 },

@@ -1,12 +1,25 @@
-import { createHash } from "node:crypto";
-
 import { NextResponse } from "next/server";
 
+import {
+  claimOutboundMessage,
+  finalizeOutboundMessageDelivery,
+  getInquiryMessageById,
+  markOutboundMessageDeliveryFailure,
+} from "../../../../lib/outboundMessageProcessing";
+import {
+  buildOutboundResponseDeduplicationKey,
+  canSendResponseForInquiryStatus,
+  getHttpProviderDeliveryFailureStatus,
+  getOutboundProviderError,
+  isValidOutboundRequestId,
+  OutboundProviderError,
+} from "../../../../lib/outboundResponseReliability";
 import {
   buildRequestBodyTooLargeResponse,
   readRequestJsonWithLimit,
   RequestBodyTooLargeError,
 } from "../../../../lib/requestBodyLimits";
+import { checkOutboundSendRateLimits } from "../../../../lib/serverApiRateLimit";
 import { createAdminClient } from "../../../../lib/supabase/admin";
 import { createClient } from "../../../../lib/supabase/server";
 
@@ -24,6 +37,7 @@ type SendWhatsAppResponseRequestBody = {
   inquiryId?: unknown;
   responseText?: unknown;
   nextStatus?: unknown;
+  requestId?: unknown;
 };
 
 type InquiryForWhatsAppResponseRow = {
@@ -50,23 +64,6 @@ type WhatsAppChannelRow = {
   display_phone_number: string | null;
   provider: string | null;
   enabled: boolean;
-};
-
-type OutboundMessageRow = {
-  id: string;
-  status: string;
-  inquiry_message_id: string | null;
-  provider_message_id: string | null;
-  error_message: string | null;
-};
-
-type InquiryMessageRow = {
-  id: string;
-  direction: string;
-  author_type: string;
-  body: string;
-  source_channel: string | null;
-  created_at: string;
 };
 
 type MetaWhatsAppSendMessageResponse = {
@@ -108,10 +105,6 @@ function isValidNextStatus(
   return value === "replied" || value === "waiting_customer";
 }
 
-function canSendResponseForInquiryStatus(status: string) {
-  return status === "new" || status === "pending" || status === "waiting_customer";
-}
-
 function normalizeWhatsAppRecipientPhone(value: string) {
   const digits = value.replace(/\D/g, "");
 
@@ -128,70 +121,6 @@ function formatWhatsAppRecipientPhoneForStorage(value: string) {
 
 function hasValidWhatsAppRecipientPhone(value: string) {
   return /^[1-9][0-9]{7,14}$/.test(value);
-}
-
-function stripLeadingGreetingForDuplicateCheck(value: string) {
-  return value
-    .replace(/^(hola|hello|hi)\s*[,.:;!\-–—]\s*/u, "")
-    .replace(
-      /^(hola|hello|hi)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
-      ""
-    )
-    .replace(
-      /^(estimado\/a|estimado|estimada|dear)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
-      ""
-    )
-    .replace(
-      /^(buenos dias|buenos días|buenas tardes|buenas noches|good morning|good afternoon|good evening)\s*[,.:;!\-–—]?\s*/u,
-      ""
-    )
-    .trim();
-}
-
-function normalizeWhatsAppResponseTextForDuplicateCheck(value: string) {
-  return stripLeadingGreetingForDuplicateCheck(
-    value
-      .normalize("NFKC")
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/[.!?¡¿…;:]+$/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase()
-  )
-    .replace(/[.!?¡¿…;:]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function buildDeduplicationKey(values: {
-  inquiryId: string;
-  customerId: string;
-  toPhone: string;
-  responseText: string;
-}) {
-  const normalizedResponseText = normalizeWhatsAppResponseTextForDuplicateCheck(
-    values.responseText
-  );
-  const digest = createHash("sha256")
-    .update(values.inquiryId)
-    .update("\n")
-    .update(values.customerId)
-    .update("\n")
-    .update(values.toPhone)
-    .update("\n")
-    .update(normalizedResponseText)
-    .digest("hex");
-
-  return `whatsapp_response:${digest}`;
-}
-
-function isUniqueViolation(error: { code?: string; message?: string } | null) {
-  return (
-    error?.code === "23505" ||
-    (typeof error?.message === "string" &&
-      error.message.toLowerCase().includes("duplicate key"))
-  );
 }
 
 function getMetaWhatsAppErrorMessage(
@@ -230,7 +159,10 @@ async function sendWhatsAppTextWithMeta({
   const accessToken = getWhatsAppAccessToken();
 
   if (!accessToken) {
-    throw new Error("Missing WHATSAPP_ACCESS_TOKEN environment variable.");
+    throw new OutboundProviderError(
+      "Missing WHATSAPP_ACCESS_TOKEN environment variable.",
+      "failed"
+    );
   }
 
   const controller = new AbortController();
@@ -268,220 +200,29 @@ async function sendWhatsAppTextWithMeta({
       .catch(() => null)) as MetaWhatsAppSendMessageResponse | null;
     const providerMessageId = payload?.messages?.[0]?.id?.trim() ?? "";
 
-    if (!response.ok || !providerMessageId) {
-      throw new Error(getMetaWhatsAppErrorMessage(payload));
+    if (!response.ok) {
+      throw new OutboundProviderError(
+        getMetaWhatsAppErrorMessage(payload),
+        getHttpProviderDeliveryFailureStatus(response.status)
+      );
+    }
+
+    if (!providerMessageId) {
+      throw new OutboundProviderError(
+        "Meta aceptó la petición sin devolver un identificador de mensaje.",
+        "unknown"
+      );
     }
 
     return providerMessageId;
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("Meta tardó demasiado en responder al envío de WhatsApp.");
-    }
-
-    throw error;
+    throw getOutboundProviderError(
+      error,
+      "No se pudo enviar el WhatsApp con Meta."
+    );
   } finally {
     clearTimeout(timeoutId);
   }
-}
-
-async function createWhatsAppResponseAuditLog(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  values: {
-    companyId: string;
-    inquiryId: string;
-    customerId: string;
-    customerPhone: string;
-    whatsAppChannelId: string;
-    phoneNumberId: string;
-    outboundMessageId: string;
-    inquiryMessageId: string | null;
-    providerMessageId: string;
-    nextStatus: SendWhatsAppResponseNextStatus;
-    warning?: string;
-  }
-) {
-  const metadata: Record<string, string | null> = {
-    customer_id: values.customerId,
-    customer_phone: values.customerPhone,
-    whatsapp_channel_id: values.whatsAppChannelId,
-    phone_number_id: values.phoneNumberId,
-    outbound_message_id: values.outboundMessageId,
-    inquiry_message_id: values.inquiryMessageId,
-    provider: "meta",
-    provider_message_id: values.providerMessageId,
-    requested_next_status: values.nextStatus,
-  };
-
-  if (values.warning) {
-    metadata.warning = values.warning;
-  }
-
-  const { error } = await supabase.rpc("create_audit_log", {
-    target_company_id: values.companyId,
-    audit_action: "send_whatsapp_response",
-    audit_entity_type: "inquiry",
-    audit_entity_id: values.inquiryId,
-    audit_metadata: metadata,
-  });
-
-  if (error) {
-    console.error("WhatsApp sent, but could not create audit log:", error);
-  }
-}
-
-async function getExistingOutboundMessageByDeduplicationKey(
-  supabaseAdmin: ReturnType<typeof createAdminClient>,
-  values: {
-    companyId: string;
-    channel: "whatsapp";
-    deduplicationKey: string;
-  }
-) {
-  const { data, error } = await supabaseAdmin
-    .from("outbound_messages")
-    .select("id, status, inquiry_message_id, provider_message_id, error_message")
-    .eq("company_id", values.companyId)
-    .eq("channel", values.channel)
-    .eq("deduplication_key", values.deduplicationKey)
-    .maybeSingle<OutboundMessageRow>();
-
-  if (error) {
-    throw new Error(
-      `No se pudo comprobar si esta respuesta ya existe: ${
-        error.message || "sin detalle del error"
-      }`
-    );
-  }
-
-  return data;
-}
-
-async function createOrClaimPendingOutboundWhatsAppMessage(
-  supabaseAdmin: ReturnType<typeof createAdminClient>,
-  values: {
-    companyId: string;
-    inquiryId: string;
-    customerId: string;
-    fromAddress: string;
-    toAddress: string;
-    body: string;
-    deduplicationKey: string;
-    userId: string;
-  }
-): Promise<
-  | {
-      outcome: "ready";
-      outboundMessage: OutboundMessageRow;
-    }
-  | {
-      outcome: "duplicate_sent";
-      outboundMessage: OutboundMessageRow | null;
-    }
-  | {
-      outcome: "duplicate_pending";
-      outboundMessage: OutboundMessageRow | null;
-    }
-> {
-  const insertResult = await supabaseAdmin
-    .from("outbound_messages")
-    .insert({
-      company_id: values.companyId,
-      inquiry_id: values.inquiryId,
-      customer_id: values.customerId,
-      channel: "whatsapp",
-      provider: "meta",
-      status: "pending",
-      from_address: values.fromAddress,
-      to_address: values.toAddress,
-      body: values.body,
-      deduplication_key: values.deduplicationKey,
-      created_by: values.userId,
-    })
-    .select("id, status, inquiry_message_id, provider_message_id, error_message")
-    .single<OutboundMessageRow>();
-
-  if (!insertResult.error && insertResult.data) {
-    return {
-      outcome: "ready",
-      outboundMessage: insertResult.data,
-    };
-  }
-
-  if (!isUniqueViolation(insertResult.error)) {
-    throw new Error(
-      `No se pudo registrar el intento de envío: ${
-        insertResult.error?.message || "sin detalle del error"
-      }`
-    );
-  }
-
-  const existingOutboundMessage = await getExistingOutboundMessageByDeduplicationKey(
-    supabaseAdmin,
-    {
-      companyId: values.companyId,
-      channel: "whatsapp",
-      deduplicationKey: values.deduplicationKey,
-    }
-  );
-
-  if (!existingOutboundMessage) {
-    return {
-      outcome: "duplicate_pending",
-      outboundMessage: null,
-    };
-  }
-
-  if (existingOutboundMessage.status === "sent") {
-    return {
-      outcome: "duplicate_sent",
-      outboundMessage: existingOutboundMessage,
-    };
-  }
-
-  if (existingOutboundMessage.status === "pending") {
-    return {
-      outcome: "duplicate_pending",
-      outboundMessage: existingOutboundMessage,
-    };
-  }
-
-  if (existingOutboundMessage.status !== "failed") {
-    return {
-      outcome: "duplicate_pending",
-      outboundMessage: existingOutboundMessage,
-    };
-  }
-
-  const { data: claimedOutboundMessage, error: claimError } = await supabaseAdmin
-    .from("outbound_messages")
-    .update({
-      status: "pending",
-      from_address: values.fromAddress,
-      to_address: values.toAddress,
-      body: values.body,
-      provider_message_id: null,
-      inquiry_message_id: null,
-      error_message: null,
-      sent_at: null,
-      failed_at: null,
-      created_by: values.userId,
-    })
-    .eq("id", existingOutboundMessage.id)
-    .eq("status", "failed")
-    .select("id, status, inquiry_message_id, provider_message_id, error_message")
-    .maybeSingle<OutboundMessageRow>();
-
-  if (claimError || !claimedOutboundMessage) {
-    return {
-      outcome: "duplicate_pending",
-      outboundMessage: existingOutboundMessage,
-    };
-  }
-
-  return {
-    outcome: "ready",
-    outboundMessage: claimedOutboundMessage,
-  };
 }
 
 export async function POST(request: Request) {
@@ -519,6 +260,8 @@ export async function POST(request: Request) {
     typeof body.responseText === "string" ? body.responseText.trim() : "";
   const nextStatus =
     typeof body.nextStatus === "string" ? body.nextStatus.trim() : "";
+  const requestId =
+    typeof body.requestId === "string" ? body.requestId.trim() : "";
 
   if (!inquiryId) {
     return NextResponse.json(
@@ -546,6 +289,13 @@ export async function POST(request: Request) {
   if (!isValidNextStatus(nextStatus)) {
     return NextResponse.json(
       { error: "El estado final solicitado no es válido." },
+      { status: 400 }
+    );
+  }
+
+  if (!requestId || !isValidOutboundRequestId(requestId)) {
+    return NextResponse.json(
+      { error: "El identificador idempotente del envío no es válido." },
       { status: 400 }
     );
   }
@@ -658,57 +408,121 @@ export async function POST(request: Request) {
   const toAddress = formatWhatsAppRecipientPhoneForStorage(toPhone);
   const fromAddress =
     whatsAppChannel.display_phone_number?.trim() || `phone_number_id:${phoneNumberId}`;
-  const deduplicationKey = buildDeduplicationKey({
+  const deduplicationKey = buildOutboundResponseDeduplicationKey({
+    channel: "whatsapp",
+    requestId,
     inquiryId: inquiry.id,
     customerId: customer.id,
-    toPhone,
+    destination: toPhone,
     responseText,
   });
-
-  let outboundMessage: OutboundMessageRow;
+  let outboundMessageClaim: Awaited<ReturnType<typeof claimOutboundMessage>>;
 
   try {
-    const outboundMessageClaim = await createOrClaimPendingOutboundWhatsAppMessage(
-      supabaseAdmin,
-      {
-        companyId: inquiry.company_id,
-        inquiryId: inquiry.id,
-        customerId: customer.id,
-        fromAddress,
-        toAddress,
-        body: responseText,
-        deduplicationKey,
-        userId: user.id,
-      }
-    );
-
-    if (outboundMessageClaim.outcome === "duplicate_sent") {
-      return NextResponse.json(
-        {
-          error:
-            "Esta respuesta ya fue enviada por WhatsApp en este caso. Edita el texto si necesitas enviar una nueva respuesta.",
-        },
-        { status: 409 }
-      );
-    }
-
-    if (outboundMessageClaim.outcome === "duplicate_pending") {
-      return NextResponse.json(
-        {
-          error:
-            "Esta respuesta ya se está enviando por WhatsApp en este caso. Espera unos segundos antes de intentarlo de nuevo.",
-        },
-        { status: 409 }
-      );
-    }
-
-    outboundMessage = outboundMessageClaim.outboundMessage;
+    outboundMessageClaim = await claimOutboundMessage(supabaseAdmin, {
+      companyId: inquiry.company_id,
+      inquiryId: inquiry.id,
+      customerId: customer.id,
+      channel: "whatsapp",
+      provider: "meta",
+      fromAddress,
+      toAddress,
+      body: responseText,
+      deduplicationKey,
+      nextStatus,
+      userId: user.id,
+    });
   } catch (error) {
-    console.error("Could not create outbound WhatsApp message log:", error);
+    console.error("Could not claim outbound WhatsApp message:", error);
 
     return NextResponse.json(
       { error: "No se pudo registrar el intento de envío." },
       { status: 500 }
+    );
+  }
+
+  if (outboundMessageClaim.outcome === "already_sent") {
+    const inquiryMessage = await getInquiryMessageById(
+      supabaseAdmin,
+      outboundMessageClaim.inquiryMessageId
+    ).catch((error) => {
+      console.error("Could not load already sent WhatsApp message:", error);
+      return null;
+    });
+
+    return NextResponse.json({
+      ok: true,
+      duplicate: true,
+      providerMessageId: outboundMessageClaim.providerMessageId,
+      inquiryMessage,
+      nextStatus,
+    });
+  }
+
+  if (outboundMessageClaim.outcome === "in_progress") {
+    return NextResponse.json(
+      {
+        error:
+          "Este envío de WhatsApp ya se está procesando. Espera unos segundos antes de intentarlo de nuevo.",
+      },
+      { status: 409 }
+    );
+  }
+
+  if (outboundMessageClaim.outcome === "delivery_unknown") {
+    return NextResponse.json(
+      {
+        error:
+          "COPPE no puede confirmar el resultado de un intento anterior. No se reenviará automáticamente para evitar duplicados.",
+      },
+      { status: 409 }
+    );
+  }
+
+  let rateLimit: Awaited<ReturnType<typeof checkOutboundSendRateLimits>>;
+
+  try {
+    rateLimit = await checkOutboundSendRateLimits(supabaseAdmin, {
+      companyId: inquiry.company_id,
+      userId: user.id,
+      channel: "whatsapp",
+    });
+  } catch (error) {
+    console.error("Could not check outbound WhatsApp rate limit:", error);
+
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: "failed",
+      errorMessage: "No se pudo comprobar el límite de envíos.",
+    });
+
+    return NextResponse.json(
+      { error: "No se pudo comprobar el límite de envíos." },
+      { status: 500 }
+    );
+  }
+
+  if (!rateLimit.allowed) {
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: "failed",
+      errorMessage: "Límite temporal de envíos de WhatsApp alcanzado.",
+    });
+
+    return NextResponse.json(
+      {
+        error:
+          "Se ha alcanzado el límite temporal de envíos de WhatsApp. Inténtalo de nuevo más tarde.",
+        retryAfterSeconds: rateLimit.retry_after_seconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retry_after_seconds),
+        },
+      }
     );
   }
 
@@ -721,142 +535,64 @@ export async function POST(request: Request) {
       text: responseText,
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "No se pudo enviar el WhatsApp.";
+    const providerError = getOutboundProviderError(
+      error,
+      "No se pudo enviar el WhatsApp."
+    );
 
     console.error("Could not send WhatsApp response with Meta:", error);
 
-    await supabaseAdmin
-      .from("outbound_messages")
-      .update({
-        status: "failed",
-        error_message: errorMessage,
-        failed_at: new Date().toISOString(),
-      })
-      .eq("id", outboundMessage.id)
-      .eq("status", "pending");
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: providerError.deliveryStatus,
+      errorMessage: providerError.message,
+    });
 
     return NextResponse.json(
       {
         error:
-          "No se pudo enviar el WhatsApp. Revisa la configuración del canal de WhatsApp.",
+          providerError.deliveryStatus === "unknown"
+            ? "No se pudo confirmar el resultado del envío. COPPE no lo repetirá automáticamente para evitar duplicados."
+            : "No se pudo enviar el WhatsApp. Revisa la configuración del canal de WhatsApp.",
       },
       { status: 502 }
     );
   }
 
-  const { data: createdInquiryMessage, error: createInquiryMessageError } =
-    await supabaseAdmin
-      .from("inquiry_messages")
-      .insert({
-        company_id: inquiry.company_id,
-        inquiry_id: inquiry.id,
-        customer_id: customer.id,
-        direction: "outbound",
-        author_type: "company",
-        body: responseText,
-        source_channel: "WhatsApp",
-      })
-      .select("id, direction, author_type, body, source_channel, created_at")
-      .single<InquiryMessageRow>();
+  let createdInquiryMessage;
 
-  if (createInquiryMessageError || !createdInquiryMessage) {
-    console.error(
-      "WhatsApp sent, but could not create inquiry message:",
-      createInquiryMessageError
+  try {
+    createdInquiryMessage = await finalizeOutboundMessageDelivery(
+      supabaseAdmin,
+      {
+        outboundMessageId: outboundMessageClaim.outboundMessageId,
+        processingToken: outboundMessageClaim.processingToken,
+        companyId: inquiry.company_id,
+        providerMessageId,
+        nextStatus,
+      }
     );
+  } catch (error) {
+    console.error("WhatsApp accepted, but finalization failed:", error);
 
-    await supabaseAdmin
-      .from("outbound_messages")
-      .update({
-        status: "sent",
-        provider_message_id: providerMessageId,
-        error_message:
-          "El WhatsApp se envió, pero no se pudo registrar en el historial del caso.",
-        sent_at: new Date().toISOString(),
-      })
-      .eq("id", outboundMessage.id);
-
-    await createWhatsAppResponseAuditLog(supabase, {
-      companyId: inquiry.company_id,
-      inquiryId: inquiry.id,
-      customerId: customer.id,
-      customerPhone: toAddress,
-      whatsAppChannelId: whatsAppChannel.id,
-      phoneNumberId,
-      outboundMessageId: outboundMessage.id,
-      inquiryMessageId: null,
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: "unknown",
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : "Meta aceptó el WhatsApp, pero no se pudo finalizar su registro.",
       providerMessageId,
-      nextStatus,
-      warning: "inquiry_message_creation_failed",
     });
 
     return NextResponse.json(
       {
-        ok: true,
-        warning:
-          "El WhatsApp se envió, pero no se pudo registrar en el historial del caso.",
-        providerMessageId,
+        error:
+          "Meta aceptó el WhatsApp, pero COPPE no pudo finalizar el historial. No vuelvas a enviarlo hasta revisar el intento.",
       },
-      { status: 200 }
-    );
-  }
-
-  const { error: updateOutboundMessageError } = await supabaseAdmin
-    .from("outbound_messages")
-    .update({
-      status: "sent",
-      provider_message_id: providerMessageId,
-      inquiry_message_id: createdInquiryMessage.id,
-      sent_at: new Date().toISOString(),
-    })
-    .eq("id", outboundMessage.id)
-    .eq("status", "pending");
-
-  if (updateOutboundMessageError) {
-    console.error(
-      "WhatsApp sent, but could not update outbound message log:",
-      updateOutboundMessageError
-    );
-  }
-
-  await createWhatsAppResponseAuditLog(supabase, {
-    companyId: inquiry.company_id,
-    inquiryId: inquiry.id,
-    customerId: customer.id,
-    customerPhone: toAddress,
-    whatsAppChannelId: whatsAppChannel.id,
-    phoneNumberId,
-    outboundMessageId: outboundMessage.id,
-    inquiryMessageId: createdInquiryMessage.id,
-    providerMessageId,
-    nextStatus,
-  });
-
-  const { error: updateInquiryError } = await supabaseAdmin
-    .from("inquiries")
-    .update({
-      status: nextStatus,
-      suggested_response: responseText,
-    })
-    .eq("id", inquiry.id)
-    .eq("company_id", inquiry.company_id);
-
-  if (updateInquiryError) {
-    console.error(
-      "WhatsApp sent, but could not update inquiry:",
-      updateInquiryError
-    );
-
-    return NextResponse.json(
-      {
-        ok: true,
-        warning:
-          "El WhatsApp se envió, pero no se pudo actualizar el estado del caso.",
-        providerMessageId,
-        inquiryMessage: createdInquiryMessage,
-      },
-      { status: 200 }
+      { status: 502 }
     );
   }
 

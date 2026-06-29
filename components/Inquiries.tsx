@@ -285,8 +285,12 @@ function HistoryInquiryRow({
 
 export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
   const supabase = useMemo(() => createClient(), []);
+  const pageSize = 100;
 
   const [inquiries, setInquiries] = useState<InquiryRow[]>([]);
+  const [totalInquiryCount, setTotalInquiryCount] = useState(0);
+  const [hasMoreInquiries, setHasMoreInquiries] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
 
@@ -303,12 +307,14 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
       setIsLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from("inquiries")
         .select(
-          "id, customer_name, source_channel, subject, original_message, ai_summary, ai_category, ai_priority, status, created_at"
+          "id, customer_name, source_channel, subject, original_message, ai_summary, ai_category, ai_priority, status, created_at",
+          { count: "exact" }
         )
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, pageSize - 1);
 
       if (error) {
         setErrorMessage(
@@ -320,12 +326,61 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
         return;
       }
 
-      setInquiries((data ?? []) as InquiryRow[]);
+      const loadedInquiries = (data ?? []) as InquiryRow[];
+
+      setInquiries(loadedInquiries);
+      setTotalInquiryCount(count ?? loadedInquiries.length);
+      setHasMoreInquiries(
+        loadedInquiries.length < (count ?? loadedInquiries.length)
+      );
       setIsLoading(false);
     }
 
     loadInquiries();
   }, [supabase]);
+
+  const handleLoadMoreInquiries = async () => {
+    if (isLoadingMore || !hasMoreInquiries) {
+      return;
+    }
+
+    setIsLoadingMore(true);
+    setErrorMessage("");
+
+    const from = inquiries.length;
+    const { data, error } = await supabase
+      .from("inquiries")
+      .select(
+        "id, customer_name, source_channel, subject, original_message, ai_summary, ai_category, ai_priority, status, created_at"
+      )
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    setIsLoadingMore(false);
+
+    if (error) {
+      setErrorMessage(
+        `No se pudieron cargar más casos: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const nextInquiries = (data ?? []) as InquiryRow[];
+    const nextLoadedCount = inquiries.length + nextInquiries.length;
+
+    setInquiries((currentInquiries) => [
+      ...currentInquiries,
+      ...nextInquiries.filter(
+        (nextInquiry) =>
+          !currentInquiries.some(
+            (currentInquiry) => currentInquiry.id === nextInquiry.id
+          )
+      ),
+    ]);
+    setHasMoreInquiries(nextLoadedCount < totalInquiryCount);
+  };
 
   const handleSearch = () => {
     setAppliedSearchTerm(searchTerm);
@@ -746,6 +801,21 @@ export function Inquiries({ openInquiry, setActiveView }: InquiriesProps) {
               </div>
             )}
           </SectionCard>
+
+          {hasMoreInquiries ? (
+            <div className="mt-6 flex flex-col items-center gap-2">
+              <Button
+                variant="secondary"
+                onClick={handleLoadMoreInquiries}
+                disabled={isLoadingMore}
+              >
+                {isLoadingMore ? "Cargando más casos..." : "Cargar más casos"}
+              </Button>
+              <p className="text-xs text-[#6B858C]">
+                Mostrando {inquiries.length} de {totalInquiryCount} casos.
+              </p>
+            </div>
+          ) : null}
         </>
       ) : null}
     </div>

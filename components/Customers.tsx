@@ -199,6 +199,7 @@ function MetricCardsSkeleton({ count = 5 }: { count?: number }) {
 
 export function Customers({ openCustomer }: CustomersProps) {
   const supabase = useMemo(() => createClient(), []);
+  const pageSize = 100;
 
   const createCustomerAuditLog = async ({
     companyId,
@@ -225,6 +226,9 @@ export function Customers({ openCustomer }: CustomersProps) {
   };
 
   const [customers, setCustomers] = useState<CustomerWithActivity[]>([]);
+  const [totalCustomerCount, setTotalCustomerCount] = useState(0);
+  const [hasMoreCustomers, setHasMoreCustomers] = useState(false);
+  const [isLoadingMoreCustomers, setIsLoadingMoreCustomers] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [appliedSearchTerm, setAppliedSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] =
@@ -248,16 +252,18 @@ export function Customers({ openCustomer }: CustomersProps) {
       setIsLoading(true);
       setErrorMessage("");
 
-      const { data, error } = await supabase
+      const { data, error, count } = await supabase
         .from("customers")
         .select(
-          "id, name, email, phone, language, status, last_interaction_at, created_at"
+          "id, name, email, phone, language, status, last_interaction_at, created_at",
+          { count: "exact" }
         )
         .order("last_interaction_at", {
           ascending: false,
           nullsFirst: false,
         })
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .range(0, pageSize - 1);
 
       if (error) {
         setErrorMessage(
@@ -311,11 +317,97 @@ export function Customers({ openCustomer }: CustomersProps) {
           };
         })
       );
+      setTotalCustomerCount(count ?? customerRows.length);
+      setHasMoreCustomers(
+        customerRows.length < (count ?? customerRows.length)
+      );
       setIsLoading(false);
     }
 
     loadCustomers();
   }, [supabase]);
+
+  const handleLoadMoreCustomers = async () => {
+    if (isLoadingMoreCustomers || !hasMoreCustomers) {
+      return;
+    }
+
+    setIsLoadingMoreCustomers(true);
+    setErrorMessage("");
+
+    const from = customers.length;
+    const { data, error } = await supabase
+      .from("customers")
+      .select(
+        "id, name, email, phone, language, status, last_interaction_at, created_at"
+      )
+      .order("last_interaction_at", {
+        ascending: false,
+        nullsFirst: false,
+      })
+      .order("created_at", { ascending: false })
+      .range(from, from + pageSize - 1);
+
+    if (error) {
+      setIsLoadingMoreCustomers(false);
+      setErrorMessage(
+        `No se pudieron cargar más clientes: ${
+          error.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    const customerRows = (data ?? []) as CustomerRow[];
+    const customerIds = customerRows.map((customer) => customer.id);
+    let activityByCustomerId = new Map<string, CustomerActivitySummary>();
+
+    if (customerIds.length > 0) {
+      const { data: inquiriesData, error: inquiriesError } = await supabase
+        .from("inquiries")
+        .select("customer_id, source_channel, status, created_at")
+        .in("customer_id", customerIds)
+        .order("created_at", { ascending: false });
+
+      if (inquiriesError) {
+        setIsLoadingMoreCustomers(false);
+        setErrorMessage(
+          `No se pudo cargar la actividad de los clientes: ${
+            inquiriesError.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      activityByCustomerId = buildCustomerActivityMap(
+        (inquiriesData ?? []) as InquiryActivityRow[]
+      );
+    }
+
+    const enrichedCustomers = customerRows.map((customer) => {
+      const activity = getCustomerActivity(activityByCustomerId, customer.id);
+
+      return {
+        ...customer,
+        caseCount: activity.caseCount,
+        activeCaseCount: activity.activeCaseCount,
+        latestSourceChannel: activity.latestSourceChannel,
+      };
+    });
+    const nextLoadedCount = customers.length + customerRows.length;
+
+    setCustomers((currentCustomers) => [
+      ...currentCustomers,
+      ...enrichedCustomers.filter(
+        (nextCustomer) =>
+          !currentCustomers.some(
+            (currentCustomer) => currentCustomer.id === nextCustomer.id
+          )
+      ),
+    ]);
+    setHasMoreCustomers(nextLoadedCount < totalCustomerCount);
+    setIsLoadingMoreCustomers(false);
+  };
 
   const handleSearch = () => {
     setAppliedSearchTerm(searchTerm);
@@ -1013,6 +1105,23 @@ export function Customers({ openCustomer }: CustomersProps) {
             })}
           </div>
         </SectionCard>
+      ) : null}
+
+      {!isLoading && !errorMessage && hasMoreCustomers ? (
+        <div className="mt-6 flex flex-col items-center gap-2">
+          <Button
+            variant="secondary"
+            onClick={handleLoadMoreCustomers}
+            disabled={isLoadingMoreCustomers}
+          >
+            {isLoadingMoreCustomers
+              ? "Cargando más clientes..."
+              : "Cargar más clientes"}
+          </Button>
+          <p className="text-xs text-slate-500">
+            Mostrando {customers.length} de {totalCustomerCount} clientes.
+          </p>
+        </div>
       ) : null}
     </div>
   );

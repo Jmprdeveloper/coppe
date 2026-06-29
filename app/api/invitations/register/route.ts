@@ -290,10 +290,10 @@ export async function POST(request: Request) {
     );
   }
 
-  if (!password || password.length < 6) {
+  if (!password || password.length < 10) {
     return jsonError(
       "PASSWORD_TOO_SHORT",
-      "La contraseña debe tener al menos 6 caracteres.",
+      "La contraseña debe tener al menos 10 caracteres.",
       400,
     );
   }

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 
 import { NextResponse } from "next/server";
 
@@ -7,6 +7,21 @@ import {
   readRequestJsonWithLimit,
   RequestBodyTooLargeError,
 } from "../../../../lib/requestBodyLimits";
+import {
+  claimOutboundMessage,
+  finalizeOutboundMessageDelivery,
+  getInquiryMessageById,
+  markOutboundMessageDeliveryFailure,
+} from "../../../../lib/outboundMessageProcessing";
+import {
+  buildOutboundResponseDeduplicationKey,
+  canSendResponseForInquiryStatus,
+  getHttpProviderDeliveryFailureStatus,
+  getOutboundProviderError,
+  isValidOutboundRequestId,
+  OutboundProviderError,
+} from "../../../../lib/outboundResponseReliability";
+import { checkOutboundSendRateLimits } from "../../../../lib/serverApiRateLimit";
 import { createAdminClient } from "../../../../lib/supabase/admin";
 import { createClient } from "../../../../lib/supabase/server";
 
@@ -14,7 +29,8 @@ export const runtime = "nodejs";
 
 const MAX_SEND_EMAIL_RESPONSE_REQUEST_BODY_BYTES = 32 * 1024;
 const MAX_EMAIL_RESPONSE_TEXT_LENGTH = 12000;
-const DUPLICATE_EMAIL_PENDING_WINDOW_MS = 5 * 60 * 1000;
+const DEFAULT_RESEND_REQUEST_TIMEOUT_MS = 15000;
+const MAX_RESEND_REQUEST_TIMEOUT_MS = 30000;
 
 type SendEmailResponseNextStatus = "replied" | "waiting_customer";
 
@@ -22,6 +38,7 @@ type SendEmailResponseRequestBody = {
   inquiryId?: unknown;
   responseText?: unknown;
   nextStatus?: unknown;
+  requestId?: unknown;
 };
 
 type InquiryForEmailResponseRow = {
@@ -54,26 +71,6 @@ type EmailChannelRow = {
   enabled: boolean;
 };
 
-type OutboundMessageRow = {
-  id: string;
-};
-
-type PreviousOutboundEmailRow = {
-  id: string;
-  status: string;
-  body: string | null;
-  created_at: string;
-};
-
-type InquiryMessageRow = {
-  id: string;
-  direction: string;
-  author_type: string;
-  body: string;
-  source_channel: string | null;
-  created_at: string;
-};
-
 type ResendSendEmailResponse = {
   id?: string;
   name?: string;
@@ -85,8 +82,23 @@ function getResendApiKey() {
   return process.env.RESEND_API_KEY?.trim() ?? "";
 }
 
-function createEmailReplyToken() {
-  return randomBytes(16).toString("hex");
+function getResendRequestTimeoutMs() {
+  const value = Number(process.env.RESEND_REQUEST_TIMEOUT_MS);
+
+  if (!Number.isFinite(value) || value <= 0) {
+    return DEFAULT_RESEND_REQUEST_TIMEOUT_MS;
+  }
+
+  return Math.min(Math.round(value), MAX_RESEND_REQUEST_TIMEOUT_MS);
+}
+
+function createEmailReplyToken(deduplicationKey: string) {
+  return createHash("sha256")
+    .update("coppe-email-reply")
+    .update("\n")
+    .update(deduplicationKey)
+    .digest("hex")
+    .slice(0, 32);
 }
 
 function getEmailDomain(address: string) {
@@ -145,162 +157,6 @@ function buildEmailSubject(
   return `Respuesta de ${sanitizeDisplayName(companyName)}`.slice(0, 200);
 }
 
-function stripLeadingGreetingForDuplicateCheck(value: string) {
-  return value
-    .replace(/^(hola|hello|hi)\s*[,.:;!\-–—]\s*/u, "")
-    .replace(
-      /^(hola|hello|hi)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
-      ""
-    )
-    .replace(
-      /^(estimado\/a|estimado|estimada|dear)\s+[\p{L}\p{M}'’ .-]{1,80}\s*[,.:;!\-–—]\s*/u,
-      ""
-    )
-    .replace(
-      /^(buenos dias|buenos días|buenas tardes|buenas noches|good morning|good afternoon|good evening)\s*[,.:;!\-–—]?\s*/u,
-      ""
-    )
-    .trim();
-}
-
-function normalizeEmailResponseTextForDuplicateCheck(value: string) {
-  return stripLeadingGreetingForDuplicateCheck(
-    value
-      .normalize("NFKC")
-      .replace(/\s+/g, " ")
-      .trim()
-      .replace(/[.!?¡¿…;:]+$/g, "")
-      .replace(/\s+/g, " ")
-      .trim()
-      .toLowerCase()
-  )
-    .replace(/[.!?¡¿…;:]+$/g, "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
-function isRecentPendingDuplicateEmail(createdAt: string) {
-  const createdAtTime = Date.parse(createdAt);
-
-  if (!Number.isFinite(createdAtTime)) {
-    return false;
-  }
-
-  return Date.now() - createdAtTime <= DUPLICATE_EMAIL_PENDING_WINDOW_MS;
-}
-
-function getDuplicateEmailResponseStatus(
-  previousEmails: PreviousOutboundEmailRow[],
-  responseText: string
-): "pending" | "sent" | null {
-  const normalizedResponseText =
-    normalizeEmailResponseTextForDuplicateCheck(responseText);
-
-  const matchingEmails = previousEmails.filter(
-    (previousEmail) =>
-      normalizeEmailResponseTextForDuplicateCheck(previousEmail.body ?? "") ===
-      normalizedResponseText
-  );
-
-  if (matchingEmails.some((previousEmail) => previousEmail.status === "sent")) {
-    return "sent";
-  }
-
-  if (
-    matchingEmails.some(
-      (previousEmail) =>
-        previousEmail.status === "pending" &&
-        isRecentPendingDuplicateEmail(previousEmail.created_at)
-    )
-  ) {
-    return "pending";
-  }
-
-  return null;
-}
-
-async function getDuplicateEmailResponseStatusForCase(
-  supabaseAdmin: ReturnType<typeof createAdminClient>,
-  values: {
-    companyId: string;
-    inquiryId: string;
-    toAddress: string;
-    responseText: string;
-  }
-) {
-  const { data, error } = await supabaseAdmin
-    .from("outbound_messages")
-    .select("id, status, body, created_at")
-    .eq("company_id", values.companyId)
-    .eq("inquiry_id", values.inquiryId)
-    .eq("channel", "email")
-    .eq("provider", "resend")
-    .eq("to_address", values.toAddress)
-    .in("status", ["pending", "sent"])
-    .order("created_at", { ascending: false })
-    .limit(30);
-
-  if (error) {
-    throw new Error(
-      `No se pudo comprobar si esta respuesta ya fue enviada: ${
-        error.message || "sin detalle del error"
-      }`
-    );
-  }
-
-  return getDuplicateEmailResponseStatus(
-    (data ?? []) as PreviousOutboundEmailRow[],
-    values.responseText
-  );
-}
-
-async function createEmailResponseAuditLog(
-  supabase: Awaited<ReturnType<typeof createClient>>,
-  values: {
-    companyId: string;
-    inquiryId: string;
-    customerId: string;
-    customerEmail: string;
-    emailChannelId: string;
-    fromAddress: string;
-    subject: string;
-    outboundMessageId: string;
-    inquiryMessageId: string | null;
-    providerMessageId: string;
-    nextStatus: SendEmailResponseNextStatus;
-    warning?: string;
-  }
-) {
-  const metadata: Record<string, string | null> = {
-    customer_id: values.customerId,
-    customer_email: values.customerEmail,
-    email_channel_id: values.emailChannelId,
-    from_address: values.fromAddress,
-    subject: values.subject,
-    outbound_message_id: values.outboundMessageId,
-    inquiry_message_id: values.inquiryMessageId,
-    provider: "resend",
-    provider_message_id: values.providerMessageId,
-    requested_next_status: values.nextStatus,
-  };
-
-  if (values.warning) {
-    metadata.warning = values.warning;
-  }
-
-  const { error } = await supabase.rpc("create_audit_log", {
-    target_company_id: values.companyId,
-    audit_action: "send_email_response",
-    audit_entity_type: "inquiry",
-    audit_entity_id: values.inquiryId,
-    audit_metadata: metadata,
-  });
-
-  if (error) {
-    console.error("Email sent, but could not create audit log:", error);
-  }
-}
-
 function getResendErrorMessage(payload: ResendSendEmailResponse | null) {
   const message =
     typeof payload?.message === "string" && payload.message.trim()
@@ -329,43 +185,100 @@ async function sendEmailWithResend({
   subject,
   text,
   replyTo,
+  idempotencyKey,
 }: {
   from: string;
   to: string;
   subject: string;
   text: string;
   replyTo: string;
+  idempotencyKey: string;
 }) {
   const apiKey = getResendApiKey();
 
   if (!apiKey) {
-    throw new Error("Missing RESEND_API_KEY environment variable.");
+    throw new OutboundProviderError(
+      "Missing RESEND_API_KEY environment variable.",
+      "failed"
+    );
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [to],
-      subject,
-      text,
-      reply_to: replyTo,
-    }),
-  });
+  let lastUncertainError: OutboundProviderError | null = null;
 
-  const payload = (await response
-    .json()
-    .catch(() => null)) as ResendSendEmailResponse | null;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+    }, getResendRequestTimeoutMs());
 
-  if (!response.ok || !payload?.id) {
-    throw new Error(getResendErrorMessage(payload));
+    try {
+      const response = await fetch("https://api.resend.com/emails", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "Content-Type": "application/json",
+          "Idempotency-Key": idempotencyKey,
+        },
+        body: JSON.stringify({
+          from,
+          to: [to],
+          subject,
+          text,
+          reply_to: replyTo,
+        }),
+        signal: controller.signal,
+      });
+
+      const payload = (await response
+        .json()
+        .catch(() => null)) as ResendSendEmailResponse | null;
+
+      if (!response.ok) {
+        const providerError = new OutboundProviderError(
+          getResendErrorMessage(payload),
+          getHttpProviderDeliveryFailureStatus(response.status)
+        );
+
+        if ((response.status === 429 || response.status >= 500) && attempt < 2) {
+          lastUncertainError = providerError;
+          continue;
+        }
+
+        throw providerError;
+      }
+
+      if (!payload?.id) {
+        throw new OutboundProviderError(
+          "Resend aceptó la petición sin devolver un identificador de mensaje.",
+          "unknown"
+        );
+      }
+
+      return payload.id;
+    } catch (error) {
+      const providerError = getOutboundProviderError(
+        error,
+        "No se pudo enviar el email con Resend."
+      );
+
+      if (providerError.deliveryStatus === "unknown" && attempt < 2) {
+        lastUncertainError = providerError;
+        continue;
+      }
+
+      throw providerError;
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
-  return payload.id;
+  throw (
+    lastUncertainError ??
+    new OutboundProviderError(
+      "No se pudo confirmar el envío del email con Resend.",
+      "unknown"
+    )
+  );
 }
 
 export async function POST(request: Request) {
@@ -403,6 +316,8 @@ export async function POST(request: Request) {
     typeof body.responseText === "string" ? body.responseText.trim() : "";
   const nextStatus =
     typeof body.nextStatus === "string" ? body.nextStatus.trim() : "";
+  const requestId =
+    typeof body.requestId === "string" ? body.requestId.trim() : "";
 
   if (!inquiryId) {
     return NextResponse.json(
@@ -434,6 +349,13 @@ export async function POST(request: Request) {
     );
   }
 
+  if (!requestId || !isValidOutboundRequestId(requestId)) {
+    return NextResponse.json(
+      { error: "El identificador idempotente del envío no es válido." },
+      { status: 400 }
+    );
+  }
+
   const { data: inquiry, error: inquiryError } = await supabase
     .from("inquiries")
     .select("id, company_id, customer_id, customer_name, source_channel, subject, status")
@@ -451,6 +373,13 @@ export async function POST(request: Request) {
     return NextResponse.json(
       { error: "No se encontró este caso o no pertenece a tu empresa." },
       { status: 404 }
+    );
+  }
+
+  if (!canSendResponseForInquiryStatus(inquiry.status)) {
+    return NextResponse.json(
+      { error: "Este caso no admite nuevas respuestas salientes." },
+      { status: 400 }
     );
   }
 
@@ -548,84 +477,129 @@ export async function POST(request: Request) {
     );
   }
 
-  let duplicateEmailStatus: "pending" | "sent" | null = null;
-
-  try {
-    duplicateEmailStatus = await getDuplicateEmailResponseStatusForCase(
-      supabaseAdmin,
-      {
-        companyId: inquiry.company_id,
-        inquiryId: inquiry.id,
-        toAddress,
-        responseText,
-      }
-    );
-  } catch (error) {
-    console.error("Could not check duplicate email response:", error);
-
-    return NextResponse.json(
-      { error: "No se pudo comprobar si esta respuesta ya fue enviada." },
-      { status: 500 }
-    );
-  }
-
-  if (duplicateEmailStatus === "sent") {
-    return NextResponse.json(
-      {
-        error:
-          "Esta respuesta ya fue enviada por email en este caso. Edita el texto si necesitas enviar una nueva respuesta.",
-      },
-      { status: 409 }
-    );
-  }
-
-  if (duplicateEmailStatus === "pending") {
-    return NextResponse.json(
-      {
-        error:
-          "Esta respuesta ya se está enviando por email en este caso. Espera unos segundos antes de intentarlo de nuevo.",
-      },
-      { status: 409 }
-    );
-  }
-
   const subject = buildEmailSubject(inquiry, company.name);
   const fromName = company.name;
   const fromHeader = buildFromHeader(fromName, fromAddress);
-  const replyToken = createEmailReplyToken();
+  const deduplicationKey = buildOutboundResponseDeduplicationKey({
+    channel: "email",
+    requestId,
+    inquiryId: inquiry.id,
+    customerId: customer.id,
+    destination: toAddress,
+    responseText,
+  });
+  const replyToken = createEmailReplyToken(deduplicationKey);
   const replyToAddress = buildReplyToAddress(replyToken, fromAddress);
-  const now = new Date().toISOString();
+  let outboundMessageClaim: Awaited<ReturnType<typeof claimOutboundMessage>>;
 
-  const { data: outboundMessage, error: outboundMessageError } =
-    await supabaseAdmin
-      .from("outbound_messages")
-      .insert({
-        company_id: inquiry.company_id,
-        inquiry_id: inquiry.id,
-        customer_id: customer.id,
-        channel: "email",
-        provider: "resend",
-        status: "pending",
-        from_address: fromAddress,
-        from_name: fromName,
-        to_address: toAddress,
-        subject,
-        body: responseText,
-        reply_token: replyToken,
-        created_by: user.id,
-      })
-      .select("id")
-      .single<OutboundMessageRow>();
-
-  if (outboundMessageError || !outboundMessage) {
-    console.error(
-      "Could not create outbound email message log:",
-      outboundMessageError
-    );
+  try {
+    outboundMessageClaim = await claimOutboundMessage(supabaseAdmin, {
+      companyId: inquiry.company_id,
+      inquiryId: inquiry.id,
+      customerId: customer.id,
+      channel: "email",
+      provider: "resend",
+      fromAddress,
+      fromName,
+      toAddress,
+      subject,
+      body: responseText,
+      deduplicationKey,
+      replyToken,
+      nextStatus,
+      userId: user.id,
+    });
+  } catch (error) {
+    console.error("Could not claim outbound email message:", error);
 
     return NextResponse.json(
       { error: "No se pudo registrar el intento de envío." },
       { status: 500 }
+    );
+  }
+
+  if (outboundMessageClaim.outcome === "already_sent") {
+    const inquiryMessage = await getInquiryMessageById(
+      supabaseAdmin,
+      outboundMessageClaim.inquiryMessageId
+    ).catch((error) => {
+      console.error("Could not load already sent email message:", error);
+      return null;
+    });
+
+    return NextResponse.json({
+      ok: true,
+      duplicate: true,
+      providerMessageId: outboundMessageClaim.providerMessageId,
+      inquiryMessage,
+      nextStatus,
+    });
+  }
+
+  if (outboundMessageClaim.outcome === "in_progress") {
+    return NextResponse.json(
+      {
+        error:
+          "Este envío de email ya se está procesando. Espera unos segundos antes de intentarlo de nuevo.",
+      },
+      { status: 409 }
+    );
+  }
+
+  if (outboundMessageClaim.outcome === "delivery_unknown") {
+    return NextResponse.json(
+      {
+        error:
+          "COPPE no puede confirmar el resultado de un intento anterior. No se reenviará automáticamente para evitar duplicados.",
+      },
+      { status: 409 }
+    );
+  }
+
+  let rateLimit: Awaited<ReturnType<typeof checkOutboundSendRateLimits>>;
+
+  try {
+    rateLimit = await checkOutboundSendRateLimits(supabaseAdmin, {
+      companyId: inquiry.company_id,
+      userId: user.id,
+      channel: "email",
+    });
+  } catch (error) {
+    console.error("Could not check outbound email rate limit:", error);
+
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: "failed",
+      errorMessage: "No se pudo comprobar el límite de envíos.",
+    });
+
+    return NextResponse.json(
+      { error: "No se pudo comprobar el límite de envíos." },
+      { status: 500 }
+    );
+  }
+
+  if (!rateLimit.allowed) {
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: "failed",
+      errorMessage: "Límite temporal de envíos de email alcanzado.",
+    });
+
+    return NextResponse.json(
+      {
+        error:
+          "Se ha alcanzado el límite temporal de envíos de email. Inténtalo de nuevo más tarde.",
+        retryAfterSeconds: rateLimit.retry_after_seconds,
+      },
+      {
+        status: 429,
+        headers: {
+          "Retry-After": String(rateLimit.retry_after_seconds),
+        },
+      }
     );
   }
 
@@ -638,141 +612,67 @@ export async function POST(request: Request) {
       subject,
       text: responseText,
       replyTo: replyToAddress,
+      idempotencyKey: deduplicationKey,
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "No se pudo enviar el email.";
+    const providerError = getOutboundProviderError(
+      error,
+      "No se pudo enviar el email."
+    );
 
     console.error("Could not send email response with Resend:", error);
 
-    await supabaseAdmin
-      .from("outbound_messages")
-      .update({
-        status: "failed",
-        error_message: errorMessage,
-        failed_at: now,
-      })
-      .eq("id", outboundMessage.id);
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: providerError.deliveryStatus,
+      errorMessage: providerError.message,
+    });
 
     return NextResponse.json(
       {
         error:
-          "No se pudo enviar el email. Revisa la configuración del canal de email.",
+          providerError.deliveryStatus === "unknown"
+            ? "No se pudo confirmar el resultado del envío. COPPE no lo repetirá automáticamente para evitar duplicados."
+            : "No se pudo enviar el email. Revisa la configuración del canal de email.",
       },
       { status: 502 }
     );
   }
 
-  const { data: createdInquiryMessage, error: createInquiryMessageError } =
-    await supabaseAdmin
-      .from("inquiry_messages")
-      .insert({
-        company_id: inquiry.company_id,
-        inquiry_id: inquiry.id,
-        customer_id: customer.id,
-        direction: "outbound",
-        author_type: "company",
-        body: responseText,
-        source_channel: "Email",
-      })
-      .select("id, direction, author_type, body, source_channel, created_at")
-      .single<InquiryMessageRow>();
+  let createdInquiryMessage;
 
-  if (createInquiryMessageError || !createdInquiryMessage) {
-    console.error(
-      "Email sent, but could not create inquiry message:",
-      createInquiryMessageError
+  try {
+    createdInquiryMessage = await finalizeOutboundMessageDelivery(
+      supabaseAdmin,
+      {
+        outboundMessageId: outboundMessageClaim.outboundMessageId,
+        processingToken: outboundMessageClaim.processingToken,
+        companyId: inquiry.company_id,
+        providerMessageId,
+        nextStatus,
+      }
     );
+  } catch (error) {
+    console.error("Email accepted, but finalization failed:", error);
 
-    await supabaseAdmin
-      .from("outbound_messages")
-      .update({
-        status: "sent",
-        provider_message_id: providerMessageId,
-        error_message:
-          "El email se envió, pero no se pudo registrar en el historial del caso.",
-        sent_at: new Date().toISOString(),
-      })
-      .eq("id", outboundMessage.id);
-
-    await createEmailResponseAuditLog(supabase, {
-      companyId: inquiry.company_id,
-      inquiryId: inquiry.id,
-      customerId: customer.id,
-      customerEmail: toAddress,
-      emailChannelId: emailChannel.id,
-      fromAddress,
-      subject,
-      outboundMessageId: outboundMessage.id,
-      inquiryMessageId: null,
+    await markOutboundMessageDeliveryFailure(supabaseAdmin, {
+      outboundMessageId: outboundMessageClaim.outboundMessageId,
+      processingToken: outboundMessageClaim.processingToken,
+      deliveryStatus: "unknown",
+      errorMessage:
+        error instanceof Error
+          ? error.message
+          : "El proveedor aceptó el email, pero no se pudo finalizar su registro.",
       providerMessageId,
-      nextStatus,
-      warning: "inquiry_message_creation_failed",
     });
 
     return NextResponse.json(
       {
-        ok: true,
-        warning:
-          "El email se envió, pero no se pudo registrar en el historial del caso.",
-        providerMessageId,
+        error:
+          "El proveedor aceptó el email, pero COPPE no pudo finalizar el historial. No vuelvas a enviarlo hasta revisar el intento.",
       },
-      { status: 200 }
-    );
-  }
-
-  const { error: updateOutboundMessageError } = await supabaseAdmin
-    .from("outbound_messages")
-    .update({
-      status: "sent",
-      provider_message_id: providerMessageId,
-      inquiry_message_id: createdInquiryMessage.id,
-      sent_at: new Date().toISOString(),
-    })
-    .eq("id", outboundMessage.id);
-
-  if (updateOutboundMessageError) {
-    console.error(
-      "Email sent, but could not update outbound message log:",
-      updateOutboundMessageError
-    );
-  }
-
-  await createEmailResponseAuditLog(supabase, {
-    companyId: inquiry.company_id,
-    inquiryId: inquiry.id,
-    customerId: customer.id,
-    customerEmail: toAddress,
-    emailChannelId: emailChannel.id,
-    fromAddress,
-    subject,
-    outboundMessageId: outboundMessage.id,
-    inquiryMessageId: createdInquiryMessage.id,
-    providerMessageId,
-    nextStatus,
-  });
-
-  const { error: updateInquiryError } = await supabaseAdmin
-    .from("inquiries")
-    .update({
-      status: nextStatus,
-      suggested_response: responseText,
-    })
-    .eq("id", inquiry.id)
-    .eq("company_id", inquiry.company_id);
-
-  if (updateInquiryError) {
-    console.error("Email sent, but could not update inquiry:", updateInquiryError);
-
-    return NextResponse.json(
-      {
-        ok: true,
-        warning:
-          "El email se envió, pero no se pudo actualizar el estado del caso.",
-        providerMessageId,
-        inquiryMessage: createdInquiryMessage,
-      },
-      { status: 200 }
+      { status: 502 }
     );
   }
 
