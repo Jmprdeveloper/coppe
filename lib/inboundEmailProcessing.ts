@@ -7,6 +7,8 @@ import {
 import { inferSentiment } from "./inquiryAnalysis";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
+import { sendAutomaticAcknowledgement } from "./automaticAcknowledgement";
+import { screenAndQuarantineInboundMessage } from "./inboundMessageSafety";
 import { createAdminClient } from "./supabase/admin";
 
 export type InboundEmailRequestBody = {
@@ -33,6 +35,9 @@ type InboundEmailCompany = {
   description: string | null;
   tone: string | null;
   language: string | null;
+  auto_acknowledgement_enabled: boolean;
+  auto_acknowledgement_message: string | null;
+  inbound_filter_enabled: boolean;
 };
 
 type InboundEmailAnalysis = Awaited<ReturnType<typeof analyzeInquiryForCompany>>;
@@ -213,7 +218,9 @@ async function findInboundCompany(
 ) {
   const { data, error } = await supabaseAdmin
     .from("companies")
-    .select("id, name, sector, description, tone, language")
+    .select(
+      "id, name, sector, description, tone, language, auto_acknowledgement_enabled, auto_acknowledgement_message, inbound_filter_enabled"
+    )
     .eq("id", companyId)
     .maybeSingle<InboundEmailCompany>();
 
@@ -1299,6 +1306,44 @@ export async function processInboundEmail(
     return buildErrorResult(GENERIC_INBOUND_EMAIL_ERROR_MESSAGE, 500);
   }
 
+  try {
+    const safetyDecision = await screenAndQuarantineInboundMessage(
+      supabaseAdmin,
+      {
+        companyId: company.id,
+        inboundEventId,
+        processingToken,
+        sourceChannel: "Email",
+        senderName: fromName || customerName,
+        senderEmail: fromEmail,
+        senderKey: fromEmail,
+        subject,
+        body: textBody,
+        filterEnabled: company.inbound_filter_enabled,
+        applySenderRateLimit: true,
+      }
+    );
+
+    if (safetyDecision.quarantined) {
+      return {
+        ok: true,
+        status: 202,
+        inquiryId: null,
+        message: "Email recibido para revisión.",
+      };
+    }
+  } catch (error) {
+    return buildFailedResultAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      processingToken,
+      error instanceof Error
+        ? error.message
+        : "No se pudo comprobar la seguridad del email.",
+      500
+    );
+  }
+
   const now = new Date().toISOString();
 
   let customer: CustomerRow | null = null;
@@ -1427,6 +1472,14 @@ export async function processInboundEmail(
   }
 
   const createdInquiryId = String(createdInquiryIdFromRpc);
+
+  await sendAutomaticAcknowledgement(supabaseAdmin, {
+    company,
+    inquiryId: createdInquiryId,
+    customer,
+    channel: "Email",
+    subject: subject || analysis.subject,
+  });
 
   return {
     ok: true,

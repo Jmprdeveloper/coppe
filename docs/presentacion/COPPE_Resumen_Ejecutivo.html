@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>COPPE — Resumen ejecutivo</title>
+    <style>
+      :root { --ink:#0f3038; --teal:#0d515b; --orange:#f05a28; --pale:#e9f6f7; --border:#ccdee1; --muted:#57696f; }
+      * { box-sizing:border-box; }
+      @page { size:A4; margin:14mm; }
+      body { margin:0; color:var(--ink); font:10pt/1.42 "Aptos","Segoe UI",sans-serif; }
+      header { border-top:7px solid var(--orange); padding-top:7mm; display:flex; justify-content:space-between; align-items:start; }
+      h1,h2,h3 { font-family:"Aptos Display","Segoe UI",sans-serif; }
+      h1 { font-size:28pt; margin:0; }
+      h2 { font-size:18pt; line-height:1.2; margin:4mm 0 5mm; max-width:165mm; }
+      h3 { font-size:12pt; margin:0 0 2mm; }
+      p { margin:0 0 3mm; }
+      ul { margin:2mm 0 0; padding-left:5mm; }
+      li { margin-bottom:1.1mm; }
+      .mark { color:white; background:var(--teal); padding:2mm 4mm; border-radius:3mm; font-weight:800; }
+      .lead { font-size:12.5pt; color:var(--teal); }
+      .grid { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin-top:5mm; }
+      .card { border:1px solid var(--border); border-left:4px solid var(--teal); border-radius:3mm; padding:4mm; }
+      .card.orange { border-left-color:var(--orange); }
+      .pilot { margin-top:5mm; background:var(--ink); color:white; border-radius:4mm; padding:5mm; display:grid; grid-template-columns:1fr 1.6fr; gap:5mm; }
+      .pilot strong { color:var(--orange); font-size:20pt; display:block; }
+      .note { margin-top:4mm; padding:3mm 4mm; background:var(--pale); border-radius:3mm; color:var(--teal); }
+      footer { margin-top:5mm; padding-top:3mm; border-top:1px solid var(--border); color:var(--muted); display:flex; justify-content:space-between; font-size:8.5pt; }
+    </style>
+  </head>
+  <body>
+    <header><div><h1>COPPE</h1><h2>Atención al cliente convertida en trabajo organizado</h2></div><span class="mark">SaaS B2B</span></header>
+    <p class="lead">Centraliza consultas, crea casos trazables y ayuda al equipo a responder, asignar responsables y programar seguimientos.</p>
+    <div class="grid">
+      <section class="card orange">
+        <h3>El problema</h3>
+        <ul>
+          <li>Consultas repartidas entre canales y personas.</li>
+          <li>Contexto difícil de reconstruir.</li>
+          <li>Respuestas y seguimientos olvidados.</li>
+          <li>Poca visibilidad operativa.</li>
+        </ul>
+      </section>
+      <section class="card">
+        <h3>La solución</h3>
+        <ul>
+          <li>Bandeja central de clientes y casos.</li>
+          <li>Prioridad, categoría, estado y canal.</li>
+          <li>Resumen, intención y borrador asistidos.</li>
+          <li>Responsables, notas, citas y recordatorios.</li>
+        </ul>
+      </section>
+      <section class="card">
+        <h3>Control</h3>
+        <ul>
+          <li>Revisión humana de respuestas.</li>
+          <li>Roles, MFA y aislamiento por empresa.</li>
+          <li>Auditoría y exportación.</li>
+          <li>Canales activados durante el onboarding.</li>
+        </ul>
+      </section>
+      <section class="card orange">
+        <h3>Qué medimos</h3>
+        <ul>
+          <li>Tiempo hasta primera revisión.</li>
+          <li>Casos sin responsable.</li>
+          <li>Seguimientos vencidos.</li>
+          <li>Resolución y adopción del equipo.</li>
+        </ul>
+      </section>
+    </div>
+    <section class="pilot">
+      <div><span>Piloto recomendado</span><strong>1.500 € + IVA</strong><span>30 días</span></div>
+      <div><b>Un equipo · hasta 10 usuarios · hasta 1.000 casos.</b><br />Configuración, formación, revisión semanal e informe final. El importe se imputa al onboarding si convierte en contrato anual.</div>
+    </section>
+    <p class="note"><b>Siguiente paso:</b> sesión de descubrimiento de 45 minutos para definir proceso, volumen, canales y criterios de éxito.</p>
+    <footer><span>COPPE · app.coppe.es</span><span>Resumen comercial no vinculante</span></footer>
+  </body>
+</html>

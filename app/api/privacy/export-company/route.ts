@@ -121,11 +121,16 @@ export async function GET() {
       emailChannelsResult,
       whatsAppChannelsResult,
       publicChatSessionsResult,
+      acknowledgementsResult,
+      inboundNotificationsResult,
+      notificationReadsResult,
+      inboundSenderRulesResult,
+      inboundQuarantineResult,
     ] = await Promise.all([
       supabaseAdmin
         .from("companies")
         .select(
-          "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled, created_at"
+          "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled, auto_acknowledgement_enabled, auto_acknowledgement_message, inbound_filter_enabled, created_at"
         )
         .eq("id", company.id)
         .maybeSingle(),
@@ -179,11 +184,33 @@ export async function GET() {
           "id, company_id, inquiry_id, customer_id, expires_at, last_activity_at, created_at"
         )
         .eq("company_id", company.id),
+      supabaseAdmin
+        .from("automatic_acknowledgements")
+        .select("*")
+        .eq("company_id", company.id),
+      supabaseAdmin
+        .from("inbound_notifications")
+        .select("*")
+        .eq("company_id", company.id),
+      supabaseAdmin
+        .from("inbound_notification_reads")
+        .select(
+          "notification_id, user_id, read_at, inbound_notifications!inner(company_id)"
+        )
+        .eq("inbound_notifications.company_id", company.id),
+      supabaseAdmin
+        .from("inbound_sender_rules")
+        .select("*")
+        .eq("company_id", company.id),
+      supabaseAdmin
+        .from("inbound_message_quarantine")
+        .select("*")
+        .eq("company_id", company.id),
     ]);
 
     const exportedAt = new Date().toISOString();
     const exportPayload = {
-      schemaVersion: 1,
+      schemaVersion: 2,
       exportedAt,
       company: assertExportQuery(companyResult, "la empresa"),
       team: assertExportQuery(teamResult, "el equipo"),
@@ -216,6 +243,26 @@ export async function GET() {
       publicChatSessions: assertExportQuery(
         publicChatSessionsResult,
         "las sesiones de chat público"
+      ),
+      automaticAcknowledgements: assertExportQuery(
+        acknowledgementsResult,
+        "los acuses automáticos"
+      ),
+      inboundNotifications: assertExportQuery(
+        inboundNotificationsResult,
+        "las notificaciones de entrada"
+      ),
+      inboundNotificationReads: assertExportQuery(
+        notificationReadsResult,
+        "las lecturas de notificaciones"
+      ),
+      inboundSenderRules: assertExportQuery(
+        inboundSenderRulesResult,
+        "las reglas de remitentes"
+      ),
+      inboundMessageQuarantine: assertExportQuery(
+        inboundQuarantineResult,
+        "la cuarentena de entrada"
       ),
     };
     const filenameDate = exportedAt.slice(0, 10);

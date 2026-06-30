@@ -97,10 +97,15 @@ export type Appointment = {
   id: string;
   inquiryId: string;
   customerId: string;
+  assignedTo: string;
   title: string;
   scheduledAt: string;
   scheduledAtIso: string;
   durationMinutes: number;
+  timezone: string;
+  location: string;
+  bufferBeforeMinutes: number;
+  bufferAfterMinutes: number;
   status: AppointmentStatus;
   notes: string;
   createdAt: string;

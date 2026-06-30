@@ -9,6 +9,8 @@ import {
   import { inferSentiment } from "./inquiryAnalysis";
   import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
   import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
+  import { sendAutomaticAcknowledgement } from "./automaticAcknowledgement";
+  import { screenAndQuarantineInboundMessage } from "./inboundMessageSafety";
   import { createAdminClient } from "./supabase/admin";
   import {
     buildWhatsAppThreadAnalysisContext,
@@ -91,6 +93,9 @@ import {
     description: string | null;
     tone: string | null;
     language: string | null;
+    auto_acknowledgement_enabled: boolean;
+    auto_acknowledgement_message: string | null;
+    inbound_filter_enabled: boolean;
   };
   
   type InboundWhatsAppAnalysis = Awaited<
@@ -377,7 +382,9 @@ import {
   ) {
     const { data, error } = await supabaseAdmin
       .from("companies")
-      .select("id, name, sector, description, tone, language")
+      .select(
+        "id, name, sector, description, tone, language, auto_acknowledgement_enabled, auto_acknowledgement_message, inbound_filter_enabled"
+      )
       .eq("id", companyId)
       .maybeSingle<InboundWhatsAppCompany>();
   
@@ -660,6 +667,46 @@ import {
         500
       );
     }
+
+    try {
+      const safetyDecision = await screenAndQuarantineInboundMessage(
+        supabaseAdmin,
+        {
+          companyId: company.id,
+          inboundEventId,
+          processingToken,
+          sourceChannel: "WhatsApp",
+          senderName: message.customerName,
+          senderPhone: message.fromPhone,
+          senderKey: message.fromPhone,
+          body: message.textBody,
+          filterEnabled: company.inbound_filter_enabled,
+          applySenderRateLimit: true,
+        }
+      );
+
+      if (safetyDecision.quarantined) {
+        return {
+          ok: true,
+          status: 202,
+          processed: 0,
+          ignored: 1,
+          duplicates: 0,
+          inquiryIds: [],
+          message: "WhatsApp recibido para revisión.",
+        };
+      }
+    } catch (error) {
+      return buildFailedResultAfterInboundEvent(
+        supabaseAdmin,
+        inboundEventId,
+        processingToken,
+        error instanceof Error
+          ? error.message
+          : "No se pudo comprobar la seguridad del WhatsApp.",
+        500
+      );
+    }
   
     const now = new Date().toISOString();
   
@@ -838,6 +885,16 @@ import {
     }
 
     const finalizedInquiryId = finalizedWhatsAppMessage.inquiry_id;
+
+    if (finalizedWhatsAppMessage.created_new) {
+      await sendAutomaticAcknowledgement(supabaseAdmin, {
+        company,
+        inquiryId: finalizedInquiryId,
+        customer,
+        channel: "WhatsApp",
+        subject: analysis.subject,
+      });
+    }
   
     return {
       ok: true,

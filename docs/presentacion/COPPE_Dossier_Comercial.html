@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>COPPE — Dossier comercial</title>
+    <style>
+      :root {
+        --ink: #0f3038;
+        --teal: #0d515b;
+        --orange: #f05a28;
+        --pale: #e9f6f7;
+        --paper: #f8fafa;
+        --muted: #57696f;
+        --border: #ccdee1;
+      }
+      * { box-sizing: border-box; }
+      @page { size: A4; margin: 15mm; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background: white;
+        font: 10.5pt/1.5 "Aptos", "Segoe UI", sans-serif;
+      }
+      .page {
+        min-height: 267mm;
+        page-break-after: always;
+        position: relative;
+        padding: 6mm 2mm 12mm;
+      }
+      .page:last-child { page-break-after: auto; }
+      h1, h2, h3 { font-family: "Aptos Display", "Segoe UI", sans-serif; }
+      h1 { font-size: 28pt; line-height: 1.08; margin: 0 0 10mm; }
+      h2 {
+        font-size: 20pt;
+        line-height: 1.15;
+        margin: 0 0 7mm;
+        padding-bottom: 3mm;
+        border-bottom: 2px solid var(--orange);
+      }
+      h3 { font-size: 13pt; margin: 6mm 0 2mm; }
+      p { margin: 0 0 3.2mm; }
+      ul, ol { margin: 2mm 0 5mm 6mm; padding-left: 5mm; }
+      li { margin-bottom: 1.4mm; }
+      .eyebrow {
+        color: var(--orange);
+        font-weight: 800;
+        font-size: 9pt;
+        letter-spacing: .12em;
+        text-transform: uppercase;
+      }
+      .lead { font-size: 15pt; line-height: 1.45; color: var(--teal); }
+      .cover {
+        background: var(--ink);
+        color: white;
+        margin: -15mm;
+        padding: 28mm 20mm;
+        min-height: 297mm;
+      }
+      .cover h1 { font-size: 34pt; max-width: 165mm; margin-top: 42mm; }
+      .cover .lead { color: #d6edef; max-width: 150mm; }
+      .mark {
+        display: inline-block;
+        color: white;
+        background: var(--orange);
+        border-radius: 4mm;
+        padding: 2mm 5mm;
+        font-weight: 800;
+      }
+      .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5mm; }
+      .grid.three { grid-template-columns: repeat(3, 1fr); }
+      .card {
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--teal);
+        border-radius: 3mm;
+        padding: 5mm;
+        background: white;
+      }
+      .card.orange { border-left-color: var(--orange); }
+      .card h3 { margin-top: 0; }
+      .price {
+        background: var(--ink);
+        color: white;
+        border-radius: 4mm;
+        padding: 9mm;
+        margin: 5mm 0;
+      }
+      .price strong { display: block; color: var(--orange); font-size: 25pt; }
+      .note {
+        background: var(--pale);
+        border: 1px solid var(--border);
+        border-radius: 3mm;
+        padding: 5mm;
+        margin: 5mm 0;
+      }
+      .footer {
+        position: absolute;
+        bottom: 3mm;
+        left: 2mm;
+        right: 2mm;
+        color: var(--muted);
+        font-size: 8.5pt;
+        display: flex;
+        justify-content: space-between;
+      }
+      .muted { color: var(--muted); }
+      .flow { display: flex; align-items: stretch; gap: 2mm; margin: 8mm 0; }
+      .step {
+        flex: 1;
+        background: var(--pale);
+        border-radius: 3mm;
+        padding: 4mm;
+        text-align: center;
+      }
+      .step b { display: block; color: var(--orange); margin-bottom: 2mm; }
+      .faq h3 { color: var(--teal); margin-top: 5mm; }
+      .pill {
+        display: inline-block;
+        border: 1px solid var(--border);
+        border-radius: 99px;
+        padding: 1mm 3mm;
+        margin: 0 1mm 1mm 0;
+        font-size: 9pt;
+      }
+    </style>
+  </head>
+  <body>
+    <section class="page">
+      <div class="cover">
+        <span class="mark">COPPE</span>
+        <h1>Atención al cliente convertida en trabajo organizado</h1>
+        <p class="lead">
+          Centraliza consultas, prepara respuestas con IA y convierte cada
+          conversación en una acción trazable.
+        </p>
+        <p style="margin-top: 40mm">Dossier comercial · Piloto B2B</p>
+        <p class="muted" style="color:#b9d9dd">app.coppe.es</p>
+      </div>
+    </section>
+
+    <section class="page">
+      <p class="eyebrow">Resumen ejecutivo</p>
+      <h2>Un espacio común para atender, decidir y hacer seguimiento</h2>
+      <p class="lead">
+        COPPE es un SaaS B2B para pequeñas empresas que convierte contactos de
+        clientes en casos trazables y ayuda al equipo a responder con contexto.
+      </p>
+      <div class="grid" style="margin-top:8mm">
+        <div class="card orange">
+          <h3>El problema</h3>
+          <ul>
+            <li>Consultas repartidas entre canales.</li>
+            <li>Contexto fragmentado entre personas.</li>
+            <li>Respuestas y seguimientos olvidados.</li>
+            <li>Poca visibilidad para responsables.</li>
+          </ul>
+        </div>
+        <div class="card">
+          <h3>La solución</h3>
+          <ul>
+            <li>Bandeja central de casos.</li>
+            <li>Prioridad, categoría, estado y canal.</li>
+            <li>Resumen y borrador asistidos.</li>
+            <li>Responsables, citas y seguimientos.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="note">
+        <strong>Diferencia principal:</strong> COPPE no pretende sustituir al
+        equipo. Reduce trabajo repetitivo y mantiene a una persona al mando de
+        cada respuesta y decisión.
+      </div>
+      <h3>Capacidades</h3>
+      <p>
+        <span class="pill">Multiempresa</span>
+        <span class="pill">Clientes</span>
+        <span class="pill">Casos</span>
+        <span class="pill">IA asistida</span>
+        <span class="pill">Responsables</span>
+        <span class="pill">Notas</span>
+        <span class="pill">Citas</span>
+        <span class="pill">Seguimientos</span>
+        <span class="pill">Formulario</span>
+        <span class="pill">Chat</span>
+        <span class="pill">MFA</span>
+        <span class="pill">Auditoría</span>
+        <span class="pill">Exportación</span>
+      </p>
+      <div class="footer"><span>COPPE · Dossier comercial</span><span>2</span></div>
+    </section>
+
+    <section class="page">
+      <p class="eyebrow">Funcionamiento</p>
+      <h2>De un contacto a una acción cerrada</h2>
+      <div class="flow">
+        <div class="step"><b>1 · Contacto</b>Chat, formulario, email, WhatsApp o registro manual.</div>
+        <div class="step"><b>2 · Caso</b>Cliente, mensaje, prioridad, categoría y estado.</div>
+        <div class="step"><b>3 · Asistente</b>Resumen, intención, faltantes y borrador.</div>
+        <div class="step"><b>4 · Responsable</b>Asignación, notas y trazabilidad.</div>
+        <div class="step"><b>5 · Seguimiento</b>Citas, recordatorios y cierre.</div>
+      </div>
+      <div class="grid three">
+        <div class="card"><h3>Visibilidad</h3><p>El dashboard muestra qué necesita atención ahora.</p></div>
+        <div class="card orange"><h3>Velocidad</h3><p>El equipo parte de contexto y un borrador editable.</p></div>
+        <div class="card"><h3>Continuidad</h3><p>La conversación queda vinculada al cliente y al responsable.</p></div>
+        <div class="card orange"><h3>Control</h3><p>La persona revisa antes de enviar o cambiar un estado.</p></div>
+        <div class="card"><h3>Coordinación</h3><p>Notas, citas y seguimientos viven junto al caso.</p></div>
+        <div class="card orange"><h3>Medición</h3><p>Estados y fechas permiten evaluar el proceso.</p></div>
+      </div>
+      <h3>Canales</h3>
+      <p>
+        Formulario y chat web se incluyen en el piloto base. Email, OpenAI y
+        WhatsApp se activan únicamente después de configurar y validar
+        proveedor, dominio, permisos y condiciones aplicables.
+      </p>
+      <div class="footer"><span>COPPE · Dossier comercial</span><span>3</span></div>
+    </section>
+
+    <section class="page">
+      <p class="eyebrow">Propuesta comercial</p>
+      <h2>Piloto de 30 días</h2>
+      <p>
+        Validar con un equipo y un proceso concreto que COPPE mejora la
+        organización, el tiempo de revisión y el seguimiento.
+      </p>
+      <div class="price">
+        <span>Precio propuesto</span>
+        <strong>1.500 € + IVA</strong>
+        Si se convierte en contrato anual, se imputa al onboarding.
+      </div>
+      <div class="grid">
+        <div class="card">
+          <h3>Alcance</h3>
+          <ul>
+            <li>Un departamento o equipo.</li>
+            <li>Hasta 10 usuarios.</li>
+            <li>Hasta 1.000 casos.</li>
+            <li>Formulario, chat y gestión interna.</li>
+            <li>Configuración y formación.</li>
+            <li>Revisión semanal e informe final.</li>
+          </ul>
+        </div>
+        <div class="card orange">
+          <h3>Métricas</h3>
+          <ul>
+            <li>Tiempo hasta primera revisión.</li>
+            <li>Casos sin responsable.</li>
+            <li>Seguimientos vencidos.</li>
+            <li>Tiempo de resolución.</li>
+            <li>Adopción del equipo.</li>
+            <li>Utilidad de borradores.</li>
+          </ul>
+        </div>
+      </div>
+      <h3>Conversión orientativa</h3>
+      <p>
+        Professional: <strong>399 € + IVA al mes</strong>, hasta 10 usuarios y
+        1.000 casos nuevos al mes, sujeto al contrato y límites definitivos.
+      </p>
+      <p class="muted">
+        Propuesta no vinculante. La prestación comienza después de constituir
+        la entidad proveedora, firmar contrato y DPA y activar producción.
+      </p>
+      <div class="footer"><span>COPPE · Dossier comercial</span><span>4</span></div>
+    </section>
+
+    <section class="page">
+      <p class="eyebrow">Seguridad y privacidad</p>
+      <h2>Controles implementados y condiciones de producción</h2>
+      <div class="grid three">
+        <div class="card"><h3>Aislamiento</h3><p>Empresa en cada registro, RLS y validaciones explícitas.</p></div>
+        <div class="card orange"><h3>Acceso</h3><p>Propietario, miembros y MFA TOTP.</p></div>
+        <div class="card"><h3>Auditoría</h3><p>Acciones sensibles y autoría operativa.</p></div>
+        <div class="card orange"><h3>Portabilidad</h3><p>Exportación por empresa y offboarding administrado.</p></div>
+        <div class="card"><h3>APIs</h3><p>Límites, firmas, idempotencia y conciliación.</p></div>
+        <div class="card orange"><h3>Secretos</h3><p>Separados del código y del cliente web.</p></div>
+      </div>
+      <h3>Antes de introducir datos reales</h3>
+      <ul>
+        <li>Contrato SaaS y encargo de tratamiento firmados.</li>
+        <li>Infraestructura comercial y copias automáticas.</li>
+        <li>Monitorización, alertas y restauración probada.</li>
+        <li>Autenticación, SMTP y recuperación verificados.</li>
+        <li>Canales externos probados de extremo a extremo.</li>
+        <li>Lista de subencargados y reglas de retención.</li>
+      </ul>
+      <div class="note">
+        <strong>Transparencia:</strong> COPPE no declara actualmente ISO 27001,
+        SOC 2 ni un SLA contractual. La adecuación sectorial se evalúa por
+        cliente y caso de uso.
+      </div>
+      <div class="footer"><span>COPPE · Dossier comercial</span><span>5</span></div>
+    </section>
+
+    <section class="page faq">
+      <p class="eyebrow">Preguntas frecuentes</p>
+      <h2>Respuestas para una primera conversación</h2>
+      <h3>¿COPPE sustituye a las personas?</h3>
+      <p>No. Organiza y prepara contexto y borradores; el equipo decide.</p>
+      <h3>¿Puede conectarse a WhatsApp y email?</h3>
+      <p>
+        Las integraciones están implementadas, pero se ofrecen después de
+        validar cuenta, dominio, permisos, webhooks y plantillas aplicables.
+      </p>
+      <h3>¿Utiliza OpenAI?</h3>
+      <p>
+        Puede funcionar con motor local o con OpenAI. La modalidad se acuerda
+        con el cliente y se documenta en el DPA.
+      </p>
+      <h3>¿Cómo se separan las empresas?</h3>
+      <p>
+        Mediante empresa asociada a cada registro, políticas RLS y
+        comprobaciones en las operaciones sensibles.
+      </p>
+      <h3>¿Se pueden exportar y eliminar datos?</h3>
+      <p>
+        Existe exportación por empresa. La eliminación completa se gestiona de
+        forma administrada y auditada durante el primer piloto.
+      </p>
+      <h3>¿Está listo para producción?</h3>
+      <p>
+        Está listo para demostración y para preparar un piloto. La producción
+        se activa tras infraestructura comercial, contratos, copias,
+        monitorización y validación de canales.
+      </p>
+      <h3>¿Se puede probar gratis?</h3>
+      <p>
+        Se recomienda un piloto pagado y acotado para financiar configuración,
+        medir resultados y asegurar compromiso mutuo.
+      </p>
+      <div class="footer"><span>COPPE · Dossier comercial</span><span>6</span></div>
+    </section>
+
+    <section class="page">
+      <p class="eyebrow">Siguiente paso</p>
+      <h2>Sesión de descubrimiento de 45 minutos</h2>
+      <p class="lead">
+        Definimos el proceso, volumen, canales, responsables y métricas antes
+        de proponer un piloto cerrado.
+      </p>
+      <ol style="font-size:13pt; line-height:1.7; margin-top:12mm">
+        <li>Descubrimiento y alcance.</li>
+        <li>Propuesta y pedido condicionado.</li>
+        <li>Entidad, contrato y DPA.</li>
+        <li>Entorno profesional y onboarding.</li>
+        <li>Piloto de 30 días y decisión de continuidad.</li>
+      </ol>
+      <div class="note" style="margin-top:18mm">
+        <strong>COPPE</strong><br />
+        Atención al cliente convertida en trabajo organizado.<br />
+        app.coppe.es
+      </div>
+      <div class="footer"><span>COPPE · Dossier comercial</span><span>7</span></div>
+    </section>
+  </body>
+</html>

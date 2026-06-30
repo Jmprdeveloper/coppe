@@ -8,7 +8,12 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "demo:seed": "node --use-system-ca scripts/demo/seed-demo.mjs",
+    "demo:verify": "node --use-system-ca scripts/demo/verify-demo.mjs",
+    "demo:verify-inbound": "node --use-system-ca scripts/demo/verify-inbound-safety.mjs",
+    "demo:login": "node --use-system-ca scripts/demo/demo-login.mjs",
+    "demo:materials": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/demo/generate-commercial-materials.ps1"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

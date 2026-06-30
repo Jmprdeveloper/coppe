@@ -32,6 +32,7 @@ import { MfaSettingsCard } from "./MfaSettingsCard";
 import { PageHeader } from "./PageHeader";
 import { SectionCard } from "./SectionCard";
 import { TeamSettingsCard } from "./TeamSettingsCard";
+import { InboundSafetySettings } from "./InboundSafetySettings";
 
 type ToneOption =
   | "profesional y cercano"
@@ -2056,6 +2057,7 @@ export function SettingsPage({ onCompanyUpdated }: SettingsPageProps = {}) {
             </div>
 
             <aside className="min-w-0 space-y-5">
+              <InboundSafetySettings />
               <TeamSettingsCard />
               <MfaSettingsCard />
 

@@ -5,9 +5,14 @@ export type AppointmentRow = {
   id: string;
   inquiry_id: string | null;
   customer_id: string | null;
+  assigned_to: string | null;
   title: string;
   scheduled_at: string;
   duration_minutes: number | null;
+  timezone: string | null;
+  location: string | null;
+  buffer_before_minutes: number | null;
+  buffer_after_minutes: number | null;
   status: string;
   notes: string | null;
   created_at: string;
@@ -111,10 +116,15 @@ export function mapAppointmentRowToAppointment(
     id: row.id,
     inquiryId: row.inquiry_id ?? "",
     customerId: row.customer_id ?? "",
+    assignedTo: row.assigned_to ?? "",
     title: row.title,
     scheduledAt: formatDateTime(row.scheduled_at),
     scheduledAtIso: row.scheduled_at,
     durationMinutes: row.duration_minutes ?? 60,
+    timezone: row.timezone?.trim() || "Europe/Madrid",
+    location: row.location ?? "",
+    bufferBeforeMinutes: row.buffer_before_minutes ?? 0,
+    bufferAfterMinutes: row.buffer_after_minutes ?? 0,
     status: normalizeAppointmentStatus(row.status),
     notes: row.notes ?? "",
     createdAt: formatDateTime(row.created_at),

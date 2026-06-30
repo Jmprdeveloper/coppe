@@ -10,6 +10,8 @@ import {
 import { inferSentiment } from "../../../lib/inquiryAnalysis";
 import { MAX_ANALYSIS_MESSAGE_LENGTH } from "../../../lib/inquiryAnalysisLimits";
 import { analyzeInquiryForCompany } from "../../../lib/inquiryAnalysisService";
+import { sendAutomaticAcknowledgement } from "../../../lib/automaticAcknowledgement";
+import { screenAndQuarantineInboundMessage } from "../../../lib/inboundMessageSafety";
 import { createAdminClient } from "../../../lib/supabase/admin";
 import {
   buildRequestBodyTooLargeResponse,
@@ -39,6 +41,9 @@ type PublicIntakeCompany = {
   language: string | null;
   public_intake_enabled: boolean;
   public_chat_enabled: boolean;
+  auto_acknowledgement_enabled: boolean;
+  auto_acknowledgement_message: string | null;
+  inbound_filter_enabled: boolean;
 };
 
 type PublicIntakeAnalysis = Awaited<
@@ -615,7 +620,7 @@ export async function POST(request: Request) {
   const { data: company, error: companyError } = await supabaseAdmin
     .from("companies")
     .select(
-      "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled",
+      "id, name, sector, description, tone, language, public_intake_enabled, public_chat_enabled, auto_acknowledgement_enabled, auto_acknowledgement_message, inbound_filter_enabled",
     )
     .eq("public_intake_token", publicIntakeToken)
     .maybeSingle<PublicIntakeCompany>();
@@ -719,6 +724,49 @@ export async function POST(request: Request) {
       name_length: customerName.length,
     },
   });
+
+  try {
+    const safetyDecision = await screenAndQuarantineInboundMessage(
+      supabaseAdmin,
+      {
+        companyId: company.id,
+        inboundEventId,
+        sourceChannel,
+        senderName: customerName,
+        senderEmail: email || null,
+        senderPhone: phone || null,
+        senderKey: email || normalizePhoneForComparison(phone),
+        body: message,
+        filterEnabled: company.inbound_filter_enabled,
+      },
+    );
+
+    if (safetyDecision.quarantined) {
+      return NextResponse.json(
+        { ok: true, message: "Mensaje recibido correctamente." },
+        { status: 201 },
+      );
+    }
+  } catch (error) {
+    return buildFailedResponseAfterInboundEvent(
+      supabaseAdmin,
+      inboundEventId,
+      error instanceof Error
+        ? error.message
+        : "No se pudo comprobar la seguridad del mensaje.",
+      500,
+      {},
+      GENERIC_PUBLIC_INTAKE_ERROR_MESSAGE,
+      {
+        companyId: company.id,
+        sourceChannel,
+        failureStage: "screen_inbound_message",
+        hadEmail: Boolean(email),
+        hadPhone: Boolean(phone),
+        messageLength: message.length,
+      },
+    );
+  }
 
   const now = new Date().toISOString();
 
@@ -1004,12 +1052,23 @@ export async function POST(request: Request) {
     processed_at: new Date().toISOString(),
   });
 
+  const acknowledgement = await sendAutomaticAcknowledgement(supabaseAdmin, {
+    company,
+    inquiryId: createdInquiryId,
+    customer,
+    channel: sourceChannel,
+    subject: analysis.subject,
+  });
+
   return NextResponse.json(
     {
       ok: true,
       inquiryId: createdInquiryId,
       conversationToken: conversationToken || undefined,
-      message: "Mensaje recibido correctamente.",
+      message:
+        acknowledgement.status === "sent"
+          ? acknowledgement.body
+          : "Mensaje recibido correctamente.",
     },
     { status: 201 },
   );

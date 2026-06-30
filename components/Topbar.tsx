@@ -8,6 +8,7 @@ import { getAppointmentStatusLabel } from "../lib/appointmentUtils";
 import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
+import { InboundNotificationCenter } from "./InboundNotificationCenter";
 
 type NavigationItem = {
   key: string;
@@ -16,6 +17,7 @@ type NavigationItem = {
 };
 
 type Company = {
+  id: string;
   name: string;
 };
 
@@ -606,6 +608,11 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-2">
+        <InboundNotificationCenter
+          companyId={company.id}
+          openInquiry={openInquiry}
+        />
+
         {userEmail ? (
           <div className="hidden max-w-[190px] truncate text-right text-xs text-slate-500 xl:block">
             {userEmail}

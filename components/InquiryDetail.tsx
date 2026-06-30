@@ -9,6 +9,7 @@ import {
   mapAppointmentRowToAppointment,
   type AppointmentRow,
 } from "../lib/appointmentUtils";
+import { getAppointmentConflictMessage } from "../lib/appointmentScheduling";
 import {
   formatFollowUpDueAt,
   normalizeFollowUpStatus,
@@ -961,9 +962,14 @@ export function InquiryDetail({
               "id",
               "inquiry_id",
               "customer_id",
+              "assigned_to",
               "title",
               "scheduled_at",
               "duration_minutes",
+              "timezone",
+              "location",
+              "buffer_before_minutes",
+              "buffer_after_minutes",
               "status",
               "notes",
               "created_at",
@@ -2051,9 +2057,14 @@ export function InquiryDetail({
           "id",
           "inquiry_id",
           "customer_id",
+          "assigned_to",
           "title",
           "scheduled_at",
           "duration_minutes",
+          "timezone",
+          "location",
+          "buffer_before_minutes",
+          "buffer_after_minutes",
           "status",
           "notes",
           "created_at",
@@ -2065,10 +2076,13 @@ export function InquiryDetail({
     setIsCreatingAppointment(false);
 
     if (error || !data) {
+      const conflictMessage = getAppointmentConflictMessage(error);
+
       setAppointmentErrorMessage(
-        `No se pudo crear la cita: ${
-          error?.message || "sin detalle del error"
-        }`
+        conflictMessage ||
+          `No se pudo crear la cita: ${
+            error?.message || "sin detalle del error"
+          }`
       );
       return;
     }
@@ -2156,9 +2170,14 @@ export function InquiryDetail({
           "id",
           "inquiry_id",
           "customer_id",
+          "assigned_to",
           "title",
           "scheduled_at",
           "duration_minutes",
+          "timezone",
+          "location",
+          "buffer_before_minutes",
+          "buffer_after_minutes",
           "status",
           "notes",
           "created_at",
@@ -2170,10 +2189,13 @@ export function InquiryDetail({
     setUpdatingAppointmentId(null);
 
     if (error || !data) {
+      const conflictMessage = getAppointmentConflictMessage(error);
+
       setAppointmentErrorMessage(
-        `No se pudo actualizar la cita: ${
-          error?.message || "sin detalle del error"
-        }`
+        conflictMessage ||
+          `No se pudo actualizar la cita: ${
+            error?.message || "sin detalle del error"
+          }`
       );
       return;
     }
@@ -2311,9 +2333,14 @@ export function InquiryDetail({
           "id",
           "inquiry_id",
           "customer_id",
+          "assigned_to",
           "title",
           "scheduled_at",
           "duration_minutes",
+          "timezone",
+          "location",
+          "buffer_before_minutes",
+          "buffer_after_minutes",
           "status",
           "notes",
           "created_at",
@@ -2325,10 +2352,13 @@ export function InquiryDetail({
     setIsSavingAppointmentEdit(false);
 
     if (error || !data) {
+      const conflictMessage = getAppointmentConflictMessage(error);
+
       setAppointmentErrorMessage(
-        `No se pudo actualizar la cita: ${
-          error?.message || "sin detalle del error"
-        }`
+        conflictMessage ||
+          `No se pudo actualizar la cita: ${
+            error?.message || "sin detalle del error"
+          }`
       );
       return;
     }
