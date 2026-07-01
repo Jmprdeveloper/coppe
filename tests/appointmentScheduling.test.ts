@@ -4,6 +4,7 @@ import {
   addDaysToDateKey,
   appointmentsOverlap,
   formatAppointmentTimeRange,
+  getAvailableAppointmentSlots,
   getAppointmentConflictMessage,
   getAppointmentInterval,
   getLocalDateKey,
@@ -70,6 +71,47 @@ describe("appointmentScheduling", () => {
         "Europe/Madrid",
       ),
     ).toBe("10:00–10:45");
+  });
+
+  it("ofrece solo huecos futuros que no se solapan con la agenda", () => {
+    const dayStartsAtMs = Date.parse("2026-07-01T00:00:00.000Z");
+
+    expect(
+      getAvailableAppointmentSlots({
+        dayStartsAtMs,
+        durationMinutes: 60,
+        appointments: [
+          {
+            scheduledAtIso: "2026-07-01T10:00:00.000Z",
+            durationMinutes: 60,
+            bufferBeforeMinutes: 30,
+          },
+        ],
+        workdayStartsAtMinutes: 9 * 60,
+        workdayEndsAtMinutes: 12 * 60,
+        stepMinutes: 30,
+        nowMs: dayStartsAtMs,
+      }).map((slot) => new Date(slot.startsAtMs).toISOString()),
+    ).toEqual(["2026-07-01T11:00:00.000Z"]);
+  });
+
+  it("no propone un hueco que terminaría fuera del horario orientativo", () => {
+    const dayStartsAtMs = Date.parse("2026-07-01T00:00:00.000Z");
+
+    expect(
+      getAvailableAppointmentSlots({
+        dayStartsAtMs,
+        durationMinutes: 90,
+        appointments: [],
+        workdayStartsAtMinutes: 16 * 60,
+        workdayEndsAtMinutes: 18 * 60,
+        stepMinutes: 30,
+        nowMs: dayStartsAtMs,
+      }).map((slot) => new Date(slot.startsAtMs).toISOString()),
+    ).toEqual([
+      "2026-07-01T16:00:00.000Z",
+      "2026-07-01T16:30:00.000Z",
+    ]);
   });
 
   it("convierte el error de integridad en un mensaje útil", () => {

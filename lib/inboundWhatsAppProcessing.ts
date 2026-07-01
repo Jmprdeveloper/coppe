@@ -10,6 +10,7 @@ import {
   import { MAX_ANALYSIS_MESSAGE_LENGTH } from "./inquiryAnalysisLimits";
   import { analyzeInquiryForCompany } from "./inquiryAnalysisService";
   import { sendAutomaticAcknowledgement } from "./automaticAcknowledgement";
+  import { startsNewAcknowledgementSession } from "./automaticAcknowledgementPolicy";
   import { screenAndQuarantineInboundMessage } from "./inboundMessageSafety";
   import { createAdminClient } from "./supabase/admin";
   import {
@@ -813,6 +814,14 @@ import {
       );
     }
 
+    const startsNewContactSession =
+      !recentInquiry ||
+      startsNewAcknowledgementSession({
+        previousActivityAt: recentInquiry.last_message_at,
+        currentActivityAt: new Date(),
+        sessionHours: process.env.AUTO_ACKNOWLEDGEMENT_SESSION_HOURS,
+      });
+
     let analysis = buildFallbackAnalysis(
       message.customerName,
       message.textBody,
@@ -886,13 +895,17 @@ import {
 
     const finalizedInquiryId = finalizedWhatsAppMessage.inquiry_id;
 
-    if (finalizedWhatsAppMessage.created_new) {
+    if (
+      finalizedWhatsAppMessage.created_new ||
+      startsNewContactSession
+    ) {
       await sendAutomaticAcknowledgement(supabaseAdmin, {
         company,
         inquiryId: finalizedInquiryId,
         customer,
         channel: "WhatsApp",
         subject: analysis.subject,
+        deduplicationKey: `whatsapp-session:${message.externalMessageId}`,
       });
     }
   

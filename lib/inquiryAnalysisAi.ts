@@ -198,6 +198,8 @@ Conversaciones e historial:
 - suggestedResponse debe responder principalmente a la necesidad, pregunta, duda, objeción, confirmación, corrección o actualización expresada en la última intervención entrante del cliente.
 - No repitas un acuse de recibo genérico anterior si el cliente ya ha avanzado la conversación con nueva información o una nueva intervención.
 - Si la última intervención depende del contexto anterior, usa el historial para interpretarla, pero redacta pensando en ese último turno del cliente.
+- Si el último mensaje cambia claramente a un asunto incompatible con el caso anterior o con la empresa, no mezcles ambos motivos: señala la posible confusión y responde solo al último mensaje.
+- Nunca copies en summary, intent o suggestedResponse rótulos técnicos del contexto como "Historial reciente", "Último mensaje del cliente", "Categoría actual del caso", "Cliente (recibido)" o "Empresa (enviado)".
 - Si no hay historial claro, analiza el texto como una primera intervención del cliente.
 
 Principio principal:
@@ -368,6 +370,8 @@ Regla de foco conversacional:
 - Si incluye historial, identifica la última intervención entrante del cliente y úsala como foco principal del análisis.
 - Usa los mensajes anteriores solo como contexto para entender la situación actual.
 - suggestedResponse debe responder principalmente al último turno entrante del cliente, no repetir automáticamente una respuesta genérica anterior.
+- No concatenes el último mensaje con mensajes anteriores ni con rótulos técnicos del historial.
+- Si el último turno es incompatible con la actividad de la empresa, trátalo como posible confusión aunque un mensaje anterior sí encajara.
 - Si no hay historial claro, trata el texto como el primer mensaje del cliente.
 
 Empresa:

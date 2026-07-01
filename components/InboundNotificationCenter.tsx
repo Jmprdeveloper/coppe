@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Bell, CheckCheck, Inbox, X } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
@@ -83,6 +84,8 @@ export function InboundNotificationCenter({
         ? "unsupported"
         : Notification.permission,
     );
+  const portalRoot =
+    typeof document === "undefined" ? null : document.body;
 
   const loadNotifications = useCallback(async () => {
     const { data, error } = await supabase.rpc("get_inbound_notifications", {
@@ -344,38 +347,41 @@ export function InboundNotificationCenter({
         ) : null}
       </div>
 
-      {toast ? (
-        <div className="fixed bottom-5 right-5 z-[70] w-[min(380px,calc(100vw-2.5rem))] rounded-2xl border border-[#A7C9D1] bg-white p-4 shadow-2xl shadow-slate-400/30">
-          <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0F4C5C] text-white">
-              <Bell size={18} />
-            </div>
-            <button
-              type="button"
-              onClick={() => handleOpenNotification(toast)}
-              className="min-w-0 flex-1 text-left"
-            >
-              <div className="text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
-                Nuevo {toast.source_channel}
+      {toast && portalRoot
+        ? createPortal(
+            <div className="fixed bottom-4 left-4 right-4 z-[100] rounded-2xl border border-[#A7C9D1] bg-white p-4 shadow-2xl shadow-slate-400/30 sm:bottom-5 sm:left-auto sm:right-5 sm:w-[380px]">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#0F4C5C] text-white">
+                  <Bell size={18} />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleOpenNotification(toast)}
+                  className="min-w-0 flex-1 text-left"
+                >
+                  <div className="text-xs font-bold uppercase tracking-wide text-[#0F4C5C]">
+                    Nuevo {toast.source_channel}
+                  </div>
+                  <div className="mt-1 truncate text-sm font-semibold text-slate-950">
+                    {toast.customer_name}
+                  </div>
+                  <p className="mt-1 line-clamp-3 text-xs leading-5 text-slate-500">
+                    {toast.preview}
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Cerrar aviso"
+                  onClick={() => setToast(null)}
+                  className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                >
+                  <X size={15} />
+                </button>
               </div>
-              <div className="mt-1 truncate text-sm font-semibold text-slate-950">
-                {toast.customer_name}
-              </div>
-              <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
-                {toast.preview}
-              </p>
-            </button>
-            <button
-              type="button"
-              aria-label="Cerrar aviso"
-              onClick={() => setToast(null)}
-              className="rounded-lg p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-            >
-              <X size={15} />
-            </button>
-          </div>
-        </div>
-      ) : null}
+            </div>,
+            portalRoot,
+          )
+        : null}
     </>
   );
 }

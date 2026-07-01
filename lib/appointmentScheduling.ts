@@ -12,6 +12,21 @@ export type AppointmentInterval = {
   protectedEndsAtMs: number;
 };
 
+export type AvailableAppointmentSlot = {
+  startsAtMs: number;
+  endsAtMs: number;
+};
+
+export type AvailableAppointmentSlotsInput = {
+  dayStartsAtMs: number;
+  durationMinutes: number;
+  appointments: AppointmentIntervalInput[];
+  workdayStartsAtMinutes?: number;
+  workdayEndsAtMinutes?: number;
+  stepMinutes?: number;
+  nowMs?: number;
+};
+
 const DEFAULT_TIME_ZONE = "Europe/Madrid";
 
 function clampMinutes(value: number | null | undefined, min: number, max: number) {
@@ -67,6 +82,61 @@ export function appointmentsOverlap(
     firstInterval.protectedStartsAtMs < secondInterval.protectedEndsAtMs &&
     secondInterval.protectedStartsAtMs < firstInterval.protectedEndsAtMs
   );
+}
+
+export function getAvailableAppointmentSlots({
+  dayStartsAtMs,
+  durationMinutes,
+  appointments,
+  workdayStartsAtMinutes = 9 * 60,
+  workdayEndsAtMinutes = 18 * 60,
+  stepMinutes = 30,
+  nowMs = Date.now(),
+}: AvailableAppointmentSlotsInput): AvailableAppointmentSlot[] {
+  if (!Number.isFinite(dayStartsAtMs)) {
+    return [];
+  }
+
+  const safeDurationMinutes = clampMinutes(durationMinutes, 5, 480);
+  const safeStepMinutes = clampMinutes(stepMinutes, 5, 240);
+  const safeWorkdayStart = clampMinutes(workdayStartsAtMinutes, 0, 24 * 60);
+  const safeWorkdayEnd = clampMinutes(workdayEndsAtMinutes, 0, 24 * 60);
+
+  if (safeWorkdayEnd <= safeWorkdayStart) {
+    return [];
+  }
+
+  const slots: AvailableAppointmentSlot[] = [];
+
+  for (
+    let startMinutes = safeWorkdayStart;
+    startMinutes + safeDurationMinutes <= safeWorkdayEnd;
+    startMinutes += safeStepMinutes
+  ) {
+    const startsAtMs = dayStartsAtMs + startMinutes * 60_000;
+    const endsAtMs = startsAtMs + safeDurationMinutes * 60_000;
+
+    if (startsAtMs < nowMs) {
+      continue;
+    }
+
+    const candidate = {
+      scheduledAtIso: new Date(startsAtMs).toISOString(),
+      durationMinutes: safeDurationMinutes,
+    };
+
+    if (
+      appointments.some((appointment) =>
+        appointmentsOverlap(candidate, appointment),
+      )
+    ) {
+      continue;
+    }
+
+    slots.push({ startsAtMs, endsAtMs });
+  }
+
+  return slots;
 }
 
 export function getLocalDateKey(

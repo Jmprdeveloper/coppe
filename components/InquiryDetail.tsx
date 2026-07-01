@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarClock, ChevronLeft, Sparkles, XCircle } from "lucide-react";
+import {
+  CalendarClock,
+  ChevronLeft,
+  ChevronRight,
+  Sparkles,
+  XCircle,
+} from "lucide-react";
 
 import {
   compareAppointmentsByScheduledAt,
@@ -9,7 +15,15 @@ import {
   mapAppointmentRowToAppointment,
   type AppointmentRow,
 } from "../lib/appointmentUtils";
-import { getAppointmentConflictMessage } from "../lib/appointmentScheduling";
+import {
+  addDaysToDateKey,
+  formatAppointmentTimeRange,
+  formatDateKey,
+  getAvailableAppointmentSlots,
+  getAppointmentConflictMessage,
+  getAppointmentInterval,
+  getTodayDateKey,
+} from "../lib/appointmentScheduling";
 import {
   formatFollowUpDueAt,
   normalizeFollowUpStatus,
@@ -582,6 +596,11 @@ export function InquiryDetail({
   setActiveView,
 }: InquiryDetailProps) {
   const supabase = useMemo(() => createClient(), []);
+  const appointmentTimeZone = useMemo(
+    () =>
+      Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Madrid",
+    []
+  );
 
   const [inquiry, setInquiry] = useState<Inquiry | null>(null);
   const [rawInquiry, setRawInquiry] = useState<InquiryDetailRow | null>(null);
@@ -621,6 +640,58 @@ export function InquiryDetail({
   const [appointmentTitle, setAppointmentTitle] = useState("");
   const [appointmentScheduledAt, setAppointmentScheduledAt] = useState("");
   const [appointmentNotes, setAppointmentNotes] = useState("");
+  const [appointmentAssignedTo, setAppointmentAssignedTo] = useState("");
+  const [appointmentDurationMinutes, setAppointmentDurationMinutes] =
+    useState(60);
+  const [appointmentAvailabilityDate, setAppointmentAvailabilityDate] =
+    useState(() => getTodayDateKey(appointmentTimeZone));
+  const [availabilityAppointments, setAvailabilityAppointments] = useState<
+    Appointment[]
+  >([]);
+  const [
+    isLoadingAppointmentAvailability,
+    setIsLoadingAppointmentAvailability,
+  ] = useState(false);
+  const [appointmentAvailabilityError, setAppointmentAvailabilityError] =
+    useState("");
+  const [appointmentAvailabilityVersion, setAppointmentAvailabilityVersion] =
+    useState(0);
+  const relevantAvailabilityAppointments = useMemo(
+    () =>
+      appointmentAssignedTo
+        ? availabilityAppointments.filter(
+            (appointment) =>
+              !appointment.assignedTo ||
+              appointment.assignedTo === appointmentAssignedTo
+          )
+        : [],
+    [appointmentAssignedTo, availabilityAppointments]
+  );
+  const availableAppointmentSlots = useMemo(() => {
+    if (!appointmentAssignedTo || !appointmentAvailabilityDate) {
+      return [];
+    }
+
+    const dayStartsAt = new Date(
+      `${appointmentAvailabilityDate}T00:00:00`
+    ).getTime();
+
+    return getAvailableAppointmentSlots({
+      dayStartsAtMs: dayStartsAt,
+      durationMinutes: appointmentDurationMinutes,
+      appointments: relevantAvailabilityAppointments.map((appointment) => ({
+        scheduledAtIso: appointment.scheduledAtIso,
+        durationMinutes: appointment.durationMinutes,
+        bufferBeforeMinutes: appointment.bufferBeforeMinutes,
+        bufferAfterMinutes: appointment.bufferAfterMinutes,
+      })),
+    });
+  }, [
+    appointmentAssignedTo,
+    appointmentAvailabilityDate,
+    appointmentDurationMinutes,
+    relevantAvailabilityAppointments,
+  ]);
   const [editingAppointmentId, setEditingAppointmentId] = useState<
     string | null
   >(null);
@@ -715,6 +786,11 @@ export function InquiryDetail({
       setAppointmentTitle("");
       setAppointmentScheduledAt("");
       setAppointmentNotes("");
+      setAppointmentAssignedTo("");
+      setAppointmentDurationMinutes(60);
+      setAppointmentAvailabilityDate(getTodayDateKey(appointmentTimeZone));
+      setAvailabilityAppointments([]);
+      setAppointmentAvailabilityError("");
       setEditingAppointmentId(null);
       setEditAppointmentTitle("");
       setEditAppointmentScheduledAt("");
@@ -785,10 +861,17 @@ export function InquiryDetail({
       setFollowUpTitle(getDefaultFollowUpTitle(inquiryData.customer_name));
       setFollowUpDueAt("");
 
-      const { data: teamMembersData, error: teamMembersError } =
-        await supabase.rpc("get_company_team_members", {
+      const [
+        { data: teamMembersData, error: teamMembersError },
+        {
+          data: { user: currentUser },
+        },
+      ] = await Promise.all([
+        supabase.rpc("get_company_team_members", {
           target_company_id: inquiryData.company_id,
-        });
+        }),
+        supabase.auth.getUser(),
+      ]);
 
       if (teamMembersError) {
         setAssignmentErrorMessage(
@@ -797,7 +880,20 @@ export function InquiryDetail({
           }`
         );
       } else {
-        setTeamMembers((teamMembersData ?? []) as InquiryTeamMember[]);
+        const loadedTeamMembers = (teamMembersData ??
+          []) as InquiryTeamMember[];
+        const defaultAppointmentAssignee =
+          loadedTeamMembers.find(
+            (member) => member.user_id === inquiryData.assigned_to
+          )?.user_id ??
+          loadedTeamMembers.find(
+            (member) => member.user_id === currentUser?.id
+          )?.user_id ??
+          loadedTeamMembers[0]?.user_id ??
+          "";
+
+        setTeamMembers(loadedTeamMembers);
+        setAppointmentAssignedTo(defaultAppointmentAssignee);
       }
 
       let loadedCustomer: CustomerRow | null = null;
@@ -1021,7 +1117,116 @@ export function InquiryDetail({
     }
 
     loadInquiry();
-  }, [inquiryId, reloadVersion, supabase]);
+  }, [appointmentTimeZone, inquiryId, reloadVersion, supabase]);
+
+  useEffect(() => {
+    let isCancelled = false;
+
+    async function loadAppointmentAvailability() {
+      if (!rawInquiry || !appointmentAvailabilityDate) {
+        setAvailabilityAppointments([]);
+        return;
+      }
+
+      const dayStartsAt = new Date(
+        `${appointmentAvailabilityDate}T00:00:00`
+      );
+
+      if (Number.isNaN(dayStartsAt.getTime())) {
+        setAvailabilityAppointments([]);
+        setAppointmentAvailabilityError(
+          "No se pudo interpretar el día seleccionado."
+        );
+        return;
+      }
+
+      const dayEndsAt = new Date(dayStartsAt);
+      dayEndsAt.setDate(dayEndsAt.getDate() + 1);
+      const protectedRangeStartsAt = new Date(
+        dayStartsAt.getTime() - 12 * 60 * 60 * 1000
+      );
+
+      setIsLoadingAppointmentAvailability(true);
+      setAppointmentAvailabilityError("");
+
+      const { data, error } = await supabase
+        .from("appointments")
+        .select(
+          [
+            "id",
+            "inquiry_id",
+            "customer_id",
+            "assigned_to",
+            "title",
+            "scheduled_at",
+            "duration_minutes",
+            "timezone",
+            "location",
+            "buffer_before_minutes",
+            "buffer_after_minutes",
+            "status",
+            "notes",
+            "created_at",
+            "updated_at",
+          ].join(", ")
+        )
+        .eq("company_id", rawInquiry.company_id)
+        .in("status", ["proposed", "confirmed"])
+        .gte("scheduled_at", protectedRangeStartsAt.toISOString())
+        .lt("scheduled_at", dayEndsAt.toISOString())
+        .order("scheduled_at", { ascending: true });
+
+      if (isCancelled) {
+        return;
+      }
+
+      setIsLoadingAppointmentAvailability(false);
+
+      if (error) {
+        setAvailabilityAppointments([]);
+        setAppointmentAvailabilityError(
+          `No se pudo consultar la agenda: ${
+            error.message || "sin detalle del error"
+          }`
+        );
+        return;
+      }
+
+      const dayStartsAtMs = dayStartsAt.getTime();
+      const dayEndsAtMs = dayEndsAt.getTime();
+
+      setAvailabilityAppointments(
+        ((data ?? []) as unknown as AppointmentRow[])
+          .map(mapAppointmentRowToAppointment)
+          .filter((appointment) => {
+            const interval = getAppointmentInterval({
+              scheduledAtIso: appointment.scheduledAtIso,
+              durationMinutes: appointment.durationMinutes,
+              bufferBeforeMinutes: appointment.bufferBeforeMinutes,
+              bufferAfterMinutes: appointment.bufferAfterMinutes,
+            });
+
+            return Boolean(
+              interval &&
+                interval.protectedStartsAtMs < dayEndsAtMs &&
+                interval.protectedEndsAtMs > dayStartsAtMs
+            );
+          })
+          .sort(compareAppointmentsByScheduledAt)
+      );
+    }
+
+    void loadAppointmentAvailability();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [
+    appointmentAvailabilityDate,
+    appointmentAvailabilityVersion,
+    rawInquiry,
+    supabase,
+  ]);
 
   const handleAssignInquiry = async (nextAssignedTo: string) => {
     if (!rawInquiry || isUpdatingAssignment) {
@@ -2001,6 +2206,25 @@ export function InquiryDetail({
     );
   };
 
+  const handleAppointmentAvailabilityDateChange = (nextDate: string) => {
+    setAppointmentAvailabilityDate(nextDate);
+    setAppointmentErrorMessage("");
+
+    if (
+      appointmentScheduledAt &&
+      appointmentScheduledAt.slice(0, 10) !== nextDate
+    ) {
+      setAppointmentScheduledAt("");
+    }
+  };
+
+  const handleSelectAvailableAppointmentSlot = (startsAtMs: number) => {
+    setAppointmentScheduledAt(
+      formatDateTimeLocalFromIso(new Date(startsAtMs).toISOString())
+    );
+    setAppointmentErrorMessage("");
+  };
+
   const handleCreateAppointment = async () => {
     setAppointmentCreateMessage("");
     setAppointmentActionMessage("");
@@ -2025,6 +2249,13 @@ export function InquiryDetail({
       return;
     }
 
+    if (!appointmentAssignedTo) {
+      setAppointmentErrorMessage(
+        "Selecciona a la persona responsable de atender la cita."
+      );
+      return;
+    }
+
     const scheduledDate = new Date(appointmentScheduledAt);
 
     if (Number.isNaN(scheduledDate.getTime())) {
@@ -2041,14 +2272,52 @@ export function InquiryDetail({
 
     setIsCreatingAppointment(true);
 
+    const scheduledAtIso = scheduledDate.toISOString();
+    const { data: conflicts, error: availabilityError } = await supabase.rpc(
+      "check_appointment_availability",
+      {
+        p_company_id: rawInquiry.company_id,
+        p_scheduled_at: scheduledAtIso,
+        p_duration_minutes: appointmentDurationMinutes,
+        p_assigned_to: appointmentAssignedTo,
+        p_buffer_before_minutes: 0,
+        p_buffer_after_minutes: 0,
+        p_exclude_appointment_id: null,
+      }
+    );
+
+    if (availabilityError) {
+      setIsCreatingAppointment(false);
+      setAppointmentErrorMessage(
+        `No se pudo comprobar la disponibilidad: ${
+          availabilityError.message || "sin detalle del error"
+        }`
+      );
+      return;
+    }
+
+    if (Array.isArray(conflicts) && conflicts.length > 0) {
+      setIsCreatingAppointment(false);
+      setAppointmentErrorMessage(
+        "Ese profesional ya tiene una cita o un tiempo protegido en ese intervalo. Elige uno de los huecos libres u otro responsable."
+      );
+      setAppointmentAvailabilityVersion((current) => current + 1);
+      return;
+    }
+
     const { data, error } = await supabase
       .from("appointments")
       .insert({
         company_id: rawInquiry.company_id,
         inquiry_id: rawInquiry.id,
         customer_id: rawInquiry.customer_id,
+        assigned_to: appointmentAssignedTo,
         title: cleanAppointmentTitle,
-        scheduled_at: scheduledDate.toISOString(),
+        scheduled_at: scheduledAtIso,
+        duration_minutes: appointmentDurationMinutes,
+        timezone: appointmentTimeZone,
+        buffer_before_minutes: 0,
+        buffer_after_minutes: 0,
         status: "proposed",
         notes: appointmentNotes.trim() || null,
       })
@@ -2078,6 +2347,10 @@ export function InquiryDetail({
     if (error || !data) {
       const conflictMessage = getAppointmentConflictMessage(error);
 
+      if (conflictMessage) {
+        setAppointmentAvailabilityVersion((current) => current + 1);
+      }
+
       setAppointmentErrorMessage(
         conflictMessage ||
           `No se pudo crear la cita: ${
@@ -2106,6 +2379,8 @@ export function InquiryDetail({
         inquiry_id: rawInquiry.id,
         customer_id: rawInquiry.customer_id,
         scheduled_at: data.scheduled_at,
+        assigned_to: data.assigned_to,
+        duration_minutes: data.duration_minutes,
         next_status: mappedAppointment.status,
         title_length: cleanAppointmentTitle.length,
         notes_length: (appointmentNotes.trim() || "").length,
@@ -2126,6 +2401,7 @@ export function InquiryDetail({
     setAppointmentTitle(getDefaultAppointmentTitle(inquiry.customerName));
     setAppointmentScheduledAt("");
     setAppointmentNotes("");
+    setAppointmentAvailabilityVersion((current) => current + 1);
     setAppointmentCreateMessage(
       `Cita creada como pendiente de confirmar.${auditWarningMessage}`
     );
@@ -2241,6 +2517,7 @@ export function InquiryDetail({
         )
         .sort(compareAppointmentsByScheduledAt)
     );
+    setAppointmentAvailabilityVersion((current) => current + 1);
 
     setAppointmentActionMessage(
       `Estado de la cita actualizado.${auditWarningMessage}`
@@ -2418,6 +2695,7 @@ export function InquiryDetail({
         )
         .sort(compareAppointmentsByScheduledAt)
     );
+    setAppointmentAvailabilityVersion((current) => current + 1);
 
     setEditingAppointmentId(null);
     setEditAppointmentTitle("");
@@ -3316,15 +3594,230 @@ export function InquiryDetail({
                   </label>
 
                   <label className="block text-sm font-medium text-[#315F69]">
-                    Fecha y hora
+                    Responsable
+                    <select
+                      value={appointmentAssignedTo}
+                      onChange={(event) => {
+                        setAppointmentAssignedTo(event.target.value);
+                        setAppointmentErrorMessage("");
+                      }}
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
+                    >
+                      <option value="">Selecciona un responsable</option>
+                      {teamMembers.map((teamMember) => (
+                        <option
+                          key={teamMember.user_id}
+                          value={teamMember.user_id}
+                        >
+                          {teamMember.full_name.trim() || teamMember.email}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <label className="block text-sm font-medium text-[#315F69]">
+                    Duración
+                    <select
+                      value={appointmentDurationMinutes}
+                      onChange={(event) =>
+                        setAppointmentDurationMinutes(
+                          Number(event.target.value)
+                        )
+                      }
+                      className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
+                    >
+                      {[15, 30, 45, 60, 90, 120, 180].map((minutes) => (
+                        <option key={minutes} value={minutes}>
+                          {minutes < 60
+                            ? `${minutes} minutos`
+                            : minutes % 60 === 0
+                              ? `${minutes / 60} ${
+                                  minutes === 60 ? "hora" : "horas"
+                                }`
+                              : `${Math.floor(minutes / 60)} h ${
+                                  minutes % 60
+                                } min`}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="rounded-2xl border border-[#B8D8DE] bg-[#F4FAFB] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAppointmentAvailabilityDateChange(
+                            addDaysToDateKey(appointmentAvailabilityDate, -1)
+                          )
+                        }
+                        className="rounded-lg border border-[#C7DDE2] bg-white p-2 text-[#315F69] transition hover:border-[#0F4C5C] hover:text-[#0F4C5C]"
+                        aria-label="Consultar el día anterior"
+                      >
+                        <ChevronLeft size={16} />
+                      </button>
+
+                      <div className="min-w-0 text-center">
+                        <div className="text-xs font-bold uppercase tracking-wide text-[#315F69]">
+                          Disponibilidad
+                        </div>
+                        <div className="mt-0.5 truncate text-xs text-[#456C75]">
+                          {formatDateKey(appointmentAvailabilityDate)}
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() =>
+                          handleAppointmentAvailabilityDateChange(
+                            addDaysToDateKey(appointmentAvailabilityDate, 1)
+                          )
+                        }
+                        className="rounded-lg border border-[#C7DDE2] bg-white p-2 text-[#315F69] transition hover:border-[#0F4C5C] hover:text-[#0F4C5C]"
+                        aria-label="Consultar el día siguiente"
+                      >
+                        <ChevronRight size={16} />
+                      </button>
+                    </div>
+
+                    <input
+                      type="date"
+                      value={appointmentAvailabilityDate}
+                      min={getTodayDateKey(appointmentTimeZone)}
+                      onChange={(event) =>
+                        handleAppointmentAvailabilityDateChange(
+                          event.target.value
+                        )
+                      }
+                      className="mt-3 w-full rounded-xl border border-[#D2E4E8] bg-white px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C]"
+                      aria-label="Día para consultar disponibilidad"
+                    />
+
+                    {!appointmentAssignedTo ? (
+                      <p className="mt-3 text-xs leading-5 text-[#456C75]">
+                        Selecciona un responsable para consultar su agenda.
+                      </p>
+                    ) : isLoadingAppointmentAvailability ? (
+                      <p className="mt-3 text-xs text-[#456C75]">
+                        Consultando agenda...
+                      </p>
+                    ) : appointmentAvailabilityError ? (
+                      <p className="mt-3 text-xs leading-5 text-[#8B2735]">
+                        {appointmentAvailabilityError}
+                      </p>
+                    ) : (
+                      <>
+                        <div className="mt-3">
+                          <div className="text-xs font-semibold text-[#315F69]">
+                            Horas ocupadas
+                          </div>
+
+                          {relevantAvailabilityAppointments.length === 0 ? (
+                            <p className="mt-1 text-xs text-[#52747C]">
+                              No hay citas activas para este responsable.
+                            </p>
+                          ) : (
+                            <div className="mt-2 space-y-1.5">
+                              {relevantAvailabilityAppointments.map(
+                                (appointment) => (
+                                  <div
+                                    key={appointment.id}
+                                    className="rounded-xl border border-[#D4E5E8] bg-white px-3 py-2"
+                                  >
+                                    <div className="text-xs font-bold text-[#0B3F4C]">
+                                      {formatAppointmentTimeRange(
+                                        {
+                                          scheduledAtIso:
+                                            appointment.scheduledAtIso,
+                                          durationMinutes:
+                                            appointment.durationMinutes,
+                                        },
+                                        appointment.timezone ||
+                                          appointmentTimeZone
+                                      )}
+                                    </div>
+                                    <div className="mt-0.5 truncate text-xs text-[#52747C]">
+                                      {appointment.title}
+                                    </div>
+                                  </div>
+                                )
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-3 border-t border-[#D4E5E8] pt-3">
+                          <div className="text-xs font-semibold text-[#315F69]">
+                            Huecos libres orientativos · 09:00–18:00
+                          </div>
+
+                          {availableAppointmentSlots.length === 0 ? (
+                            <p className="mt-1 text-xs leading-5 text-[#52747C]">
+                              No quedan huecos compatibles con esta duración.
+                              Prueba otro día, responsable o duración.
+                            </p>
+                          ) : (
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {availableAppointmentSlots.map((slot) => {
+                                const slotValue = formatDateTimeLocalFromIso(
+                                  new Date(slot.startsAtMs).toISOString()
+                                );
+                                const isSelected =
+                                  appointmentScheduledAt === slotValue;
+
+                                return (
+                                  <button
+                                    key={slot.startsAtMs}
+                                    type="button"
+                                    onClick={() =>
+                                      handleSelectAvailableAppointmentSlot(
+                                        slot.startsAtMs
+                                      )
+                                    }
+                                    className={`rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition ${
+                                      isSelected
+                                        ? "border-[#0F4C5C] bg-[#0F4C5C] text-white"
+                                        : "border-[#B8D8DE] bg-white text-[#0F4C5C] hover:border-[#0F4C5C] hover:bg-[#EAF6F8]"
+                                    }`}
+                                  >
+                                    {new Intl.DateTimeFormat("es-ES", {
+                                      timeZone: appointmentTimeZone,
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    }).format(slot.startsAtMs)}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <label className="block text-sm font-medium text-[#315F69]">
+                    Fecha y hora elegida
                     <input
                       type="datetime-local"
                       value={appointmentScheduledAt}
-                      onChange={(event) =>
-                        setAppointmentScheduledAt(event.target.value)
-                      }
+                      onChange={(event) => {
+                        setAppointmentScheduledAt(event.target.value);
+
+                        if (event.target.value) {
+                          setAppointmentAvailabilityDate(
+                            event.target.value.slice(0, 10)
+                          );
+                        }
+
+                        setAppointmentErrorMessage("");
+                      }}
+                      min={`${getTodayDateKey(appointmentTimeZone)}T00:00`}
                       className="mt-1 w-full rounded-xl border border-[#D2E4E8] bg-[#F7FBFC] px-3 py-2 text-sm text-[#153F48] outline-none focus:border-[#0F4C5C] focus:bg-white"
                     />
+                    <span className="mt-1 block text-xs font-normal leading-5 text-[#6B858C]">
+                      Puedes elegir un hueco libre o introducir otra hora. COPPE
+                      volverá a comprobarla al guardar.
+                    </span>
                   </label>
 
                   <label className="block text-sm font-medium text-[#315F69]">

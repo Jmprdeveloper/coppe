@@ -27,6 +27,7 @@ type AutomaticAcknowledgementInput = {
   };
   channel: AcknowledgementChannel;
   subject?: string | null;
+  deduplicationKey?: string | null;
 };
 
 type AcknowledgementRow = {
@@ -289,6 +290,11 @@ export async function sendAutomaticAcknowledgement(
       : input.channel === "WhatsApp"
         ? input.customer.phone?.trim()
         : null;
+  const rawDeduplicationKey =
+    input.deduplicationKey?.trim() || "initial-contact";
+  const deduplicationKey = createHash("sha256")
+    .update(rawDeduplicationKey)
+    .digest("hex");
   const { data, error } = await supabaseAdmin
     .from("automatic_acknowledgements")
     .insert({
@@ -299,6 +305,7 @@ export async function sendAutomaticAcknowledgement(
       recipient: recipient || null,
       body,
       status: "processing",
+      deduplication_key: deduplicationKey,
     })
     .select("id, status, body")
     .single<AcknowledgementRow>();

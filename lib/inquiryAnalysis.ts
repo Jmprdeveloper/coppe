@@ -1,4 +1,9 @@
 import { type CurrentCompany } from "./currentCompany";
+import {
+  detectOutOfScopeRequest,
+  extractLatestCustomerTurn,
+  isGreetingOnlyMessage,
+} from "./inquiryConversationSafety";
 import { normalizeSearchText } from "./searchUtils";
 
 export type MessageLanguage = "es" | "en";
@@ -1479,26 +1484,143 @@ export type InquiryAnalysisResult = {
   suggestedResponse: string;
 };
 
+function buildGreetingOnlyAnalysis(
+  customerName: string,
+  company: CurrentCompany,
+  language: MessageLanguage,
+): InquiryAnalysisResult {
+  const companyName = company.name?.trim() || "la empresa";
+
+  if (language === "en") {
+    return {
+      subject: "Customer greeting",
+      summary: `${customerName} has greeted the team without explaining what they need yet.`,
+      intent: "Start a conversation with the company.",
+      category: "general_info",
+      priority: "low",
+      sentiment: "neutral",
+      language,
+      missingInformation: ["Reason for the enquiry"],
+      recommendedAction:
+        "Reply to the greeting and ask briefly how the company can help.",
+      suggestedResponse: `Hi ${customerName}, thank you for contacting ${companyName}. How can we help you?`,
+    };
+  }
+
+  return {
+    subject: "Saludo del cliente",
+    summary: `${customerName} ha saludado al equipo, pero todavía no ha indicado qué necesita.`,
+    intent: "Iniciar una conversación con la empresa.",
+    category: "general_info",
+    priority: "low",
+    sentiment: "neutral",
+    language,
+    missingInformation: ["Motivo de la consulta"],
+    recommendedAction:
+      "Responder al saludo y preguntar brevemente en qué puede ayudar la empresa.",
+    suggestedResponse: `Hola ${customerName}, gracias por contactar con ${companyName}. ¿En qué podemos ayudarte?`,
+  };
+}
+
+function buildOutOfScopeAnalysis(
+  customerName: string,
+  company: CurrentCompany,
+  language: MessageLanguage,
+  request: NonNullable<ReturnType<typeof detectOutOfScopeRequest>>,
+  hasStructuredHistory: boolean,
+  focusedMessage: string,
+): InquiryAnalysisResult {
+  const companyName = company.name?.trim() || "la empresa";
+  const companyActivity =
+    company.sector?.trim() || company.description?.trim() || "sus servicios";
+
+  if (language === "en") {
+    return {
+      subject: "Possible service mismatch",
+      summary: `${customerName} is asking about ${request.requestLabelEn}, which does not appear to match ${companyName}'s activity (${companyActivity}).`,
+      intent: hasStructuredHistory
+        ? "The latest customer message changes the conversation to a request that appears unrelated to the company."
+        : "Request a service that appears unrelated to the company.",
+      category: "other",
+      priority: inferPriority("other", focusedMessage),
+      sentiment: inferSentiment("other", focusedMessage),
+      language,
+      missingInformation: [],
+      recommendedAction:
+        "Do not process the unrelated request. Check whether the customer contacted the wrong company and reply with a brief clarification.",
+      suggestedResponse: `Hi ${customerName}, thank you for your message. There may be some confusion about the service requested: ${companyName} operates in ${companyActivity}. If you need help related to our services, please write to us again.`,
+    };
+  }
+
+  return {
+    subject: "Posible confusión de servicio",
+    summary: `${customerName} solicita ${request.requestLabelEs}, algo que no parece corresponder con la actividad de ${companyName} (${companyActivity}).`,
+    intent: hasStructuredHistory
+      ? "El último mensaje cambia la conversación hacia una solicitud que parece ajena a la empresa."
+      : "Solicitar un servicio que parece ajeno a la actividad de la empresa.",
+    category: "other",
+    priority: inferPriority("other", focusedMessage),
+    sentiment: inferSentiment("other", focusedMessage),
+    language,
+    missingInformation: [],
+    recommendedAction:
+      "No tramitar la solicitud ajena. Comprobar si el cliente se ha dirigido a la empresa equivocada y responder con una aclaración breve.",
+    suggestedResponse: `Hola ${customerName}, gracias por escribirnos. Parece que puede haber una confusión con el servicio solicitado: la actividad de ${companyName} es «${companyActivity}». Si necesitas ayuda relacionada con nuestros servicios, puedes volver a escribirnos.`,
+  };
+}
+
 export function analyzeInquiry({
   customerName,
   message,
   company,
 }: AnalyzeInquiryInput): InquiryAnalysisResult {
-  const language = detectLanguage(message, company.language);
-  const category = inferCategory(message);
-  const priority = inferPriority(category, message);
-  const sentiment = inferSentiment(category, message);
-  const subject = buildSubject(message, category);
-  const summary = buildSummary(customerName, message, category, company);
-  const intent = buildIntent(category, message, company);
-  const missingInformation = buildMissingInformation(category, message);
-  const recommendedAction = buildRecommendedAction(category, message, company);
+  const conversationFocus = extractLatestCustomerTurn(message);
+  const focusedMessage = conversationFocus.message;
+  const language = detectLanguage(focusedMessage, company.language);
+
+  if (isGreetingOnlyMessage(focusedMessage)) {
+    return buildGreetingOnlyAnalysis(customerName, company, language);
+  }
+
+  const outOfScopeRequest = detectOutOfScopeRequest(focusedMessage, company);
+
+  if (outOfScopeRequest) {
+    return buildOutOfScopeAnalysis(
+      customerName,
+      company,
+      language,
+      outOfScopeRequest,
+      conversationFocus.hasStructuredHistory,
+      focusedMessage,
+    );
+  }
+
+  const category = inferCategory(focusedMessage);
+  const priority = inferPriority(category, focusedMessage);
+  const sentiment = inferSentiment(category, focusedMessage);
+  const subject = buildSubject(focusedMessage, category);
+  const summary = buildSummary(
+    customerName,
+    focusedMessage,
+    category,
+    company,
+  );
+  const intent = buildIntent(category, focusedMessage, company);
+  const missingInformation = buildMissingInformation(
+    category,
+    focusedMessage,
+  );
+  const recommendedAction = buildRecommendedAction(
+    category,
+    focusedMessage,
+    company,
+  );
   const suggestedResponse = buildSuggestedResponse(
     customerName,
     company,
     category,
     language,
-    message
+    focusedMessage,
   );
 
   return {

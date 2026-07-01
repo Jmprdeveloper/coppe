@@ -541,7 +541,7 @@ function ResponseEditorContent({
         </div>
 
         <span className="rounded-full border border-[#B8D1D8] bg-[#F2FAFB] px-2.5 py-1 text-xs font-bold text-[#0F4C5C] shadow-sm shadow-[#0F4C5C]/5">
-          IA
+          Asistente
         </span>
       </div>
 
