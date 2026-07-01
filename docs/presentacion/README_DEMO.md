@@ -17,6 +17,23 @@ La demostración usa una empresa completamente ficticia:
 No utiliza datos personales reales. Tampoco envía correos, mensajes de
 WhatsApp ni solicitudes a OpenAI.
 
+## Paquete comercial listo para entregar
+
+Los materiales finales se generan en `docs/presentacion/salida`:
+
+- `COPPE_Dossier_Comercial.pdf`: dossier de producto, operación, agenda,
+  seguridad y propuesta comercial;
+- `COPPE_Resumen_Ejecutivo.pdf`: resumen de dos páginas para dirección;
+- `COPPE_Presentacion_Comercial.pptx`: presentación editable;
+- `COPPE_Presentacion_Comercial.pdf`: versión cerrada de la presentación;
+- `COPPE_Propuesta_Piloto.pdf`: propuesta personalizable con espacios para
+  empresa, fecha y firma;
+- `COPPE_Seguridad_Privacidad.pdf`: ficha comercial de controles y
+  condiciones de activación.
+
+Todos comparten la identidad visual de COPPE. Los PDF se entregan; los HTML y
+Markdown de esta carpeta se conservan como fuentes editables.
+
 ## Preparación inicial
 
 Desde `C:\Users\Juanma\Desktop\coppe`:

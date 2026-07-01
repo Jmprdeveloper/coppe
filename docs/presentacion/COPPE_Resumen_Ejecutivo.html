@@ -2,77 +2,99 @@
 <html lang="es">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>COPPE — Resumen ejecutivo</title>
-    <style>
-      :root { --ink:#0f3038; --teal:#0d515b; --orange:#f05a28; --pale:#e9f6f7; --border:#ccdee1; --muted:#57696f; }
-      * { box-sizing:border-box; }
-      @page { size:A4; margin:14mm; }
-      body { margin:0; color:var(--ink); font:10pt/1.42 "Aptos","Segoe UI",sans-serif; }
-      header { border-top:7px solid var(--orange); padding-top:7mm; display:flex; justify-content:space-between; align-items:start; }
-      h1,h2,h3 { font-family:"Aptos Display","Segoe UI",sans-serif; }
-      h1 { font-size:28pt; margin:0; }
-      h2 { font-size:18pt; line-height:1.2; margin:4mm 0 5mm; max-width:165mm; }
-      h3 { font-size:12pt; margin:0 0 2mm; }
-      p { margin:0 0 3mm; }
-      ul { margin:2mm 0 0; padding-left:5mm; }
-      li { margin-bottom:1.1mm; }
-      .mark { color:white; background:var(--teal); padding:2mm 4mm; border-radius:3mm; font-weight:800; }
-      .lead { font-size:12.5pt; color:var(--teal); }
-      .grid { display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin-top:5mm; }
-      .card { border:1px solid var(--border); border-left:4px solid var(--teal); border-radius:3mm; padding:4mm; }
-      .card.orange { border-left-color:var(--orange); }
-      .pilot { margin-top:5mm; background:var(--ink); color:white; border-radius:4mm; padding:5mm; display:grid; grid-template-columns:1fr 1.6fr; gap:5mm; }
-      .pilot strong { color:var(--orange); font-size:20pt; display:block; }
-      .note { margin-top:4mm; padding:3mm 4mm; background:var(--pale); border-radius:3mm; color:var(--teal); }
-      footer { margin-top:5mm; padding-top:3mm; border-top:1px solid var(--border); color:var(--muted); display:flex; justify-content:space-between; font-size:8.5pt; }
-    </style>
+    <link rel="stylesheet" href="coppe-brand.css" />
   </head>
   <body>
-    <header><div><h1>COPPE</h1><h2>Atención al cliente convertida en trabajo organizado</h2></div><span class="mark">SaaS B2B</span></header>
-    <p class="lead">Centraliza consultas, crea casos trazables y ayuda al equipo a responder, asignar responsables y programar seguimientos.</p>
-    <div class="grid">
-      <section class="card orange">
-        <h3>El problema</h3>
-        <ul>
-          <li>Consultas repartidas entre canales y personas.</li>
-          <li>Contexto difícil de reconstruir.</li>
-          <li>Respuestas y seguimientos olvidados.</li>
-          <li>Poca visibilidad operativa.</li>
-        </ul>
-      </section>
-      <section class="card">
-        <h3>La solución</h3>
-        <ul>
-          <li>Bandeja central de clientes y casos.</li>
-          <li>Prioridad, categoría, estado y canal.</li>
-          <li>Resumen, intención y borrador asistidos.</li>
-          <li>Responsables, notas, citas y recordatorios.</li>
-        </ul>
-      </section>
-      <section class="card">
-        <h3>Control</h3>
-        <ul>
-          <li>Revisión humana de respuestas.</li>
-          <li>Roles, MFA y aislamiento por empresa.</li>
-          <li>Auditoría y exportación.</li>
-          <li>Canales activados durante el onboarding.</li>
-        </ul>
-      </section>
-      <section class="card orange">
-        <h3>Qué medimos</h3>
-        <ul>
-          <li>Tiempo hasta primera revisión.</li>
-          <li>Casos sin responsable.</li>
-          <li>Seguimientos vencidos.</li>
-          <li>Resolución y adopción del equipo.</li>
-        </ul>
-      </section>
-    </div>
-    <section class="pilot">
-      <div><span>Piloto recomendado</span><strong>1.500 € + IVA</strong><span>30 días</span></div>
-      <div><b>Un equipo · hasta 10 usuarios · hasta 1.000 casos.</b><br />Configuración, formación, revisión semanal e informe final. El importe se imputa al onboarding si convierte en contrato anual.</div>
+    <section class="page cover">
+      <div class="cover-grid"></div>
+      <div class="cover-orbit"></div>
+      <div class="cover-content">
+        <div class="brand-lockup">
+          <img class="brand-icon" src="assets/coppe-icon.png" alt="" />
+          <span class="brand-name">COPPE</span>
+        </div>
+        <img class="cover-logo" src="assets/coppe-icon.png" alt="COPPE" />
+        <div class="cover-kicker">Resumen ejecutivo · 2026</div>
+        <h1>Decisiones más rápidas. Seguimientos que no se pierden.</h1>
+        <p class="lead">
+          La visión esencial de COPPE para responsables de negocio,
+          operaciones y atención al cliente.
+        </p>
+        <div class="cover-meta">
+          <span class="cover-chip">Lectura ejecutiva · 3 minutos</span>
+          <span>app.coppe.es</span>
+        </div>
+      </div>
     </section>
-    <p class="note"><b>Siguiente paso:</b> sesión de descubrimiento de 45 minutos para definir proceso, volumen, canales y criterios de éxito.</p>
-    <footer><span>COPPE · app.coppe.es</span><span>Resumen comercial no vinculante</span></footer>
+
+    <section class="page compact">
+      <header class="page-header">
+        <span class="section-mark">Resumen ejecutivo</span>
+        <div class="brand-lockup">
+          <img class="brand-icon" src="assets/coppe-icon.png" alt="" />
+          <span class="brand-name" style="font-size:11pt">COPPE</span>
+        </div>
+      </header>
+      <h2>Atención al cliente convertida en trabajo organizado</h2>
+      <p class="lead">
+        COPPE centraliza consultas, crea casos trazables y ayuda al equipo a
+        responder, asignar responsables, proteger citas y cerrar seguimientos.
+      </p>
+
+      <div class="grid-2" style="margin-top:4mm">
+        <article class="card gold">
+          <h3>El problema</h3>
+          <ul>
+            <li>Mensajes repartidos entre canales y personas.</li>
+            <li>Contexto difícil de reconstruir.</li>
+            <li>Respuestas, citas y seguimientos olvidados.</li>
+            <li>Ruido comercial mezclado con clientes reales.</li>
+          </ul>
+        </article>
+        <article class="card teal">
+          <h3>La respuesta de COPPE</h3>
+          <ul>
+            <li>Bandeja central de clientes y casos.</li>
+            <li>Clasificación y borradores asistidos.</li>
+            <li>Responsables, alertas y agenda sin colisiones.</li>
+            <li>Reglas antispam y cuarentena recuperable.</li>
+          </ul>
+        </article>
+      </div>
+
+      <div class="grid-4" style="margin-top:4mm">
+        <div class="metric"><strong>1</strong><span>visión operativa compartida</span></div>
+        <div class="metric"><strong>360°</strong><span>historial por cliente</span></div>
+        <div class="metric"><strong>24/7</strong><span>recepción y alertas</span></div>
+        <div class="metric"><strong>0</strong><span>dobles citas por recurso</span></div>
+      </div>
+
+      <div class="price-panel" style="margin-top:4mm;margin-bottom:4mm">
+        <div class="price">
+          <small>Piloto recomendado</small>
+          <strong>1.500 € + IVA</strong>
+          <span>30 días · hasta 10 usuarios · hasta 1.000 casos</span>
+        </div>
+        <article class="card blue">
+          <h3>Qué se valida</h3>
+          <p>
+            Tiempo hasta primera revisión, casos sin responsable, seguimientos
+            vencidos, resolución, adopción y utilidad de borradores.
+          </p>
+          <p><strong>Conversión orientativa:</strong> Professional, 399 € + IVA/mes.</p>
+        </article>
+      </div>
+
+      <div class="band" style="margin:3mm 0">
+        <strong>Siguiente paso:</strong> sesión de descubrimiento de 45 minutos
+        para definir proceso, volumen, canales, responsables y criterios de éxito.
+      </div>
+      <footer class="page-footer">
+        <span>COPPE · Resumen ejecutivo · Propuesta no vinculante</span>
+        <span class="page-number"></span>
+      </footer>
+    </section>
   </body>
 </html>

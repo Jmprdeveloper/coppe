@@ -13,8 +13,16 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "COPPE",
+  title: {
+    default: "COPPE",
+    template: "%s | COPPE",
+  },
   description: "Organiza casos, clientes y seguimientos sin complicaciones.",
+  applicationName: "COPPE",
+  icons: {
+    icon: "/coppe-icon.png",
+    apple: "/coppe-icon.png",
+  },
 };
 
 export default function RootLayout({

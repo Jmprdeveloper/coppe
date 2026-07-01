@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Building2,
   CalendarClock,
   Inbox,
   Sparkles,
@@ -9,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "./Button";
+import { CoppeBrandMark } from "./CoppeBrandMark";
 import { PriorityBadge } from "./PriorityBadge";
 
 type Feature = {
@@ -44,9 +44,7 @@ export function Landing({ setActiveView }: LandingProps) {
     <div className="min-h-screen bg-[#F7F9FA]">
       <header className="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white">
-            <Building2 size={19} />
-          </div>
+          <CoppeBrandMark size={42} priority />
 
           <div className="text-xl font-bold tracking-tight text-slate-950">
             COPPE

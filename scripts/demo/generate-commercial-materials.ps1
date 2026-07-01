@@ -4,6 +4,7 @@ $repo = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $presentationRoot = Join-Path $repo "docs\presentacion"
 $assets = Join-Path $presentationRoot "assets"
 $output = Join-Path $presentationRoot "salida"
+$iconPath = Join-Path $assets "coppe-icon.png"
 
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 
@@ -12,15 +13,17 @@ function Get-Rgb([int]$Red, [int]$Green, [int]$Blue) {
 }
 
 $colors = @{
-  Ink = Get-Rgb 15 48 56
-  Teal = Get-Rgb 13 81 91
-  Pale = Get-Rgb 233 246 247
-  Paper = Get-Rgb 248 250 250
+  Ink = Get-Rgb 6 22 51
+  Teal = Get-Rgb 7 95 198
+  Pale = Get-Rgb 243 248 252
+  Paper = Get-Rgb 248 251 254
   White = Get-Rgb 255 255 255
-  Orange = Get-Rgb 240 90 40
-  Muted = Get-Rgb 87 105 111
-  Border = Get-Rgb 204 222 225
-  Green = Get-Rgb 27 132 102
+  Orange = Get-Rgb 255 189 74
+  Muted = Get-Rgb 83 100 124
+  Border = Get-Rgb 217 227 239
+  Green = Get-Rgb 16 214 177
+  Cyan = Get-Rgb 18 207 227
+  Blue = Get-Rgb 8 120 222
 }
 
 function Add-TextBox {
@@ -81,15 +84,30 @@ function Add-Rectangle {
   return $shape
 }
 
+function Add-Logo {
+  param(
+    $Slide,
+    [double]$Left,
+    [double]$Top,
+    [double]$Size
+  )
+
+  $Slide.Shapes.AddPicture($iconPath, 0, -1, $Left, $Top, $Size, $Size) | Out-Null
+}
+
 function Add-SlideBase {
   param($Presentation, [string]$Section, [string]$Title)
 
   $slide = $Presentation.Slides.Add($Presentation.Slides.Count + 1, 12)
   Add-Rectangle $slide 0 0 960 540 $colors.Paper $colors.Paper | Out-Null
-  Add-Rectangle $slide 0 0 960 8 $colors.Orange $colors.Orange | Out-Null
-  Add-TextBox $slide $Section 48 28 220 20 11 $colors.Orange $true | Out-Null
-  Add-TextBox $slide $Title 48 54 864 54 27 $colors.Ink $true 1 "Aptos Display" | Out-Null
-  Add-TextBox $slide "COPPE · Presentación comercial" 48 512 300 14 9 $colors.Muted $false | Out-Null
+  Add-Rectangle $slide 0 0 620 8 $colors.Teal $colors.Teal | Out-Null
+  Add-Rectangle $slide 620 0 220 8 $colors.Cyan $colors.Cyan | Out-Null
+  Add-Rectangle $slide 840 0 120 8 $colors.Green $colors.Green | Out-Null
+  Add-TextBox $slide $Section 48 30 260 20 10 $colors.Teal $true | Out-Null
+  Add-TextBox $slide $Title 48 58 820 54 27 $colors.Ink $true 1 "Aptos Display" | Out-Null
+  Add-Logo $slide 874 25 38
+  Add-Rectangle $slide 48 500 864 1 $colors.Border $colors.Border | Out-Null
+  Add-TextBox $slide "COPPE · Presentación comercial · Confidencial" 48 512 340 14 8.5 $colors.Muted $false | Out-Null
   Add-TextBox $slide ([string]$slide.SlideIndex) 890 512 22 14 9 $colors.Muted $false 2 | Out-Null
   return $slide
 }
@@ -137,13 +155,25 @@ function New-CommercialPresentation {
   try {
     $slide = $presentation.Slides.Add(1, 12)
     Add-Rectangle $slide 0 0 960 540 $colors.Ink $colors.Ink | Out-Null
-    Add-Rectangle $slide 0 0 14 540 $colors.Orange $colors.Orange | Out-Null
-    Add-TextBox $slide "COPPE" 64 62 300 60 34 $colors.White $true 1 "Aptos Display" | Out-Null
-    Add-TextBox $slide "Atención al cliente convertida en trabajo organizado" 64 150 770 120 33 $colors.White $true 1 "Aptos Display" | Out-Null
-    Add-TextBox $slide "Centraliza consultas, prepara respuestas con IA y convierte cada conversación en una acción trazable." 64 292 740 74 18 (Get-Rgb 205 226 229) $false | Out-Null
-    Add-Rectangle $slide 64 405 308 54 $colors.Orange $colors.Orange 0.15 | Out-Null
-    Add-TextBox $slide "Piloto B2B · 30 días" 84 419 268 25 16 $colors.White $true | Out-Null
-    Add-TextBox $slide "app.coppe.es" 736 490 160 18 11 (Get-Rgb 205 226 229) $false 2 | Out-Null
+    Add-Rectangle $slide 0 0 12 540 $colors.Cyan $colors.Cyan | Out-Null
+    Add-Rectangle $slide 12 0 7 540 $colors.Green $colors.Green | Out-Null
+    $halo = $slide.Shapes.AddShape(9, 722, -120, 360, 360)
+    $halo.Fill.ForeColor.RGB = $colors.Cyan
+    $halo.Fill.Transparency = 0.76
+    $halo.Line.Visible = 0
+    $orbit = $slide.Shapes.AddShape(9, 680, 300, 370, 370)
+    $orbit.Fill.Visible = 0
+    $orbit.Line.ForeColor.RGB = $colors.White
+    $orbit.Line.Transparency = 0.82
+    $orbit.Line.Weight = 2
+    Add-Logo $slide 64 54 104
+    Add-TextBox $slide "COPPE" 186 78 300 42 25 $colors.White $true 1 "Aptos Display" | Out-Null
+    Add-TextBox $slide "DOSSIER COMERCIAL · 2026" 66 182 380 22 10 $colors.Cyan $true | Out-Null
+    Add-TextBox $slide "La atención al cliente, convertida en trabajo organizado" 64 218 790 118 32 $colors.White $true 1 "Aptos Display" | Out-Null
+    Add-TextBox $slide "Centraliza conversaciones, responde con contexto y convierte cada petición en una acción trazable." 64 354 720 62 17 (Get-Rgb 215 233 255) $false | Out-Null
+    Add-Rectangle $slide 64 448 270 44 (Get-Rgb 10 54 105) (Get-Rgb 49 113 174) 0.18 | Out-Null
+    Add-TextBox $slide "SaaS B2B · Piloto de 30 días" 82 460 236 20 13 $colors.White $true | Out-Null
+    Add-TextBox $slide "app.coppe.es" 740 487 150 18 10 (Get-Rgb 190 213 238) $false 2 | Out-Null
 
     $slide = Add-SlideBase $presentation "01 · PROBLEMA" "Las consultas llegan; el trabajo se dispersa"
     Add-Card $slide 48 130 200 142 "Canales separados" "Email, WhatsApp, formularios, llamadas y redes sin una visión única." | Out-Null
@@ -199,9 +229,19 @@ function New-CommercialPresentation {
       $row = [Math]::Floor($index / 3)
       Add-Card $slide (48 + $column * 292) (132 + $row * 144) 266 118 $capabilities[$index][0] $capabilities[$index][1] $(if ($index % 2 -eq 0) { $colors.Teal } else { $colors.Orange }) | Out-Null
     }
-    Add-TextBox $slide "Email y WhatsApp se activan y validan durante el onboarding; no se prometen antes de comprobar proveedor, dominio y permisos." 80 436 800 42 13 $colors.Muted $false 2 | Out-Null
+    Add-TextBox $slide "Email y WhatsApp están integrados y se habilitan por cliente después de validar proveedor, dominio, permisos y webhooks." 80 436 800 42 13 $colors.Muted $false 2 | Out-Null
 
-    $slide = Add-SlideBase $presentation "06 · SEGURIDAD" "Control técnico sin vender humo"
+    $slide = Add-SlideBase $presentation "06 · AUTOMATIZACIÓN" "Rapidez para el cliente; control para el equipo"
+    Add-Card $slide 48 130 266 118 "Cortesía inmediata" "Acuse automático en el primer contacto, con deduplicación y sin responder a mensajes en cuarentena." $colors.Cyan | Out-Null
+    Add-Card $slide 347 130 266 118 "Alertas omnicanal" "Contador, panel de mensajes nuevos, marcado de lectura y aviso de escritorio opcional." $colors.Green | Out-Null
+    Add-Card $slide 646 130 266 118 "Filtro de ruido" "Heurísticas, límites, reglas de remitente y cuarentena recuperable para spam y publicidad." $colors.Orange | Out-Null
+    Add-Rectangle $slide 48 284 864 154 $colors.Ink $colors.Ink 0.12 | Out-Null
+    Add-TextBox $slide "Agenda sin dobles citas" 76 310 350 34 22 $colors.White $true 1 "Aptos Display" | Out-Null
+    Add-TextBox $slide "Validación atómica por responsable · duración y márgenes protegidos · recursos en paralelo · vista diaria y semanal" 76 359 760 48 14 (Get-Rgb 215 233 255) $false | Out-Null
+    Add-Rectangle $slide 792 309 76 76 $colors.Teal $colors.Teal 0.3 | Out-Null
+    Add-TextBox $slide "0×" 792 328 76 34 24 $colors.Cyan $true 2 "Aptos Display" | Out-Null
+
+    $slide = Add-SlideBase $presentation "07 · SEGURIDAD" "Control técnico sin vender humo"
     Add-Card $slide 48 130 266 105 "Aislamiento" "RLS y comprobaciones explícitas de pertenencia." $colors.Teal | Out-Null
     Add-Card $slide 347 130 266 105 "Acceso" "Roles y MFA TOTP para proteger cuentas." $colors.Orange | Out-Null
     Add-Card $slide 646 130 266 105 "Trazabilidad" "Auditoría de acciones y autoría operativa." $colors.Green | Out-Null
@@ -211,7 +251,7 @@ function New-CommercialPresentation {
     Add-Rectangle $slide 112 408 736 58 $colors.Pale $colors.Border 0.12 | Out-Null
     Add-TextBox $slide "Sin certificaciones inventadas: ISO, SOC 2 y SLA solo se declaran cuando existan." 140 426 680 24 15 $colors.Teal $true 2 | Out-Null
 
-    $slide = Add-SlideBase $presentation "07 · PILOTO" "Una prueba pagada, acotada y medible"
+    $slide = Add-SlideBase $presentation "08 · PILOTO" "Una prueba pagada, acotada y medible"
     Add-Rectangle $slide 48 128 330 308 $colors.Ink $colors.Ink 0.12 | Out-Null
     Add-TextBox $slide "30 días" 82 158 260 52 34 $colors.White $true 2 "Aptos Display" | Out-Null
     Add-TextBox $slide "1.500 € + IVA" 82 228 260 52 28 $colors.Orange $true 2 "Aptos Display" | Out-Null
@@ -221,7 +261,7 @@ function New-CommercialPresentation {
     Add-Card $slide 416 292 228 144 "Medimos" "Primera revisión, casos sin responsable, vencidos y resolución." $colors.Orange | Out-Null
     Add-Card $slide 674 292 238 144 "Después" "Professional: 399 € + IVA/mes, sujeto a contrato final." $colors.Teal | Out-Null
 
-    $slide = Add-SlideBase $presentation "08 · ACTIVACIÓN" "Del sí comercial al primer piloto"
+    $slide = Add-SlideBase $presentation "09 · ACTIVACIÓN" "Del sí comercial al primer piloto"
     $activationSteps = @(
       @("1", "Pedido condicionado", "Alcance, precio y plazo sin cobrar todavía"),
       @("2", "Entidad y contratos", "S.L.U., NIF, SaaS, DPA y soporte"),
@@ -241,13 +281,14 @@ function New-CommercialPresentation {
     }
 
     $slide = $presentation.Slides.Add($presentation.Slides.Count + 1, 12)
-    Add-Rectangle $slide 0 0 960 540 $colors.Teal $colors.Teal | Out-Null
-    Add-Rectangle $slide 0 0 14 540 $colors.Orange $colors.Orange | Out-Null
-    Add-TextBox $slide "Siguiente paso" 64 74 420 42 16 (Get-Rgb 205 226 229) $true | Out-Null
-    Add-TextBox $slide "Sesión de descubrimiento de 45 minutos" 64 138 770 110 34 $colors.White $true 1 "Aptos Display" | Out-Null
-    Add-TextBox $slide "Definimos proceso, volumen, canales, responsables y métricas. Después entregamos una propuesta de piloto cerrada." 64 284 730 76 18 (Get-Rgb 220 237 239) $false | Out-Null
-    Add-Rectangle $slide 64 408 320 54 $colors.Orange $colors.Orange 0.15 | Out-Null
-    Add-TextBox $slide "COPPE · app.coppe.es" 86 422 276 24 16 $colors.White $true | Out-Null
+    Add-Rectangle $slide 0 0 960 540 $colors.Ink $colors.Ink | Out-Null
+    Add-Rectangle $slide 0 0 12 540 $colors.Cyan $colors.Cyan | Out-Null
+    Add-Logo $slide 66 62 88
+    Add-TextBox $slide "SIGUIENTE PASO" 180 78 300 24 11 $colors.Cyan $true | Out-Null
+    Add-TextBox $slide "Sesión de descubrimiento de 45 minutos" 64 172 780 102 34 $colors.White $true 1 "Aptos Display" | Out-Null
+    Add-TextBox $slide "Definimos proceso, volumen, canales, responsables y métricas. Después entregamos una propuesta de piloto cerrada." 64 300 730 74 18 (Get-Rgb 215 233 255) $false | Out-Null
+    Add-Rectangle $slide 64 426 330 54 (Get-Rgb 10 54 105) (Get-Rgb 49 113 174) 0.15 | Out-Null
+    Add-TextBox $slide "COPPE · app.coppe.es" 86 441 286 24 16 $colors.White $true | Out-Null
 
     $pptxPath = Join-Path $output "COPPE_Presentacion_Comercial.pptx"
     $pdfPath = Join-Path $output "COPPE_Presentacion_Comercial.pdf"
@@ -312,5 +353,11 @@ Export-HtmlToPdf `
 Export-HtmlToPdf `
   -HtmlPath (Join-Path $presentationRoot "COPPE_Resumen_Ejecutivo.html") `
   -PdfName "COPPE_Resumen_Ejecutivo.pdf"
+Export-HtmlToPdf `
+  -HtmlPath (Join-Path $presentationRoot "COPPE_Propuesta_Piloto.html") `
+  -PdfName "COPPE_Propuesta_Piloto.pdf"
+Export-HtmlToPdf `
+  -HtmlPath (Join-Path $presentationRoot "COPPE_Seguridad_Privacidad.html") `
+  -PdfName "COPPE_Seguridad_Privacidad.pdf"
 
 Write-Output "Material comercial generado en $output"

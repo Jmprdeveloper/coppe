@@ -1,7 +1,8 @@
 import type { ElementType } from "react";
-import { Building2, LogOut } from "lucide-react";
+import { LogOut } from "lucide-react";
 
 import { classNames } from "../lib/utils";
+import { CoppeBrandMark } from "./CoppeBrandMark";
 
 type NavigationItem = {
   key: string;
@@ -29,9 +30,7 @@ export function Sidebar({
         onClick={() => setActiveView("dashboard")}
         className="flex h-16 w-full items-center gap-3 border-b border-slate-200 px-6 text-left transition hover:bg-slate-50"
       >
-        <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white">
-          <Building2 size={18} />
-        </div>
+        <CoppeBrandMark size={38} priority />
 
         <div>
           <div className="text-lg font-bold tracking-tight text-slate-950">

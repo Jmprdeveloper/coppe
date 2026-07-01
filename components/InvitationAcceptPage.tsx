@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Building2, CheckCircle2, LogIn, UserPlus } from "lucide-react";
+import { CheckCircle2, LogIn, UserPlus } from "lucide-react";
 import { useRouter } from "next/navigation";
 
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
+import { CoppeBrandMark } from "./CoppeBrandMark";
 
 type InvitationAcceptPageProps = {
   token: string;
@@ -486,9 +487,7 @@ export function InvitationAcceptPage({ token }: InvitationAcceptPageProps) {
         <div className="w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/80">
           <div className="bg-[#0F4C5C] px-6 py-7 text-white md:px-8">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15">
-                <Building2 size={22} />
-              </div>
+              <CoppeBrandMark size={46} priority />
 
               <div>
                 <div className="text-sm font-medium text-white/75">

@@ -8,6 +8,7 @@ import type { CurrentCompany } from "../lib/currentCompany";
 import { createClient } from "../lib/supabase/client";
 
 import { Button } from "./Button";
+import { CoppeBrandMark } from "./CoppeBrandMark";
 
 type CompanyOnboardingProps = {
   userEmail: string | null;
@@ -136,9 +137,7 @@ export function CompanyOnboarding({
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-5xl items-center justify-center">
         <div className="grid w-full overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl shadow-slate-200/80 lg:grid-cols-[0.9fr_1.1fr]">
           <aside className="bg-[#0F4C5C] p-8 text-white md:p-10">
-            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15">
-              <Building2 size={24} />
-            </div>
+            <CoppeBrandMark size={52} priority />
 
             <h1 className="mt-6 text-2xl font-bold tracking-tight md:text-3xl">
               Configura tu empresa en COPPE

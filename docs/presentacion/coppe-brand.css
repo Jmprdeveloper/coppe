@@ -1,0 +1,684 @@
+:root {
+  --navy-950: #061633;
+  --navy-900: #08224d;
+  --blue-700: #075fc6;
+  --blue-600: #0878de;
+  --cyan-500: #12cfe3;
+  --teal-500: #10d6b1;
+  --gold-400: #ffbd4a;
+  --ink: #10223d;
+  --muted: #53647c;
+  --line: #d9e3ef;
+  --ice: #f3f8fc;
+  --white: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+@page {
+  size: A4;
+  margin: 0;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  color: var(--ink);
+  background: #dce5ef;
+  font: 10.4pt/1.48 "Aptos", "Segoe UI", Arial, sans-serif;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+body {
+  counter-reset: page-number;
+}
+
+.page {
+  position: relative;
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 8mm;
+  padding: 20mm 18mm 18mm;
+  overflow: hidden;
+  background: var(--white);
+  page-break-after: always;
+  break-after: page;
+  counter-increment: page-number;
+}
+
+.page:last-child {
+  margin-bottom: 0;
+  page-break-after: auto;
+  break-after: auto;
+}
+
+.page.compact {
+  padding-top: 15mm;
+  padding-bottom: 14mm;
+}
+
+.page.compact .page-header {
+  margin-bottom: 5mm;
+}
+
+.page.compact h2 {
+  margin-bottom: 3mm;
+  font-size: 21pt;
+}
+
+.page.compact .lead {
+  font-size: 11.5pt;
+}
+
+.page.compact .card {
+  padding: 4mm;
+}
+
+.page.compact .metric {
+  min-height: 28mm;
+  padding: 4mm;
+}
+
+.page.compact .metric strong {
+  font-size: 20pt;
+}
+
+.page.compact .price-panel {
+  gap: 5mm;
+}
+
+.page.compact .price {
+  min-height: 46mm;
+  padding: 6mm;
+}
+
+.page.compact .price strong {
+  font-size: 23pt;
+}
+
+.page::before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 2.2mm;
+  content: "";
+  background: linear-gradient(
+    90deg,
+    var(--blue-700) 0%,
+    var(--cyan-500) 56%,
+    var(--teal-500) 100%
+  );
+}
+
+.cover {
+  padding: 0;
+  color: var(--white);
+  background:
+    radial-gradient(circle at 86% 14%, rgba(18, 207, 227, 0.27), transparent 25%),
+    radial-gradient(circle at 14% 88%, rgba(16, 214, 177, 0.19), transparent 29%),
+    linear-gradient(145deg, var(--navy-950) 0%, var(--navy-900) 54%, #074b9d 100%);
+}
+
+.cover::before {
+  display: none;
+}
+
+.cover-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.16;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.1) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.1) 1px, transparent 1px);
+  background-size: 14mm 14mm;
+  mask-image: linear-gradient(to bottom, black, transparent 76%);
+}
+
+.cover-orbit {
+  position: absolute;
+  right: -42mm;
+  bottom: -39mm;
+  width: 146mm;
+  height: 146mm;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 50%;
+  box-shadow:
+    0 0 0 20mm rgba(255, 255, 255, 0.025),
+    0 0 0 42mm rgba(255, 255, 255, 0.018);
+}
+
+.cover-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  min-height: 297mm;
+  flex-direction: column;
+  padding: 23mm 20mm 19mm;
+}
+
+.brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 4mm;
+}
+
+.brand-icon {
+  width: 16mm;
+  height: 16mm;
+  object-fit: contain;
+  filter: drop-shadow(0 3mm 6mm rgba(0, 0, 0, 0.24));
+}
+
+.brand-name {
+  font-size: 16pt;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.cover-logo {
+  width: 43mm;
+  height: 43mm;
+  margin-top: 27mm;
+  object-fit: contain;
+  filter: drop-shadow(0 5mm 11mm rgba(0, 0, 0, 0.28));
+}
+
+.cover-kicker,
+.eyebrow {
+  color: var(--cyan-500);
+  font-size: 8.5pt;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.cover-kicker {
+  margin-top: 15mm;
+}
+
+.cover h1 {
+  max-width: 168mm;
+  margin: 5mm 0 5mm;
+  color: var(--white);
+  font: 800 32pt/1.05 "Aptos Display", "Segoe UI", Arial, sans-serif;
+  letter-spacing: -0.035em;
+}
+
+.cover .lead {
+  max-width: 148mm;
+  color: #d7e9ff;
+  font-size: 14pt;
+  line-height: 1.5;
+}
+
+.cover-meta {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  margin-top: auto;
+  color: #bbd1ee;
+  font-size: 9pt;
+}
+
+.cover-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 9mm;
+  padding: 0 4mm;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: 99px;
+  color: var(--white);
+  background: rgba(255, 255, 255, 0.08);
+  font-weight: 700;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  margin-top: 0;
+  font-family: "Aptos Display", "Segoe UI", Arial, sans-serif;
+}
+
+h2 {
+  max-width: 170mm;
+  margin: 3mm 0 5mm;
+  color: var(--navy-950);
+  font-size: 24pt;
+  line-height: 1.1;
+  letter-spacing: -0.025em;
+}
+
+h3 {
+  margin-bottom: 2mm;
+  color: var(--navy-900);
+  font-size: 13pt;
+  line-height: 1.2;
+}
+
+h4 {
+  margin-bottom: 1.2mm;
+  color: var(--blue-700);
+  font-size: 10.5pt;
+}
+
+p {
+  margin: 0 0 3.4mm;
+}
+
+ul,
+ol {
+  margin: 2mm 0 4mm;
+  padding-left: 5.5mm;
+}
+
+li {
+  margin-bottom: 1.5mm;
+}
+
+.lead {
+  max-width: 168mm;
+  color: #294568;
+  font-size: 13pt;
+  line-height: 1.5;
+}
+
+.muted {
+  color: var(--muted);
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10mm;
+}
+
+.page-header .brand-icon {
+  width: 10mm;
+  height: 10mm;
+  filter: none;
+}
+
+.section-mark {
+  display: inline-flex;
+  align-items: center;
+  gap: 2.4mm;
+  color: var(--blue-700);
+  font-size: 8.5pt;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.section-mark::before {
+  width: 7mm;
+  height: 1.2mm;
+  border-radius: 99px;
+  content: "";
+  background: linear-gradient(90deg, var(--blue-700), var(--cyan-500));
+}
+
+.page-footer {
+  position: absolute;
+  right: 18mm;
+  bottom: 8mm;
+  left: 18mm;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 2.8mm;
+  border-top: 1px solid var(--line);
+  color: #718099;
+  font-size: 8pt;
+}
+
+.page-number::after {
+  content: counter(page-number);
+}
+
+.grid-2,
+.grid-3,
+.grid-4 {
+  display: grid;
+  gap: 4.5mm;
+}
+
+.grid-2 {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.grid-3 {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.card {
+  position: relative;
+  padding: 5mm;
+  border: 1px solid var(--line);
+  border-radius: 4mm;
+  background: var(--white);
+  box-shadow: 0 2.5mm 8mm rgba(16, 34, 61, 0.055);
+  break-inside: avoid;
+}
+
+.card::before {
+  position: absolute;
+  top: 0;
+  left: 5mm;
+  width: 16mm;
+  height: 1.2mm;
+  border-radius: 0 0 99px 99px;
+  content: "";
+  background: var(--cyan-500);
+}
+
+.card.gold::before {
+  background: var(--gold-400);
+}
+
+.card.teal::before {
+  background: var(--teal-500);
+}
+
+.card.blue::before {
+  background: var(--blue-700);
+}
+
+.card p:last-child,
+.card ul:last-child {
+  margin-bottom: 0;
+}
+
+.metric {
+  min-height: 34mm;
+  padding: 5mm;
+  border-radius: 4mm;
+  color: var(--white);
+  background: linear-gradient(145deg, var(--navy-900), #0a4b99);
+}
+
+.metric strong {
+  display: block;
+  margin-bottom: 1.5mm;
+  color: var(--cyan-500);
+  font: 800 23pt/1 "Aptos Display", "Segoe UI", sans-serif;
+}
+
+.metric span {
+  color: #d9eaff;
+  font-size: 9pt;
+}
+
+.band {
+  margin: 6mm 0;
+  padding: 6mm;
+  border: 1px solid #cfe6ef;
+  border-radius: 4mm;
+  background:
+    linear-gradient(100deg, rgba(18, 207, 227, 0.1), rgba(16, 214, 177, 0.08)),
+    var(--ice);
+}
+
+.band.dark {
+  border: 0;
+  color: var(--white);
+  background: linear-gradient(120deg, var(--navy-950), #0a4f9f);
+}
+
+.band.dark h3 {
+  color: var(--white);
+}
+
+.band.dark p {
+  color: #d7e9ff;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2mm;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 7.5mm;
+  padding: 0 3mm;
+  border: 1px solid #cbdceb;
+  border-radius: 99px;
+  color: #24476c;
+  background: #f7fbff;
+  font-size: 8.8pt;
+  font-weight: 700;
+}
+
+.workflow {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 2.5mm;
+  margin: 7mm 0;
+}
+
+.workflow-step {
+  position: relative;
+  min-height: 34mm;
+  padding: 4mm 3mm;
+  border-radius: 3.5mm;
+  background: var(--ice);
+}
+
+.workflow-step:not(:last-child)::after {
+  position: absolute;
+  z-index: 2;
+  top: 14mm;
+  right: -3.3mm;
+  color: var(--blue-600);
+  content: "›";
+  font-size: 17pt;
+  font-weight: 700;
+}
+
+.workflow-step b {
+  display: block;
+  margin-bottom: 2mm;
+  color: var(--blue-700);
+  font-size: 9pt;
+}
+
+.workflow-step span {
+  color: var(--muted);
+  font-size: 8.6pt;
+  line-height: 1.35;
+}
+
+.screenshot {
+  width: 100%;
+  border: 1px solid #cdd9e7;
+  border-radius: 4mm;
+  box-shadow: 0 4mm 12mm rgba(16, 34, 61, 0.12);
+}
+
+.screenshot-frame {
+  position: relative;
+  padding: 4mm;
+  border-radius: 5mm;
+  background: linear-gradient(140deg, #eaf4ff, #f4fbfc);
+}
+
+.screenshot-caption {
+  margin-top: 2.5mm;
+  color: var(--muted);
+  font-size: 8pt;
+}
+
+.quote {
+  position: relative;
+  margin: 7mm 0;
+  padding: 6mm 7mm 6mm 15mm;
+  border-radius: 4mm;
+  color: #183a60;
+  background: var(--ice);
+  font-size: 13pt;
+  line-height: 1.45;
+}
+
+.quote::before {
+  position: absolute;
+  top: 1mm;
+  left: 5mm;
+  color: var(--cyan-500);
+  content: "“";
+  font: 800 31pt/1 Georgia, serif;
+}
+
+.price-panel {
+  display: grid;
+  grid-template-columns: 0.82fr 1.18fr;
+  gap: 8mm;
+  align-items: stretch;
+  margin: 7mm 0;
+}
+
+.price {
+  display: flex;
+  min-height: 57mm;
+  flex-direction: column;
+  justify-content: center;
+  padding: 8mm;
+  border-radius: 5mm;
+  color: var(--white);
+  background:
+    radial-gradient(circle at 90% 0, rgba(18, 207, 227, 0.28), transparent 38%),
+    linear-gradient(145deg, var(--navy-950), #0a4b99);
+  box-shadow: 0 5mm 14mm rgba(6, 22, 51, 0.2);
+}
+
+.price small {
+  color: #bed5ee;
+  font-size: 9pt;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.price strong {
+  display: block;
+  margin: 3mm 0 2mm;
+  color: var(--gold-400);
+  font: 800 27pt/1 "Aptos Display", "Segoe UI", sans-serif;
+}
+
+.timeline {
+  margin: 6mm 0;
+}
+
+.timeline-row {
+  display: grid;
+  grid-template-columns: 12mm 1fr;
+  gap: 4mm;
+  padding-bottom: 5mm;
+}
+
+.timeline-number {
+  display: flex;
+  width: 10mm;
+  height: 10mm;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--white);
+  background: linear-gradient(145deg, var(--blue-700), var(--cyan-500));
+  font-weight: 800;
+}
+
+.timeline-row:not(:last-child) .timeline-number::after {
+  position: absolute;
+  width: 1px;
+  height: 8mm;
+  margin-top: 18mm;
+  content: "";
+  background: var(--line);
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 4mm;
+}
+
+.table th,
+.table td {
+  padding: 3.4mm 4mm;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: top;
+}
+
+.table th {
+  color: var(--white);
+  background: var(--navy-900);
+  font-size: 9pt;
+}
+
+.table tr:last-child td {
+  border-bottom: 0;
+}
+
+.table tr:nth-child(even) td {
+  background: var(--ice);
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.5mm;
+  color: #0a6b5a;
+  font-size: 8.6pt;
+  font-weight: 800;
+}
+
+.status::before {
+  width: 2.2mm;
+  height: 2.2mm;
+  border-radius: 50%;
+  content: "";
+  background: var(--teal-500);
+}
+
+.signature {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12mm;
+  margin-top: 14mm;
+}
+
+.signature-line {
+  padding-top: 18mm;
+  border-top: 1px solid #98a8bb;
+  color: var(--muted);
+  font-size: 8.5pt;
+}
+
+@media print {
+  html,
+  body {
+    background: white;
+  }
+
+  .page {
+    margin: 0;
+  }
+}

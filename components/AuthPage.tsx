@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import type { FormEvent } from "react";
-import { Building2 } from "lucide-react";
 
 import { createClient } from "../lib/supabase/client";
 import { Button } from "./Button";
+import { CoppeBrandMark } from "./CoppeBrandMark";
 
 const PUBLIC_SIGNUP_ENABLED = false;
 const PRIVATE_ACCESS_MESSAGE =
@@ -156,9 +156,7 @@ export function AuthPage({ type, setActiveView }: AuthPageProps) {
     <div className="flex min-h-screen items-center justify-center bg-[#F7F9FA] px-6 py-10">
       <div className="w-full max-w-md rounded-3xl border border-slate-200 bg-white p-8 shadow-xl shadow-slate-200/70">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white">
-            <Building2 size={19} />
-          </div>
+          <CoppeBrandMark size={42} priority />
 
           <div>
             <div className="font-bold text-slate-950">COPPE</div>

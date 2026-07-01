@@ -2,13 +2,14 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ElementType } from "react";
-import { Building2, LogOut, Search, UserRound, X } from "lucide-react";
+import { LogOut, Search, UserRound, X } from "lucide-react";
 
 import { getAppointmentStatusLabel } from "../lib/appointmentUtils";
 import { normalizeInquiryStatus } from "../lib/inquiryUtils";
 import { normalizeSearchText } from "../lib/searchUtils";
 import { createClient } from "../lib/supabase/client";
 import { InboundNotificationCenter } from "./InboundNotificationCenter";
+import { CoppeBrandMark } from "./CoppeBrandMark";
 
 type NavigationItem = {
   key: string;
@@ -494,9 +495,9 @@ export function Topbar({
           type="button"
           onClick={() => setActiveView("dashboard")}
           title="Ir al dashboard"
-          className="flex h-9 w-9 items-center justify-center rounded-2xl bg-[#0F4C5C] text-white lg:hidden"
+          className="flex h-9 w-9 items-center justify-center lg:hidden"
         >
-          <Building2 size={18} />
+          <CoppeBrandMark size={36} priority />
         </button>
 
         <div>
